@@ -73,10 +73,15 @@ export async function POST(request: NextRequest) {
         },
       });
       
-      if (user && user.pin === pin) {
-        console.log('[Void Item] Authenticated via User Code + PIN');
-      } else {
-        user = null;
+      if (user) {
+        const bcrypt = await import('bcryptjs');
+        const isValidPin = await bcrypt.compare(pin, user.pin);
+        
+        if (isValidPin) {
+          console.log('[Void Item] Authenticated via User Code + PIN');
+        } else {
+          user = null;
+        }
       }
     }
 

@@ -55,10 +55,15 @@ export async function POST(
         },
       });
       
-      if (user && user.pin === pin) {
-        console.log('[Refund] Authenticated via User Code + PIN');
-      } else {
-        user = null;
+      if (user) {
+        const bcrypt = await import('bcryptjs');
+        const isValidPin = await bcrypt.compare(pin, user.pin);
+        
+        if (isValidPin) {
+          console.log('[Refund] Authenticated via User Code + PIN');
+        } else {
+          user = null;
+        }
       }
     }
 
