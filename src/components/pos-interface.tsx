@@ -2889,18 +2889,29 @@ export default function POSInterface() {
 
             // Get user from IndexedDB (only User Code + PIN works offline)
             const allUsers = await indexedDBStorage.getAll('users');
+            console.log('[Void Item] Total users in IndexedDB:', allUsers.length);
+            console.log('[Void Item] Looking for userCode:', authUserCode);
+            console.log('[Void Item] Available user codes:', allUsers.map((u: any) => u.userCode));
+            
             const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
 
             if (!user) {
+              console.error('[Void Item] User not found in IndexedDB');
               alert('Invalid User Code or PIN (Offline mode only supports User Code + PIN)');
               return;
             }
+
+            console.log('[Void Item] User found:', user.username);
+            console.log('[Void Item] User PIN hash:', user.pin ? user.pin.substring(0, 10) + '...' : 'N/A');
 
             // Verify PIN using bcrypt (PIN is stored as hash)
             const bcrypt = await import('bcryptjs');
             const isValidPin = await bcrypt.compare(authPin, user.pin);
             
+            console.log('[Void Item] PIN comparison result:', isValidPin);
+            
             if (!isValidPin) {
+              console.error('[Void Item] Invalid PIN');
               alert('Invalid User Code or PIN');
               return;
             }
@@ -3045,18 +3056,29 @@ export default function POSInterface() {
 
             // Get user from IndexedDB
             const allUsers = await indexedDBStorage.getAll('users');
+            console.log('[Refund Order] Total users in IndexedDB:', allUsers.length);
+            console.log('[Refund Order] Looking for userCode:', authUserCode);
+            console.log('[Refund Order] Available user codes:', allUsers.map((u: any) => u.userCode));
+            
             const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
 
             if (!user) {
+              console.error('[Refund Order] User not found in IndexedDB');
               alert('Invalid User Code or PIN');
               return;
             }
+
+            console.log('[Refund Order] User found:', user.username);
+            console.log('[Refund Order] User PIN hash:', user.pin ? user.pin.substring(0, 10) + '...' : 'N/A');
 
             // Verify PIN using bcrypt (PIN is stored as hash)
             const bcrypt = await import('bcryptjs');
             const isValidPin = await bcrypt.compare(authPin, user.pin);
             
+            console.log('[Refund Order] PIN comparison result:', isValidPin);
+            
             if (!isValidPin) {
+              console.error('[Refund Order] Invalid PIN');
               alert('Invalid User Code or PIN');
               return;
             }
