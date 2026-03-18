@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Coffee, Cake, Cookie, IceCream, Trash2, Plus, Minus, CreditCard, DollarSign,
   Printer, ShoppingCart, Store, X, CheckCircle, Package, Truck,
-  Search, User, Clock, MapPin, Phone, Star, Flame, Zap, Lock,
+  Search, User, Clock, MapPin, Phone, Star, Flame, Zap, Lock, Key,
   TrendingUp, AlertTriangle, Grid, Filter, Menu as MenuIcon,
   Sparkles, Bell, Layers, Wallet, Calendar, Barcode, Receipt, Utensils,
   ChevronRight, Tag, Gift, ShoppingBag, RefreshCw, Check, Info,
@@ -671,8 +671,11 @@ export default function POSInterface() {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [authUserCode, setAuthUserCode] = useState('');
   const [authPin, setAuthPin] = useState('');
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
   const [authAction, setAuthAction] = useState<'void-item' | 'refund-order' | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [authMode, setAuthMode] = useState<'usercode-pin' | 'username-password'>('usercode-pin');
 
   // Number Pad state
   const [showNumberPad, setShowNumberPad] = useState(false);
@@ -2862,6 +2865,7 @@ export default function POSInterface() {
       // Check if online or offline
       const isOnline = navigator.onLine;
       console.log('[Auth] Network status:', isOnline ? 'online' : 'offline');
+      console.log('[Auth] Auth mode:', authMode);
 
       if (authAction === 'void-item' && selectedItemToVoid) {
         console.log('[Void Item] Processing void for item:', selectedItemToVoid.id, 'quantity:', voidQuantity);
@@ -2875,12 +2879,12 @@ export default function POSInterface() {
             const indexedDBStorage = getIndexedDBStorage();
             await indexedDBStorage.init();
 
-            // Get user from IndexedDB
+            // Get user from IndexedDB (only User Code + PIN works offline)
             const allUsers = await indexedDBStorage.getAll('users');
             const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
 
             if (!user || user.pin !== authPin) {
-              alert('Invalid User Code or PIN');
+              alert('Invalid User Code or PIN (Offline mode only supports User Code + PIN)');
               return;
             }
 
@@ -2898,6 +2902,8 @@ export default function POSInterface() {
             setVoidQuantity(1);
             setAuthUserCode('');
             setAuthPin('');
+            setAuthUsername('');
+            setAuthPassword('');
             setAuthAction(null);
             
             // Reload order details and shift orders
@@ -2911,14 +2917,17 @@ export default function POSInterface() {
             alert('Failed to void item offline: ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
           }
         } else {
-          // ONLINE MODE: Use API
+          // ONLINE MODE: Use API with both authentication methods
           const response = await fetch('/api/orders/void-item', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               orderItemId: selectedItemToVoid.id,
+              // Send both credential sets for fallback support
               userCode: authUserCode,
               pin: authPin,
+              username: authUsername,
+              password: authPassword,
               reason: voidReason,
               quantity: voidQuantity,
             }),
@@ -2936,6 +2945,8 @@ export default function POSInterface() {
             setVoidQuantity(1);
             setAuthUserCode('');
             setAuthPin('');
+            setAuthUsername('');
+            setAuthPassword('');
             setAuthAction(null);
             // Reload order details
             if (selectedOrder) {
@@ -2983,6 +2994,8 @@ export default function POSInterface() {
             setRefundReason('');
             setAuthUserCode('');
             setAuthPin('');
+            setAuthUsername('');
+            setAuthPassword('');
             setAuthAction(null);
             
             // Reload shift orders
@@ -2993,13 +3006,16 @@ export default function POSInterface() {
             alert('Failed to refund order offline: ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
           }
         } else {
-          // ONLINE MODE: Use API
+          // ONLINE MODE: Use API with both authentication methods
           const response = await fetch(`/api/orders/${selectedOrder.id}/refund`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              // Send both credential sets for fallback support
               userCode: authUserCode,
               pin: authPin,
+              username: authUsername,
+              password: authPassword,
               reason: refundReason,
             }),
           });
@@ -3016,6 +3032,8 @@ export default function POSInterface() {
             setRefundReason('');
             setAuthUserCode('');
             setAuthPin('');
+            setAuthUsername('');
+            setAuthPassword('');
             setAuthAction(null);
             // Reload shift orders
             loadShiftOrders();
@@ -6008,33 +6026,87 @@ export default function POSInterface() {
               Admin Authentication Required
             </DialogTitle>
             <DialogDescription>
-              {authAction === 'void-item' ? 'Enter your User Code and PIN to void this item' : 'Enter your User Code and PIN to refund this order'}
+              {authAction === 'void-item' ? 'Enter your credentials to void this item' : 'Enter your credentials to refund this order'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="userCode">User Code</Label>
-              <Input
-                id="userCode"
-                type="text"
-                placeholder="Enter your User Code"
-                value={authUserCode}
-                onChange={(e) => setAuthUserCode(e.target.value)}
-                disabled={authLoading}
-                autoFocus
-              />
+            {/* Authentication Mode Toggle */}
+            <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+              <Button
+                type="button"
+                variant={authMode === 'usercode-pin' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setAuthMode('usercode-pin')}
+                className="flex-1"
+              >
+                <Key className="h-4 w-4 mr-2" />
+                User Code + PIN
+              </Button>
+              <Button
+                type="button"
+                variant={authMode === 'username-password' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setAuthMode('username-password')}
+                className="flex-1"
+              >
+                <User className="h-4 w-4 mr-2" />
+                Username + Password
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="pin">PIN Code</Label>
-              <Input
-                id="pin"
-                type="password"
-                placeholder="Enter your PIN"
-                value={authPin}
-                onChange={(e) => setAuthPin(e.target.value)}
-                disabled={authLoading}
-              />
-            </div>
+
+            {authMode === 'usercode-pin' ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="userCode">User Code</Label>
+                  <Input
+                    id="userCode"
+                    type="text"
+                    placeholder="Enter your User Code"
+                    value={authUserCode}
+                    onChange={(e) => setAuthUserCode(e.target.value)}
+                    disabled={authLoading}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pin">PIN Code</Label>
+                  <Input
+                    id="pin"
+                    type="password"
+                    placeholder="Enter your PIN"
+                    value={authPin}
+                    onChange={(e) => setAuthPin(e.target.value)}
+                    disabled={authLoading}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="Enter your username"
+                    value={authUsername}
+                    onChange={(e) => setAuthUsername(e.target.value)}
+                    disabled={authLoading}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    disabled={authLoading}
+                  />
+                </div>
+              </>
+            )}
             {/* Reason already entered in previous dialog */}
           </div>
           <DialogFooter>
@@ -6043,6 +6115,8 @@ export default function POSInterface() {
                 setShowAuthDialog(false);
                 setAuthUserCode('');
                 setAuthPin('');
+                setAuthUsername('');
+                setAuthPassword('');
                 setAuthAction(null);
               }}
               variant="outline"

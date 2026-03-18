@@ -10,14 +10,16 @@ export async function POST(
     const orderId = params?.id || request.url.split('/').filter(Boolean).slice(-2)[0];
 
     const body = await request.json();
-    const { userCode, pin, reason } = body;
+    const { userCode, pin, username, password, reason } = body;
 
-    // Validate input
+    // Validate input - accept either userCode+PIN or username+password
     if (!userCode || !pin) {
-      return NextResponse.json(
-        { success: false, error: 'User code and PIN are required' },
-        { status: 400 }
-      );
+      if (!username || !password) {
+        return NextResponse.json(
+          { success: false, error: 'User Code + PIN or Username + Password are required' },
+          { status: 400 }
+        );
+      }
     }
 
     // Fetch the order
@@ -43,25 +45,47 @@ export async function POST(
       );
     }
 
-    // Find user by userCode first
-    const user = await db.user.findFirst({
-      where: {
-        userCode: userCode,
-        isActive: true,
-      },
-    });
+    // Try User Code + PIN first
+    let user = null;
+    if (userCode && pin) {
+      user = await db.user.findFirst({
+        where: {
+          userCode: userCode,
+          isActive: true,
+        },
+      });
+      
+      if (user && user.pin === pin) {
+        console.log('[Refund] Authenticated via User Code + PIN');
+      } else {
+        user = null;
+      }
+    }
+
+    // Fallback to username + password if User Code + PIN failed
+    if (!user && username && password) {
+      user = await db.user.findFirst({
+        where: {
+          username: username,
+          isActive: true,
+        },
+      });
+
+      if (user) {
+        const bcrypt = await import('bcryptjs');
+        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+        
+        if (isValidPassword) {
+          console.log('[Refund] Authenticated via Username + Password');
+        } else {
+          user = null;
+        }
+      }
+    }
 
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Invalid user code or PIN' },
-        { status: 401 }
-      );
-    }
-
-    // Verify PIN - PIN is stored as plain text
-    if (user.pin !== pin) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid user code or PIN' },
+        { success: false, error: 'Invalid User Code + PIN or Username + Password' },
         { status: 401 }
       );
     }

@@ -9,12 +9,12 @@ import { logItemVoided } from '@/lib/audit-logger';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { orderItemId, userCode, pin, reason, quantity } = await request.json();
+    const { orderItemId, userCode, pin, username, password, reason, quantity } = await request.json();
 
-    // Validate required fields
-    if (!orderItemId || !userCode || !pin || !reason || !quantity) {
+    // Validate required fields - accept either userCode+PIN or username+password
+    if (!orderItemId || !reason || !quantity) {
       return NextResponse.json(
-        { error: 'Missing required fields: orderItemId, userCode, pin, reason, quantity' },
+        { error: 'Missing required fields: orderItemId, reason, quantity' },
         { status: 400 }
       );
     }
@@ -63,25 +63,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate user credentials
-    const user = await db.user.findFirst({
-      where: {
-        userCode,
-        isActive: true,
-      },
-    });
+    // Try User Code + PIN first
+    let user = null;
+    if (userCode && pin) {
+      user = await db.user.findFirst({
+        where: {
+          userCode: userCode,
+          isActive: true,
+        },
+      });
+      
+      if (user && user.pin === pin) {
+        console.log('[Void Item] Authenticated via User Code + PIN');
+      } else {
+        user = null;
+      }
+    }
+
+    // Fallback to username + password if User Code + PIN failed
+    if (!user && username && password) {
+      user = await db.user.findFirst({
+        where: {
+          username: username,
+          isActive: true,
+        },
+      });
+
+      if (user) {
+        const bcrypt = await import('bcryptjs');
+        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+        
+        if (isValidPassword) {
+          console.log('[Void Item] Authenticated via Username + Password');
+        } else {
+          user = null;
+        }
+      }
+    }
 
     if (!user) {
       return NextResponse.json(
-        { error: 'Invalid user code or PIN' },
-        { status: 401 }
-      );
-    }
-
-    // Verify PIN - PIN is stored as plain text
-    if (user.pin !== pin) {
-      return NextResponse.json(
-        { error: 'Invalid user code or PIN' },
+        { error: 'Invalid User Code + PIN or Username + Password' },
         { status: 401 }
       );
     }
