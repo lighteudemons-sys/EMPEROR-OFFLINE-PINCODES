@@ -9,12 +9,12 @@ import { logItemVoided } from '@/lib/audit-logger';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { orderItemId, username, password, reason, quantity } = await request.json();
+    const { orderItemId, userCode, pin, reason, quantity } = await request.json();
 
     // Validate required fields
-    if (!orderItemId || !username || !password || !reason || !quantity) {
+    if (!orderItemId || !userCode || !pin || !reason || !quantity) {
       return NextResponse.json(
-        { error: 'Missing required fields: orderItemId, username, password, reason, quantity' },
+        { error: 'Missing required fields: orderItemId, userCode, pin, reason, quantity' },
         { status: 400 }
       );
     }
@@ -66,22 +66,22 @@ export async function POST(request: NextRequest) {
     // Validate user credentials
     const user = await db.user.findFirst({
       where: {
-        username,
+        userCode,
         isActive: true,
       },
     });
 
     if (!user) {
       return NextResponse.json(
-        { error: 'Invalid username or password' },
+        { error: 'Invalid user code or PIN' },
         { status: 401 }
       );
     }
 
-    const isValidPassword = await import('bcryptjs').then(bcrypt => bcrypt.compare(password, user.passwordHash));
-    if (!isValidPassword) {
+    const isValidPin = await import('bcryptjs').then(bcrypt => bcrypt.compare(pin, user.pinHash));
+    if (!isValidPin) {
       return NextResponse.json(
-        { error: 'Invalid username or password' },
+        { error: 'Invalid user code or PIN' },
         { status: 401 }
       );
     }
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
             isVoided: true,
             voidedAt: new Date(),
             voidReason: reason,
-            voidedBy: username,
+            voidedBy: userCode,
           },
         });
 
@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
             unitPrice,
             voidedSubtotal,
             reason,
-            voidedBy: username,
+            voidedBy: userCode,
             voidedAt: new Date(),
           },
         });

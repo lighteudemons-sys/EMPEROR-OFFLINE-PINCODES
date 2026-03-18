@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import bcrypt from 'bcryptjs';
 
 export async function POST(
   request: NextRequest,
@@ -11,12 +10,12 @@ export async function POST(
     const orderId = params?.id || request.url.split('/').filter(Boolean).slice(-2)[0];
 
     const body = await request.json();
-    const { username, password, reason } = body;
+    const { userCode, pin, reason } = body;
 
     // Validate input
-    if (!username || !password) {
+    if (!userCode || !pin) {
       return NextResponse.json(
-        { success: false, error: 'Username and password are required' },
+        { success: false, error: 'User code and PIN are required' },
         { status: 400 }
       );
     }
@@ -44,26 +43,26 @@ export async function POST(
       );
     }
 
-    // Find user by username first
+    // Find user by userCode first
     const user = await db.user.findFirst({
       where: {
-        username: username,
+        userCode: userCode,
         isActive: true,
       },
     });
 
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Invalid username or password' },
+        { success: false, error: 'Invalid user code or PIN' },
         { status: 401 }
       );
     }
 
-    // Verify password with bcrypt
-    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-    if (!isValidPassword) {
+    // Verify PIN with bcrypt
+    const isValidPin = await import('bcryptjs').then(bcrypt => bcrypt.compare(pin, user.pinHash));
+    if (!isValidPin) {
       return NextResponse.json(
-        { success: false, error: 'Invalid username or password' },
+        { success: false, error: 'Invalid user code or PIN' },
         { status: 401 }
       );
     }

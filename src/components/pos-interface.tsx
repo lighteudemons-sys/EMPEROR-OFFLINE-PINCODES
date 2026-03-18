@@ -11,11 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Coffee, Cake, Cookie, IceCream, Trash2, Plus, Minus, CreditCard, DollarSign,
   Printer, ShoppingCart, Store, X, CheckCircle, Package, Truck,
-  Search, User, Clock, MapPin, Phone, Star, Flame, Zap,
+  Search, User, Clock, MapPin, Phone, Star, Flame, Zap, Lock,
   TrendingUp, AlertTriangle, Grid, Filter, Menu as MenuIcon,
   Sparkles, Bell, Layers, Wallet, Calendar, Barcode, Receipt, Utensils,
   ChevronRight, Tag, Gift, ShoppingBag, RefreshCw, Check, Info,
@@ -516,6 +517,7 @@ export default function POSInterface() {
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
+  const [isDuplicateReceipt, setIsDuplicateReceipt] = useState(false);
   const [lowStockAlerts, setLowStockAlerts] = useState<any[]>([]);
   const [currentShift, setCurrentShift] = useState<any>(null);
   const [branches, setBranches] = useState<Array<{ id: string; name: string; phone?: string; address?: string }>>([]);
@@ -649,6 +651,28 @@ export default function POSInterface() {
   const [shiftOrders, setShiftOrders] = useState<any[]>([]);
   const [showShiftOrdersDialog, setShowShiftOrdersDialog] = useState(false);
   const [loadingShiftOrders, setLoadingShiftOrders] = useState(false);
+
+  // Order Details state
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [showOrderDetailsDialog, setShowOrderDetailsDialog] = useState(false);
+  const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
+
+  // Void Item state
+  const [showVoidItemDialog, setShowVoidItemDialog] = useState(false);
+  const [selectedItemToVoid, setSelectedItemToVoid] = useState<any>(null);
+  const [voidQuantity, setVoidQuantity] = useState<number>(1);
+  const [voidReason, setVoidReason] = useState('');
+
+  // Refund Order state
+  const [showRefundOrderDialog, setShowRefundOrderDialog] = useState(false);
+  const [refundReason, setRefundReason] = useState('');
+
+  // Authentication dialog state
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [authUserCode, setAuthUserCode] = useState('');
+  const [authPin, setAuthPin] = useState('');
+  const [authAction, setAuthAction] = useState<'void-item' | 'refund-order' | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
 
   // Number Pad state
   const [showNumberPad, setShowNumberPad] = useState(false);
@@ -1891,6 +1915,7 @@ export default function POSInterface() {
 
     // Show receipt
     setReceiptData(result.order);
+    setIsDuplicateReceipt(false);
     setShowReceipt(true);
 
     // Deselect table and show table grid
@@ -2002,6 +2027,7 @@ export default function POSInterface() {
 
           // Show receipt
           setReceiptData(data.order);
+          setIsDuplicateReceipt(false);
           setShowReceipt(true);
 
           // Manually deselect table and show table grid
@@ -2149,6 +2175,7 @@ export default function POSInterface() {
 
           // Show receipt
           setReceiptData(data.order);
+          setIsDuplicateReceipt(false);
           setShowReceipt(true);
 
           // Manually deselect table and show table grid
@@ -2754,6 +2781,139 @@ export default function POSInterface() {
     }
   };
 
+  // View order details
+  const handleViewOrder = async (order: any) => {
+    setLoadingOrderDetails(true);
+    try {
+      // Try to fetch full order details from API
+      const response = await fetch(`/api/orders/${order.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedOrder(data.order || order);
+      } else {
+        // If API fails, use the order from the list
+        setSelectedOrder(order);
+      }
+      setShowOrderDetailsDialog(true);
+    } catch (error) {
+      console.error('Failed to load order details:', error);
+      setSelectedOrder(order);
+      setShowOrderDetailsDialog(true);
+    } finally {
+      setLoadingOrderDetails(false);
+    }
+  };
+
+  // Start void item flow
+  const handleVoidItem = (item: any) => {
+    if (user?.role !== 'ADMIN' && user?.role !== 'BRANCH_MANAGER') {
+      alert('Only Administrators and Branch Managers can void items');
+      return;
+    }
+    setSelectedItemToVoid(item);
+    setVoidQuantity(1);
+    setVoidReason('');
+    setShowAuthDialog(true);
+    setAuthAction('void-item');
+  };
+
+  // Start refund order flow
+  const handleRefundOrder = () => {
+    if (!selectedOrder) return;
+
+    if (selectedOrder.isRefunded) {
+      alert('This order has already been refunded');
+      return;
+    }
+
+    if (user?.role !== 'ADMIN' && user?.role !== 'BRANCH_MANAGER') {
+      alert('Only Administrators and Branch Managers can refund orders');
+      return;
+    }
+
+    setRefundReason('');
+    setShowAuthDialog(true);
+    setAuthAction('refund-order');
+  };
+
+  // Handle authentication
+  const handleAuthSubmit = async () => {
+    if (!authUserCode || !authPin) {
+      alert('Please enter both User Code and PIN');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      if (authAction === 'void-item' && selectedItemToVoid) {
+        // Void item
+        const response = await fetch('/api/orders/void-item', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderItemId: selectedItemToVoid.id,
+            userCode: authUserCode,
+            pin: authPin,
+            reason: voidReason,
+            quantity: voidQuantity,
+          }),
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+          alert(`Successfully voided ${data.remainingQuantity}/${selectedItemToVoid.quantity} items`);
+          setShowVoidItemDialog(false);
+          setShowAuthDialog(false);
+          // Reload order details
+          if (selectedOrder) {
+            handleViewOrder(selectedOrder);
+          }
+          // Reload shift orders
+          loadShiftOrders();
+        } else {
+          alert(data.error || 'Failed to void item');
+        }
+      } else if (authAction === 'refund-order' && selectedOrder) {
+        // Refund order
+        const response = await fetch(`/api/orders/${selectedOrder.id}/refund`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userCode: authUserCode,
+            pin: authPin,
+            reason: refundReason,
+          }),
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+          alert(`Order #${selectedOrder.orderNumber} refunded successfully`);
+          setShowRefundOrderDialog(false);
+          setShowAuthDialog(false);
+          setShowOrderDetailsDialog(false);
+          // Reload shift orders
+          loadShiftOrders();
+        } else {
+          alert(data.error || 'Failed to refund order');
+        }
+      }
+    } catch (error) {
+      console.error('Authentication failed:', error);
+      alert('Authentication failed. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Print receipt with DUPLICATE header
+  const handlePrintDuplicate = async () => {
+    if (!selectedOrder) return;
+
+    setReceiptData(selectedOrder);
+    setIsDuplicateReceipt(true);
+    setShowReceipt(true);
+  };
+
   const handleHoldOrder = async () => {
     const currentCart = (orderType === 'dine-in' && selectedTable) ? tableCart : cart;
 
@@ -3124,6 +3284,7 @@ export default function POSInterface() {
 
         if (response.ok && data.success) {
           setReceiptData(data.order);
+          setIsDuplicateReceipt(false);
           setLastOrderNumber(data.order.orderNumber);
           clearCart();
           setShowReceipt(true);
@@ -3173,6 +3334,7 @@ export default function POSInterface() {
               const branchInfo = branches.find(b => b.id === orderData.branchId);
               const result = await createOrderOffline(orderData, currentShift, cart, branchInfo);
               setReceiptData(result.order);
+              setIsDuplicateReceipt(false);
               setLastOrderNumber(result.order.orderNumber);
               clearCart();
               setShowReceipt(true);
@@ -3214,6 +3376,7 @@ export default function POSInterface() {
           const branchInfo = branches.find(b => b.id === orderData.branchId);
           const result = await createOrderOffline(orderData, currentShift, cart, branchInfo);
           setReceiptData(result.order);
+          setIsDuplicateReceipt(false);
           setLastOrderNumber(result.order.orderNumber);
           clearCart();
           setShowReceipt(true);
@@ -4687,8 +4850,12 @@ export default function POSInterface() {
       {/* Receipt Viewer */}
       <ReceiptViewer
         open={showReceipt}
-        onClose={() => setShowReceipt(false)}
+        onClose={() => {
+          setShowReceipt(false);
+          setIsDuplicateReceipt(false);
+        }}
         order={receiptData}
+        isDuplicate={isDuplicateReceipt}
         autoPrint={true}
       />
 
@@ -5259,7 +5426,11 @@ export default function POSInterface() {
                   const timeString = orderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                   return (
-                    <div key={order.id} className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-850 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all">
+                    <div
+                      key={order.id}
+                      onClick={() => handleViewOrder(order)}
+                      className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-850 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg hover:border-emerald-300 dark:hover:border-emerald-700 transition-all cursor-pointer"
+                    >
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-bold text-slate-900 dark:text-white">#{order.orderNumber}</span>
@@ -5332,6 +5503,406 @@ export default function POSInterface() {
               className="h-11 px-6 rounded-xl font-semibold"
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Details Dialog */}
+      <Dialog open={showOrderDetailsDialog} onOpenChange={setShowOrderDetailsDialog}>
+        <DialogContent className="sm:max-w-4xl rounded-3xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="pb-4 border-b">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Receipt className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-bold">Order #{selectedOrder?.orderNumber}</DialogTitle>
+                  <DialogDescription>
+                    {selectedOrder?.orderType && (
+                      <span className="capitalize">{selectedOrder.orderType.replace('-', ' ')}</span>
+                    )} • {selectedOrder?.items?.length} items
+                  </DialogDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedOrder?.isRefunded && (
+                  <Badge className="bg-red-100 text-red-700 border-red-200 font-semibold">REFUNDED</Badge>
+                )}
+              </div>
+            </div>
+          </DialogHeader>
+          <ScrollArea className="flex-1 py-4">
+            {loadingOrderDetails ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : selectedOrder ? (
+              <div className="space-y-4">
+                {/* Order Info */}
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-slate-500">Date & Time</p>
+                        <p className="font-semibold">{new Date(selectedOrder.orderTimestamp || selectedOrder.createdAt).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Payment Method</p>
+                        <p className="font-semibold capitalize">
+                          {selectedOrder.paymentMethod === 'card' && selectedOrder.paymentMethodDetail
+                            ? selectedOrder.paymentMethodDetail
+                            : selectedOrder.paymentMethod}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Cashier</p>
+                        <p className="font-semibold">{selectedOrder.cashier?.name || selectedOrder.cashier?.username || 'Unknown'}</p>
+                      </div>
+                      {selectedOrder.customerName && (
+                        <div>
+                          <p className="text-slate-500">Customer</p>
+                          <p className="font-semibold">{selectedOrder.customerName}</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Order Items */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Order Items</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {selectedOrder.items?.map((item: any) => (
+                        <div key={item.id} className="flex items-start justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold">{item.itemName}</span>
+                              <Badge variant="outline" className="text-xs">x{item.quantity}</Badge>
+                              {item.isVoided && (
+                                <Badge className="bg-red-100 text-red-700 text-xs">VOIDED</Badge>
+                              )}
+                            </div>
+                            {(item.variantName || item.menuItemVariant?.variantOption?.name) && (
+                              <p className="text-xs text-slate-500">
+                                Variant: {item.variantName || item.menuItemVariant?.variantOption?.name}
+                              </p>
+                            )}
+                            {item.specialInstructions && (
+                              <p className="text-xs text-slate-500 mt-1">Note: {item.specialInstructions}</p>
+                            )}
+                            {item.isVoided && (
+                              <p className="text-xs text-red-600 mt-1">
+                                Voided: {item.voidReason || 'No reason'} ({item.voidedBy})
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold">{formatCurrency(item.subtotal || item.totalPrice, currency)}</p>
+                            <p className="text-xs text-slate-500">{formatCurrency(item.unitPrice, currency)} each</p>
+                            {(user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER') && !item.isVoided && !selectedOrder.isRefunded && (
+                              <Button
+                                onClick={() => {
+                                  setSelectedItemToVoid(item);
+                                  setVoidQuantity(1);
+                                  setVoidReason('');
+                                  setShowVoidItemDialog(true);
+                                }}
+                                size="sm"
+                                variant="outline"
+                                className="mt-2 h-7 px-2 text-xs text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50"
+                              >
+                                <X className="h-3 w-3 mr-1" />
+                                Void Item
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Totals */}
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Subtotal</span>
+                        <span className="font-medium">{formatCurrency(selectedOrder.subtotal || 0, currency)}</span>
+                      </div>
+                      {selectedOrder.deliveryFee && selectedOrder.deliveryFee > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">Delivery Fee</span>
+                          <span className="font-medium">{formatCurrency(selectedOrder.deliveryFee, currency)}</span>
+                        </div>
+                      )}
+                      {selectedOrder.loyaltyDiscount && selectedOrder.loyaltyDiscount > 0 && (
+                        <div className="flex justify-between text-sm text-purple-600">
+                          <span>Loyalty Discount</span>
+                          <span className="font-medium">-{formatCurrency(selectedOrder.loyaltyDiscount, currency)}</span>
+                        </div>
+                      )}
+                      {selectedOrder.promoDiscount && selectedOrder.promoDiscount > 0 && (
+                        <div className="flex justify-between text-sm text-orange-600">
+                          <span>Promo Discount</span>
+                          <span className="font-medium">-{formatCurrency(selectedOrder.promoDiscount, currency)}</span>
+                        </div>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between text-base font-bold">
+                        <span>Total</span>
+                        <span>{formatCurrency(selectedOrder.totalAmount, currency)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {selectedOrder.isRefunded && selectedOrder.refundReason && (
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Refunded:</strong> {selectedOrder.refundReason}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            ) : null}
+          </ScrollArea>
+          <DialogFooter className="pt-4 border-t flex justify-between">
+            <div className="flex gap-2">
+              <Button
+                onClick={handlePrintDuplicate}
+                variant="outline"
+                className="h-11 px-6 rounded-xl font-semibold"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Print (Duplicate)
+              </Button>
+              {(user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER') && !selectedOrder?.isRefunded && (
+                <Button
+                  onClick={handleRefundOrder}
+                  variant="outline"
+                  className="h-11 px-6 rounded-xl font-semibold text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Refund Order
+                </Button>
+              )}
+            </div>
+            <Button
+              onClick={() => setShowOrderDetailsDialog(false)}
+              className="h-11 px-6 rounded-xl font-semibold"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Authentication Dialog */}
+      <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-amber-600" />
+              Admin Authentication Required
+            </DialogTitle>
+            <DialogDescription>
+              {authAction === 'void-item' ? 'Enter your User Code and PIN to void this item' : 'Enter your User Code and PIN to refund this order'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="userCode">User Code</Label>
+              <Input
+                id="userCode"
+                type="text"
+                placeholder="Enter your User Code"
+                value={authUserCode}
+                onChange={(e) => setAuthUserCode(e.target.value)}
+                disabled={authLoading}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pin">PIN Code</Label>
+              <Input
+                id="pin"
+                type="password"
+                placeholder="Enter your PIN"
+                value={authPin}
+                onChange={(e) => setAuthPin(e.target.value)}
+                disabled={authLoading}
+              />
+            </div>
+            {authAction === 'void-item' && (
+              <div className="space-y-2">
+                <Label htmlFor="voidReason">Reason for Voiding</Label>
+                <Textarea
+                  id="voidReason"
+                  placeholder="Enter the reason for voiding this item"
+                  value={voidReason}
+                  onChange={(e) => setVoidReason(e.target.value)}
+                  disabled={authLoading}
+                  rows={2}
+                />
+              </div>
+            )}
+            {authAction === 'refund-order' && (
+              <div className="space-y-2">
+                <Label htmlFor="refundReason">Reason for Refund</Label>
+                <Textarea
+                  id="refundReason"
+                  placeholder="Enter the reason for refunding this order"
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  disabled={authLoading}
+                  rows={2}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowAuthDialog(false);
+                setAuthUserCode('');
+                setAuthPin('');
+              }}
+              variant="outline"
+              disabled={authLoading}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAuthSubmit} disabled={authLoading}>
+              {authLoading ? 'Processing...' : 'Confirm'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Void Item Dialog */}
+      <Dialog open={showVoidItemDialog} onOpenChange={setShowVoidItemDialog}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="h-5 w-5 text-red-600" />
+              Void Item
+            </DialogTitle>
+            <DialogDescription>
+              Void {selectedItemToVoid?.itemName} (Order #{selectedOrder?.orderNumber})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Quantity to Void</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setVoidQuantity(Math.max(1, voidQuantity - 1))}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <div className="flex-1 text-center font-semibold text-lg">{voidQuantity}</div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setVoidQuantity(Math.min(selectedItemToVoid?.quantity || 1, voidQuantity + 1))}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">Max: {selectedItemToVoid?.quantity || 1}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="voidReason">Reason</Label>
+              <Textarea
+                id="voidReason"
+                placeholder="Enter the reason for voiding"
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowVoidItemDialog(false);
+                setVoidReason('');
+                setVoidQuantity(1);
+              }}
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowVoidItemDialog(false);
+                setShowAuthDialog(true);
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Void Item
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Refund Order Dialog */}
+      <Dialog open={showRefundOrderDialog} onOpenChange={setShowRefundOrderDialog}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              Refund Order
+            </DialogTitle>
+            <DialogDescription>
+              Refund Order #{selectedOrder?.orderNumber} - {formatCurrency(selectedOrder?.totalAmount, currency)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                This action will mark the entire order as refunded and restore inventory. This cannot be undone.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <Label htmlFor="refundReason">Reason for Refund</Label>
+              <Textarea
+                id="refundReason"
+                placeholder="Enter the reason for refunding this order"
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowRefundOrderDialog(false);
+                setRefundReason('');
+              }}
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowRefundOrderDialog(false);
+                setShowAuthDialog(true);
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Confirm Refund
             </Button>
           </DialogFooter>
         </DialogContent>
