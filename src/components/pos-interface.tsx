@@ -32,6 +32,7 @@ import { useOfflineData, offlineDataFetchers } from '@/hooks/use-offline-data';
 import { useAutoSync } from '@/hooks/use-auto-sync';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import TableGridView from '@/components/table-grid-view';
+import bcrypt from 'bcryptjs';
 
 // Create IndexedDB storage instance for table cart persistence
 const storage = getIndexedDBStorage();
@@ -2937,7 +2938,6 @@ export default function POSInterface() {
             console.log('[Void Item] User PIN hash:', user.pin ? user.pin.substring(0, 10) + '...' : 'N/A');
 
             // Verify PIN using bcrypt (PIN is stored as hash)
-            const bcrypt = await import('bcryptjs');
             const isValidPin = await bcrypt.compare(authPin, user.pin);
             
             console.log('[Void Item] PIN comparison result:', isValidPin);
@@ -3046,7 +3046,6 @@ export default function POSInterface() {
               }
 
               // Verify PIN using bcrypt
-              const bcrypt = await import('bcryptjs');
               const isValidPin = await bcrypt.compare(authPin, user.pin);
               
               if (!isValidPin) {
@@ -3144,7 +3143,6 @@ export default function POSInterface() {
             console.log('[Refund Order] User PIN hash:', user.pin ? user.pin.substring(0, 10) + '...' : 'N/A');
 
             // Verify PIN using bcrypt (PIN is stored as hash)
-            const bcrypt = await import('bcryptjs');
             const isValidPin = await bcrypt.compare(authPin, user.pin);
             
             console.log('[Refund Order] PIN comparison result:', isValidPin);
@@ -3244,7 +3242,6 @@ export default function POSInterface() {
               }
 
               // Verify PIN using bcrypt
-              const bcrypt = await import('bcryptjs');
               const isValidPin = await bcrypt.compare(authPin, user.pin);
               
               if (!isValidPin) {
