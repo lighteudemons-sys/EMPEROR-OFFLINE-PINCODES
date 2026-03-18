@@ -2859,77 +2859,170 @@ export default function POSInterface() {
 
     setAuthLoading(true);
     try {
+      // Check if online or offline
+      const isOnline = navigator.onLine;
+      console.log('[Auth] Network status:', isOnline ? 'online' : 'offline');
+
       if (authAction === 'void-item' && selectedItemToVoid) {
         console.log('[Void Item] Processing void for item:', selectedItemToVoid.id, 'quantity:', voidQuantity);
         
-        // Void item
-        const response = await fetch('/api/orders/void-item', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderItemId: selectedItemToVoid.id,
-            userCode: authUserCode,
-            pin: authPin,
-            reason: voidReason,
-            quantity: voidQuantity,
-          }),
-        });
+        if (!isOnline) {
+          // OFFLINE MODE: Validate user code + PIN locally and perform void offline
+          console.log('[Void Item] OFFLINE MODE - Validating user locally');
+          
+          try {
+            const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+            const indexedDBStorage = getIndexedDBStorage();
+            await indexedDBStorage.init();
 
-        console.log('[Void Item] Response status:', response.status);
-        const data = await response.json();
-        console.log('[Void Item] Response data:', data);
-        
-        if (response.ok && data.success) {
-          alert(`Successfully voided ${data.remainingQuantity}/${selectedItemToVoid.quantity} items`);
-          setShowVoidItemDialog(false);
-          setShowAuthDialog(false);
-          setVoidReason('');
-          setVoidQuantity(1);
-          setAuthUserCode('');
-          setAuthPin('');
-          setAuthAction(null);
-          // Reload order details
-          if (selectedOrder) {
-            handleViewOrder(selectedOrder);
+            // Get user from IndexedDB
+            const allUsers = await indexedDBStorage.getAll('users');
+            const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
+
+            if (!user || user.pin !== authPin) {
+              alert('Invalid User Code or PIN');
+              return;
+            }
+
+            console.log('[Void Item] User validated successfully:', user.username);
+
+            // Perform void operation offline
+            const voidResult = await voidItemOffline(selectedItemToVoid, voidQuantity, voidReason, user, selectedOrder);
+            
+            console.log('[Void Item] Offline void successful:', voidResult);
+            alert(`Successfully voided ${voidResult.remainingQuantity}/${selectedItemToVoid.quantity} items (Offline mode)`);
+            
+            setShowVoidItemDialog(false);
+            setShowAuthDialog(false);
+            setVoidReason('');
+            setVoidQuantity(1);
+            setAuthUserCode('');
+            setAuthPin('');
+            setAuthAction(null);
+            
+            // Reload order details and shift orders
+            if (selectedOrder) {
+              await handleViewOrder(selectedOrder);
+            }
+            loadShiftOrders();
+            
+          } catch (offlineError) {
+            console.error('[Void Item] Offline void failed:', offlineError);
+            alert('Failed to void item offline: ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
           }
-          // Reload shift orders
-          loadShiftOrders();
         } else {
-          console.error('[Void Item] Failed:', data);
-          alert(data.error || 'Failed to void item');
+          // ONLINE MODE: Use API
+          const response = await fetch('/api/orders/void-item', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderItemId: selectedItemToVoid.id,
+              userCode: authUserCode,
+              pin: authPin,
+              reason: voidReason,
+              quantity: voidQuantity,
+            }),
+          });
+
+          console.log('[Void Item] Response status:', response.status);
+          const data = await response.json();
+          console.log('[Void Item] Response data:', data);
+          
+          if (response.ok && data.success) {
+            alert(`Successfully voided ${data.remainingQuantity}/${selectedItemToVoid.quantity} items`);
+            setShowVoidItemDialog(false);
+            setShowAuthDialog(false);
+            setVoidReason('');
+            setVoidQuantity(1);
+            setAuthUserCode('');
+            setAuthPin('');
+            setAuthAction(null);
+            // Reload order details
+            if (selectedOrder) {
+              handleViewOrder(selectedOrder);
+            }
+            // Reload shift orders
+            loadShiftOrders();
+          } else {
+            console.error('[Void Item] Failed:', data);
+            alert(data.error || 'Failed to void item');
+          }
         }
       } else if (authAction === 'refund-order' && selectedOrder) {
         console.log('[Refund Order] Processing refund for order:', selectedOrder.id);
         
-        // Refund order
-        const response = await fetch(`/api/orders/${selectedOrder.id}/refund`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userCode: authUserCode,
-            pin: authPin,
-            reason: refundReason,
-          }),
-        });
+        if (!isOnline) {
+          // OFFLINE MODE: Validate user code + PIN locally and perform refund offline
+          console.log('[Refund Order] OFFLINE MODE - Validating user locally');
+          
+          try {
+            const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+            const indexedDBStorage = getIndexedDBStorage();
+            await indexedDBStorage.init();
 
-        console.log('[Refund Order] Response status:', response.status);
-        const data = await response.json();
-        console.log('[Refund Order] Response data:', data);
-        
-        if (response.ok && data.success) {
-          alert(`Order #${selectedOrder.orderNumber} refunded successfully`);
-          setShowRefundOrderDialog(false);
-          setShowAuthDialog(false);
-          setShowOrderDetailsDialog(false);
-          setRefundReason('');
-          setAuthUserCode('');
-          setAuthPin('');
-          setAuthAction(null);
-          // Reload shift orders
-          loadShiftOrders();
+            // Get user from IndexedDB
+            const allUsers = await indexedDBStorage.getAll('users');
+            const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
+
+            if (!user || user.pin !== authPin) {
+              alert('Invalid User Code or PIN');
+              return;
+            }
+
+            console.log('[Refund Order] User validated successfully:', user.username);
+
+            // Perform refund operation offline
+            const refundResult = await refundOrderOffline(selectedOrder, refundReason, user);
+            
+            console.log('[Refund Order] Offline refund successful:', refundResult);
+            alert(`Order #${selectedOrder.orderNumber} refunded successfully (Offline mode)`);
+            
+            setShowRefundOrderDialog(false);
+            setShowAuthDialog(false);
+            setShowOrderDetailsDialog(false);
+            setRefundReason('');
+            setAuthUserCode('');
+            setAuthPin('');
+            setAuthAction(null);
+            
+            // Reload shift orders
+            loadShiftOrders();
+            
+          } catch (offlineError) {
+            console.error('[Refund Order] Offline refund failed:', offlineError);
+            alert('Failed to refund order offline: ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+          }
         } else {
-          console.error('[Refund Order] Failed:', data);
-          alert(data.error || 'Failed to refund order');
+          // ONLINE MODE: Use API
+          const response = await fetch(`/api/orders/${selectedOrder.id}/refund`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userCode: authUserCode,
+              pin: authPin,
+              reason: refundReason,
+            }),
+          });
+
+          console.log('[Refund Order] Response status:', response.status);
+          const data = await response.json();
+          console.log('[Refund Order] Response data:', data);
+          
+          if (response.ok && data.success) {
+            alert(`Order #${selectedOrder.orderNumber} refunded successfully`);
+            setShowRefundOrderDialog(false);
+            setShowAuthDialog(false);
+            setShowOrderDetailsDialog(false);
+            setRefundReason('');
+            setAuthUserCode('');
+            setAuthPin('');
+            setAuthAction(null);
+            // Reload shift orders
+            loadShiftOrders();
+          } else {
+            console.error('[Refund Order] Failed:', data);
+            alert(data.error || 'Failed to refund order');
+          }
         }
       } else {
         console.error('[Auth] Unknown action:', authAction);
@@ -2941,6 +3034,171 @@ export default function POSInterface() {
       setAuthLoading(false);
     }
   };
+
+  // Helper function to void item offline
+  async function voidItemOffline(item: any, quantity: number, reason: string, user: any, order: any) {
+    const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+    const indexedDBStorage = getIndexedDBStorage();
+    await indexedDBStorage.init();
+
+    console.log('[Void Offline] Starting void for item:', item.id);
+    
+    // Get the full order from IndexedDB
+    const allOrders = await indexedDBStorage.getAll('orders');
+    const offlineOrder = allOrders.find((o: any) => o.id === order.id);
+    
+    if (!offlineOrder) {
+      throw new Error('Order not found in offline storage');
+    }
+
+    console.log('[Void Offline] Order found:', offlineOrder.orderNumber);
+
+    // Find and update the item
+    const updatedItems = offlineOrder.items.map((orderItem: any) => {
+      if (orderItem.id === item.id) {
+        const newQuantity = Math.max(0, orderItem.quantity - quantity);
+        const isFullyVoided = newQuantity === 0;
+        
+        return {
+          ...orderItem,
+          quantity: newQuantity,
+          subtotal: orderItem.unitPrice * newQuantity,
+          isVoided: isFullyVoided,
+          voidedAt: isFullyVoided ? new Date().toISOString() : orderItem.voidedAt,
+          voidReason: isFullyVoided ? reason : orderItem.voidReason,
+          voidedBy: isFullyVoided ? user.userCode : orderItem.voidedBy,
+        };
+      }
+      return orderItem;
+    });
+
+    // Calculate new order totals
+    const newSubtotal = updatedItems.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0);
+    const newTotalAmount = newSubtotal + (offlineOrder.deliveryFee || 0);
+
+    // Update order
+    const updatedOrder = {
+      ...offlineOrder,
+      items: updatedItems,
+      subtotal: newSubtotal,
+      totalAmount: newTotalAmount,
+      updatedAt: new Date().toISOString(),
+    };
+
+    console.log('[Void Offline] Updated order:', updatedOrder);
+
+    // Save updated order
+    await indexedDBStorage.put('orders', updatedOrder);
+
+    // Update shift statistics
+    if (offlineOrder.shiftId) {
+      const allShifts = await indexedDBStorage.getAll('shifts');
+      const shift = allShifts.find((s: any) => s.id === offlineOrder.shiftId);
+      
+      if (shift) {
+        const updatedShift = {
+          ...shift,
+          closingVoidedItems: (shift.closingVoidedItems || 0) + 1,
+          updatedAt: new Date().toISOString(),
+        };
+        await indexedDBStorage.put('shifts', updatedShift);
+        console.log('[Void Offline] Shift updated:', updatedShift);
+      }
+    }
+
+    // Queue void item operation for sync
+    await indexedDBStorage.addOperation({
+      type: 'VOID_ITEM',
+      data: {
+        orderItemId: item.id,
+        orderId: order.id,
+        quantity,
+        reason,
+        voidedBy: user.userCode,
+        voidedAt: new Date().toISOString(),
+      },
+      branchId: offlineOrder.branchId,
+    });
+
+    console.log('[Void Offline] Operation queued for sync');
+
+    return {
+      success: true,
+      remainingQuantity: Math.max(0, item.quantity - quantity),
+    };
+  }
+
+  // Helper function to refund order offline
+  async function refundOrderOffline(order: any, reason: string, user: any) {
+    const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+    const indexedDBStorage = getIndexedDBStorage();
+    await indexedDBStorage.init();
+
+    console.log('[Refund Offline] Starting refund for order:', order.id);
+    
+    // Get the full order from IndexedDB
+    const allOrders = await indexedDBStorage.getAll('orders');
+    const offlineOrder = allOrders.find((o: any) => o.id === order.id);
+    
+    if (!offlineOrder) {
+      throw new Error('Order not found in offline storage');
+    }
+
+    if (offlineOrder.isRefunded) {
+      throw new Error('Order has already been refunded');
+    }
+
+    console.log('[Refund Offline] Order found:', offlineOrder.orderNumber);
+
+    // Mark order as refunded
+    const updatedOrder = {
+      ...offlineOrder,
+      isRefunded: true,
+      refundReason: reason,
+      refundedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    console.log('[Refund Offline] Updated order:', updatedOrder);
+
+    // Save updated order
+    await indexedDBStorage.put('orders', updatedOrder);
+
+    // Update shift statistics
+    if (updatedOrder.shiftId) {
+      const allShifts = await indexedDBStorage.getAll('shifts');
+      const shift = allShifts.find((s: any) => s.id === updatedOrder.shiftId);
+      
+      if (shift) {
+        const updatedShift = {
+          ...shift,
+          refundedOrders: (shift.refundedOrders || 0) + 1,
+          refundAmount: (shift.refundAmount || 0) + (updatedOrder.subtotal || 0),
+          updatedAt: new Date().toISOString(),
+        };
+        await indexedDBStorage.put('shifts', updatedShift);
+        console.log('[Refund Offline] Shift updated:', updatedShift);
+      }
+    }
+
+    // Queue refund operation for sync
+    await indexedDBStorage.addOperation({
+      type: 'REFUND_ORDER',
+      data: {
+        orderId: order.id,
+        reason,
+        refundedBy: user.userCode,
+        refundedAt: new Date().toISOString(),
+      },
+      branchId: order.branchId,
+    });
+
+    console.log('[Refund Offline] Operation queued for sync');
+
+    return {
+      success: true,
+    };
+  }
 
   // Print receipt with DUPLICATE header
   const handlePrintDuplicate = async () => {
