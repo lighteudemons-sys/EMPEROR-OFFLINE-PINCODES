@@ -326,7 +326,7 @@ export async function printReceipt(orderId: string): Promise<void> {
   const printer = getPrinter();
 
   // Fetch ESC/POS receipt data
-  const response = await fetch(`/api/orders/orderId/receipt/escpos?orderId=${orderId}`);
+  const response = await fetch(`/api/orders/orderId/receipt/escpos/${orderId}`);
   const data = await response.json();
 
   if (!data.success) {
@@ -415,7 +415,7 @@ export async function printCaptainReceipt(orderId: string): Promise<void> {
   const printer = getPrinter();
 
   // Fetch Captain Receipt ESC/POS data
-  const response = await fetch(`/api/orders/orderId/captain-receipt?orderId=${orderId}`);
+  const response = await fetch(`/api/orders/orderId/captain-receipt/${orderId}`);
   const data = await response.json();
 
   if (!data.success) {

@@ -946,10 +946,10 @@ export default function POSInterface() {
   const currentBranchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
   useAutoSync(currentBranchId);
 
-  // Fetch current shift for cashiers
+  // Fetch current shift for cashiers and branch managers
   useEffect(() => {
     const fetchCurrentShift = async () => {
-      if (!user || user.role !== 'CASHIER') {
+      if (!user || (user.role !== 'CASHIER' && user.role !== 'BRANCH_MANAGER')) {
         setCurrentShift(null);
         return;
       }
@@ -2974,9 +2974,10 @@ export default function POSInterface() {
       }
     }
 
-    // For cashiers, check if they have an active shift
-    if (user?.role === 'CASHIER' && !currentShift) {
+    // For cashiers and branch managers, check if they have an active shift
+    if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && !currentShift) {
       alert('Please open a shift in the Shifts tab before processing sales.');
+      setProcessing(false);
       return;
     }
 
@@ -5260,10 +5261,15 @@ export default function POSInterface() {
                   return (
                     <div key={order.id} className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-850 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all">
                       <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-bold text-slate-900 dark:text-white">#{order.orderNumber}</span>
                           {getOrderTypeBadge(order.orderType)}
                           {getPaymentMethodBadge(order.paymentMethod)}
+                          {order.isRefunded && (
+                            <Badge className="bg-red-100 text-red-700 border-red-200 font-semibold">
+                              REFUNDED
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-[8px]s text-slate-500 dark:text-slate-400">
                           <Clock className="h-3 w-3" />
