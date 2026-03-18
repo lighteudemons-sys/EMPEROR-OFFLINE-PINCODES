@@ -2862,15 +2862,23 @@ export default function POSInterface() {
 
     setAuthLoading(true);
     try {
+      // Helper function to check if order is a temp order (created offline)
+      const isTempOrder = (orderId: string) => orderId?.startsWith('temp-order-');
+      
       // Check if online or offline
       const isOnline = navigator.onLine;
+      const isOfflineOrder = selectedOrder && isTempOrder(selectedOrder.id);
+      const shouldUseOfflineMode = !isOnline || isOfflineOrder;
+      
       console.log('[Auth] Network status:', isOnline ? 'online' : 'offline');
+      console.log('[Auth] Is temp order:', isOfflineOrder);
+      console.log('[Auth] Using offline mode:', shouldUseOfflineMode);
       console.log('[Auth] Auth mode:', authMode);
 
       if (authAction === 'void-item' && selectedItemToVoid) {
         console.log('[Void Item] Processing void for item:', selectedItemToVoid.id, 'quantity:', voidQuantity);
         
-        if (!isOnline) {
+        if (shouldUseOfflineMode) {
           // OFFLINE MODE: Validate user code + PIN locally and perform void offline
           console.log('[Void Item] OFFLINE MODE - Validating user locally');
           
@@ -2927,51 +2935,106 @@ export default function POSInterface() {
           }
         } else {
           // ONLINE MODE: Use API with both authentication methods
-          const response = await fetch('/api/orders/void-item', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              orderItemId: selectedItemToVoid.id,
-              // Send both credential sets for fallback support
-              userCode: authUserCode,
-              pin: authPin,
-              username: authUsername,
-              password: authPassword,
-              reason: voidReason,
-              quantity: voidQuantity,
-            }),
-          });
+          try {
+            const response = await fetch('/api/orders/void-item', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderItemId: selectedItemToVoid.id,
+                // Send both credential sets for fallback support
+                userCode: authUserCode,
+                pin: authPin,
+                username: authUsername,
+                password: authPassword,
+                reason: voidReason,
+                quantity: voidQuantity,
+              }),
+            });
 
-          console.log('[Void Item] Response status:', response.status);
-          const data = await response.json();
-          console.log('[Void Item] Response data:', data);
-          
-          if (response.ok && data.success) {
-            alert(`Successfully voided ${data.remainingQuantity}/${selectedItemToVoid.quantity} items`);
-            setShowVoidItemDialog(false);
-            setShowAuthDialog(false);
-            setVoidReason('');
-            setVoidQuantity(1);
-            setAuthUserCode('');
-            setAuthPin('');
-            setAuthUsername('');
-            setAuthPassword('');
-            setAuthAction(null);
-            // Reload order details
-            if (selectedOrder) {
-              handleViewOrder(selectedOrder);
+            console.log('[Void Item] Response status:', response.status);
+            const data = await response.json();
+            console.log('[Void Item] Response data:', data);
+            
+            if (response.ok && data.success) {
+              alert(`Successfully voided ${data.remainingQuantity}/${selectedItemToVoid.quantity} items`);
+              setShowVoidItemDialog(false);
+              setShowAuthDialog(false);
+              setVoidReason('');
+              setVoidQuantity(1);
+              setAuthUserCode('');
+              setAuthPin('');
+              setAuthUsername('');
+              setAuthPassword('');
+              setAuthAction(null);
+              // Reload order details
+              if (selectedOrder) {
+                handleViewOrder(selectedOrder);
+              }
+              // Reload shift orders
+              loadShiftOrders();
+            } else {
+              console.error('[Void Item] Failed:', data);
+              alert(data.error || 'Failed to void item');
             }
-            // Reload shift orders
-            loadShiftOrders();
-          } else {
-            console.error('[Void Item] Failed:', data);
-            alert(data.error || 'Failed to void item');
+          } catch (onlineError) {
+            console.error('[Void Item] Online void failed, trying offline:', onlineError);
+            
+            // FALLBACK: If online mode fails, try offline mode
+            try {
+              const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+              const indexedDBStorage = getIndexedDBStorage();
+              await indexedDBStorage.init();
+
+              // Get user from IndexedDB
+              const allUsers = await indexedDBStorage.getAll('users');
+              const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
+
+              if (!user) {
+                alert('Network error and invalid User Code or PIN for offline mode');
+                return;
+              }
+
+              // Verify PIN using bcrypt
+              const bcrypt = await import('bcryptjs');
+              const isValidPin = await bcrypt.compare(authPin, user.pin);
+              
+              if (!isValidPin) {
+                alert('Network error and invalid User Code or PIN for offline mode');
+                return;
+              }
+
+              // Perform void operation offline
+              const voidResult = await voidItemOffline(selectedItemToVoid, voidQuantity, voidReason, user, selectedOrder);
+              
+              console.log('[Void Item] Offline void (fallback) successful:', voidResult);
+              alert(`Successfully voided ${voidResult.remainingQuantity}/${selectedItemToVoid.quantity} items (Offline mode)`);
+              
+              setShowVoidItemDialog(false);
+              setShowAuthDialog(false);
+              setVoidReason('');
+              setVoidQuantity(1);
+              setAuthUserCode('');
+              setAuthPin('');
+              setAuthUsername('');
+              setAuthPassword('');
+              setAuthAction(null);
+              
+              // Reload order details and shift orders
+              if (selectedOrder) {
+                await handleViewOrder(selectedOrder);
+              }
+              loadShiftOrders();
+              
+            } catch (offlineError) {
+              console.error('[Void Item] Offline fallback also failed:', offlineError);
+              alert('Failed to void item: Network error and offline operation failed');
+            }
           }
         }
       } else if (authAction === 'refund-order' && selectedOrder) {
         console.log('[Refund Order] Processing refund for order:', selectedOrder.id);
         
-        if (!isOnline) {
+        if (shouldUseOfflineMode) {
           // OFFLINE MODE: Validate user code + PIN locally and perform refund offline
           console.log('[Refund Order] OFFLINE MODE - Validating user locally');
           
@@ -3025,39 +3088,91 @@ export default function POSInterface() {
           }
         } else {
           // ONLINE MODE: Use API with both authentication methods
-          const response = await fetch(`/api/orders/${selectedOrder.id}/refund`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              // Send both credential sets for fallback support
-              userCode: authUserCode,
-              pin: authPin,
-              username: authUsername,
-              password: authPassword,
-              reason: refundReason,
-            }),
-          });
+          try {
+            const response = await fetch(`/api/orders/${selectedOrder.id}/refund`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                // Send both credential sets for fallback support
+                userCode: authUserCode,
+                pin: authPin,
+                username: authUsername,
+                password: authPassword,
+                reason: refundReason,
+              }),
+            });
 
-          console.log('[Refund Order] Response status:', response.status);
-          const data = await response.json();
-          console.log('[Refund Order] Response data:', data);
-          
-          if (response.ok && data.success) {
-            alert(`Order #${selectedOrder.orderNumber} refunded successfully`);
-            setShowRefundOrderDialog(false);
-            setShowAuthDialog(false);
-            setShowOrderDetailsDialog(false);
-            setRefundReason('');
-            setAuthUserCode('');
-            setAuthPin('');
-            setAuthUsername('');
-            setAuthPassword('');
-            setAuthAction(null);
-            // Reload shift orders
-            loadShiftOrders();
-          } else {
-            console.error('[Refund Order] Failed:', data);
-            alert(data.error || 'Failed to refund order');
+            console.log('[Refund Order] Response status:', response.status);
+            const data = await response.json();
+            console.log('[Refund Order] Response data:', data);
+            
+            if (response.ok && data.success) {
+              alert(`Order #${selectedOrder.orderNumber} refunded successfully`);
+              setShowRefundOrderDialog(false);
+              setShowAuthDialog(false);
+              setShowOrderDetailsDialog(false);
+              setRefundReason('');
+              setAuthUserCode('');
+              setAuthPin('');
+              setAuthUsername('');
+              setAuthPassword('');
+              setAuthAction(null);
+              // Reload shift orders
+              loadShiftOrders();
+            } else {
+              console.error('[Refund Order] Failed:', data);
+              alert(data.error || 'Failed to refund order');
+            }
+          } catch (onlineError) {
+            console.error('[Refund Order] Online refund failed, trying offline:', onlineError);
+            
+            // FALLBACK: If online mode fails, try offline mode
+            try {
+              const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+              const indexedDBStorage = getIndexedDBStorage();
+              await indexedDBStorage.init();
+
+              // Get user from IndexedDB
+              const allUsers = await indexedDBStorage.getAll('users');
+              const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
+
+              if (!user) {
+                alert('Network error and invalid User Code or PIN for offline mode');
+                return;
+              }
+
+              // Verify PIN using bcrypt
+              const bcrypt = await import('bcryptjs');
+              const isValidPin = await bcrypt.compare(authPin, user.pin);
+              
+              if (!isValidPin) {
+                alert('Network error and invalid User Code or PIN for offline mode');
+                return;
+              }
+
+              // Perform refund operation offline
+              const refundResult = await refundOrderOffline(selectedOrder, refundReason, user);
+              
+              console.log('[Refund Order] Offline refund (fallback) successful:', refundResult);
+              alert(`Order #${selectedOrder.orderNumber} refunded successfully (Offline mode)`);
+              
+              setShowRefundOrderDialog(false);
+              setShowAuthDialog(false);
+              setShowOrderDetailsDialog(false);
+              setRefundReason('');
+              setAuthUserCode('');
+              setAuthPin('');
+              setAuthUsername('');
+              setAuthPassword('');
+              setAuthAction(null);
+              
+              // Reload shift orders
+              loadShiftOrders();
+              
+            } catch (offlineError) {
+              console.error('[Refund Order] Offline fallback also failed:', offlineError);
+              alert('Failed to refund order: Network error and offline operation failed');
+            }
           }
         }
       } else {
