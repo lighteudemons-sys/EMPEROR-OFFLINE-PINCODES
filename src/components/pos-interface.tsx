@@ -2789,9 +2789,11 @@ export default function POSInterface() {
       const response = await fetch(`/api/orders/${order.id}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('[Order Details] Loaded from API:', data.order);
         setSelectedOrder(data.order || order);
       } else {
         // If API fails, use the order from the list
+        console.log('[Order Details] Using order from list:', order);
         setSelectedOrder(order);
       }
       setShowOrderDetailsDialog(true);
@@ -2843,9 +2845,22 @@ export default function POSInterface() {
       return;
     }
 
+    // Validate reason for void and refund
+    if (authAction === 'void-item' && !voidReason.trim()) {
+      alert('Please enter a reason for voiding this item');
+      return;
+    }
+
+    if (authAction === 'refund-order' && !refundReason.trim()) {
+      alert('Please enter a reason for refunding this order');
+      return;
+    }
+
     setAuthLoading(true);
     try {
       if (authAction === 'void-item' && selectedItemToVoid) {
+        console.log('[Void Item] Processing void for item:', selectedItemToVoid.id, 'quantity:', voidQuantity);
+        
         // Void item
         const response = await fetch('/api/orders/void-item', {
           method: 'POST',
@@ -2860,10 +2875,16 @@ export default function POSInterface() {
         });
 
         const data = await response.json();
+        console.log('[Void Item] Response:', data);
+        
         if (response.ok && data.success) {
           alert(`Successfully voided ${data.remainingQuantity}/${selectedItemToVoid.quantity} items`);
           setShowVoidItemDialog(false);
           setShowAuthDialog(false);
+          setVoidReason('');
+          setVoidQuantity(1);
+          setAuthUserCode('');
+          setAuthPin('');
           // Reload order details
           if (selectedOrder) {
             handleViewOrder(selectedOrder);
@@ -2874,6 +2895,8 @@ export default function POSInterface() {
           alert(data.error || 'Failed to void item');
         }
       } else if (authAction === 'refund-order' && selectedOrder) {
+        console.log('[Refund Order] Processing refund for order:', selectedOrder.id);
+        
         // Refund order
         const response = await fetch(`/api/orders/${selectedOrder.id}/refund`, {
           method: 'POST',
@@ -2886,11 +2909,16 @@ export default function POSInterface() {
         });
 
         const data = await response.json();
+        console.log('[Refund Order] Response:', data);
+        
         if (response.ok && data.success) {
           alert(`Order #${selectedOrder.orderNumber} refunded successfully`);
           setShowRefundOrderDialog(false);
           setShowAuthDialog(false);
           setShowOrderDetailsDialog(false);
+          setRefundReason('');
+          setAuthUserCode('');
+          setAuthPin('');
           // Reload shift orders
           loadShiftOrders();
         } else {
@@ -5740,32 +5768,7 @@ export default function POSInterface() {
                 disabled={authLoading}
               />
             </div>
-            {authAction === 'void-item' && (
-              <div className="space-y-2">
-                <Label htmlFor="voidReason">Reason for Voiding</Label>
-                <Textarea
-                  id="voidReason"
-                  placeholder="Enter the reason for voiding this item"
-                  value={voidReason}
-                  onChange={(e) => setVoidReason(e.target.value)}
-                  disabled={authLoading}
-                  rows={2}
-                />
-              </div>
-            )}
-            {authAction === 'refund-order' && (
-              <div className="space-y-2">
-                <Label htmlFor="refundReason">Reason for Refund</Label>
-                <Textarea
-                  id="refundReason"
-                  placeholder="Enter the reason for refunding this order"
-                  value={refundReason}
-                  onChange={(e) => setRefundReason(e.target.value)}
-                  disabled={authLoading}
-                  rows={2}
-                />
-              </div>
-            )}
+            {/* Reason already entered in previous dialog */}
           </div>
           <DialogFooter>
             <Button

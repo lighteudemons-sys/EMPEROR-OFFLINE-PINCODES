@@ -58,9 +58,8 @@ export async function POST(
       );
     }
 
-    // Verify PIN with bcrypt
-    const isValidPin = await import('bcryptjs').then(bcrypt => bcrypt.compare(pin, user.pinHash));
-    if (!isValidPin) {
+    // Verify PIN - PIN is stored as plain text
+    if (user.pin !== pin) {
       return NextResponse.json(
         { success: false, error: 'Invalid user code or PIN' },
         { status: 401 }
