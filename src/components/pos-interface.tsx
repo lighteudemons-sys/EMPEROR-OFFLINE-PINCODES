@@ -19,7 +19,7 @@ import {
   TrendingUp, AlertTriangle, Grid, Filter, Menu as MenuIcon,
   Sparkles, Bell, Layers, Wallet, Calendar, Barcode, Receipt, Utensils,
   ChevronRight, Tag, Gift, ShoppingBag, RefreshCw, Check, Info,
-  PanelLeftClose, PanelLeftOpen, Users, MessageSquare, Edit3, Smartphone, Pause, Play, Calculator, ArrowRight, Settings, Building, Percent
+  PanelLeftClose, PanelLeftOpen, Users, MessageSquare, Edit3, Smartphone, Pause, Play, Calculator, ArrowRight, Settings, Building, Percent, ListOrdered
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-context';
 import { useAuth } from '@/lib/auth-context';
@@ -645,6 +645,11 @@ export default function POSInterface() {
   const [heldOrders, setHeldOrders] = useState<any[]>([]);
   const [showHeldOrdersDialog, setShowHeldOrdersDialog] = useState(false);
 
+  // Shift Orders state
+  const [shiftOrders, setShiftOrders] = useState<any[]>([]);
+  const [showShiftOrdersDialog, setShowShiftOrdersDialog] = useState(false);
+  const [loadingShiftOrders, setLoadingShiftOrders] = useState(false);
+
   // Number Pad state
   const [showNumberPad, setShowNumberPad] = useState(false);
   const [numberPadValue, setNumberPadValue] = useState('');
@@ -941,10 +946,10 @@ export default function POSInterface() {
   const currentBranchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
   useAutoSync(currentBranchId);
 
-  // Fetch current shift for cashiers and branch managers
+  // Fetch current shift for cashiers
   useEffect(() => {
     const fetchCurrentShift = async () => {
-      if (!user || (user.role !== 'CASHIER' && user.role !== 'BRANCH_MANAGER')) {
+      if (!user || user.role !== 'CASHIER') {
         setCurrentShift(null);
         return;
       }
@@ -2700,6 +2705,55 @@ export default function POSInterface() {
     }
   };
 
+  // Load orders for the current shift
+  const loadShiftOrders = async () => {
+    if (!currentShift) {
+      alert('No active shift. Please open a shift to view orders.');
+      return;
+    }
+
+    setLoadingShiftOrders(true);
+    try {
+      // Try to fetch from API first
+      let orders: any[] = [];
+      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+
+      try {
+        const response = await fetch(`/api/orders?shiftId=${currentShift.id}&branchId=${branchId}`);
+        if (response.ok) {
+          const data = await response.json();
+          orders = data.orders || [];
+        }
+      } catch (apiError) {
+        console.log('[Shift Orders] API failed, trying IndexedDB:', apiError);
+      }
+
+      // If API failed or no orders, try IndexedDB
+      if (orders.length === 0) {
+        try {
+          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+          const indexedDBStorage = getIndexedDBStorage();
+          await indexedDBStorage.init();
+
+          const allOrders = await indexedDBStorage.getAllOrders();
+          orders = allOrders.filter((order: any) => order.shiftId === currentShift.id);
+          console.log('[Shift Orders] Loaded from IndexedDB:', orders.length);
+        } catch (dbError) {
+          console.error('[Shift Orders] Failed to load from IndexedDB:', dbError);
+        }
+      }
+
+      setShiftOrders(orders);
+      console.log('[Shift Orders] Loaded:', orders.length, 'orders for shift:', currentShift.id);
+    } catch (error) {
+      console.error('Failed to load shift orders:', error);
+      setShiftOrders([]);
+      alert('Failed to load shift orders');
+    } finally {
+      setLoadingShiftOrders(false);
+    }
+  };
+
   const handleHoldOrder = async () => {
     const currentCart = (orderType === 'dine-in' && selectedTable) ? tableCart : cart;
 
@@ -2920,10 +2974,9 @@ export default function POSInterface() {
       }
     }
 
-    // For cashiers and branch managers, check if they have an active shift
-    if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && !currentShift) {
+    // For cashiers, check if they have an active shift
+    if (user?.role === 'CASHIER' && !currentShift) {
       alert('Please open a shift in the Shifts tab before processing sales.');
-      setProcessing(false);
       return;
     }
 
@@ -3455,6 +3508,18 @@ export default function POSInterface() {
                 className="h-8 w-8 text-slate-500 hover:text-slate-700"
               >
                 <Clock className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowShiftOrdersDialog(true);
+                  loadShiftOrders();
+                }}
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                title="Shift Orders"
+              >
+                <ListOrdered className="h-4 w-4" />
               </Button>
               {orderType === 'dine-in' && selectedTable && tableCart.length > 0 && (
                 <Button
@@ -5118,6 +5183,147 @@ export default function POSInterface() {
               onClick={() => setShowHeldOrdersDialog(false)}
               variant="outline"
               className="flex-1 rounded-xl h-11 font-semibold"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shift Orders Dialog */}
+      <Dialog open={showShiftOrdersDialog} onOpenChange={setShowShiftOrdersDialog}>
+        <DialogContent className="sm:max-w-3xl rounded-3xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="pb-4 border-b">
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+                <ListOrdered className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-[8px]l font-bold">Shift Orders</DialogTitle>
+                <DialogDescription>
+                  {currentShift ? `${shiftOrders.length} ${shiftOrders.length === 1 ? 'order' : 'orders'} in current shift` : 'No active shift'}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <ScrollArea className="flex-1 overflow-y-auto py-4 px-2">
+            {loadingShiftOrders ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
+              </div>
+            ) : !currentShift ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3">
+                  <Clock className="h-8 w-8 opacity-40" />
+                </div>
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">No active shift</p>
+                <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Please open a shift to view orders</p>
+              </div>
+            ) : shiftOrders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3">
+                  <ListOrdered className="h-8 w-8 opacity-40" />
+                </div>
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">No orders in this shift</p>
+                <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Orders will appear here as you process them</p>
+              </div>
+            ) : (
+              <div className="space-y-3 pr-2 pb-2">
+                {shiftOrders.map((order) => {
+                  const getOrderTypeBadge = (type: string) => {
+                    switch (type) {
+                      case 'dine-in':
+                        return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Dine In</Badge>;
+                      case 'take-away':
+                        return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Take Away</Badge>;
+                      case 'delivery':
+                        return <Badge className="bg-orange-100 text-orange-700 border-orange-200">Delivery</Badge>;
+                      default:
+                        return <Badge>{type}</Badge>;
+                    }
+                  };
+
+                  const getPaymentMethodBadge = (method: string) => {
+                    switch (method) {
+                      case 'cash':
+                        return <Badge variant="outline" className="border-green-300 text-green-700">Cash</Badge>;
+                      case 'card':
+                        return <Badge variant="outline" className="border-blue-300 text-blue-700">Card</Badge>;
+                      default:
+                        return <Badge variant="outline">{method}</Badge>;
+                    }
+                  };
+
+                  const orderTime = new Date(order.orderTimestamp || order.createdAt);
+                  const timeString = orderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                  return (
+                    <div key={order.id} className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-850 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">#{order.orderNumber}</span>
+                          {getOrderTypeBadge(order.orderType)}
+                          {getPaymentMethodBadge(order.paymentMethod)}
+                        </div>
+                        <div className="flex items-center gap-2 text-[8px]s text-slate-500 dark:text-slate-400">
+                          <Clock className="h-3 w-3" />
+                          {timeString}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mb-3">
+                        {order.items && order.items.slice(0, 3).map((item: any, idx: number) => (
+                          <div key={idx} className="flex justify-between text-[8px]s">
+                            <span className="text-slate-600 dark:text-slate-300">
+                              {item.itemName || item.name} x{item.quantity}
+                            </span>
+                            <span className="font-medium text-slate-900 dark:text-white">
+                              {formatCurrency((item.subtotal || item.totalPrice || (item.unitPrice * item.quantity)), currency)}
+                            </span>
+                          </div>
+                        ))}
+                        {order.items && order.items.length > 3 && (
+                          <div className="text-[8px]s text-slate-500 dark:text-slate-400">
+                            +{order.items.length - 3} more items
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-200/50 dark:border-slate-700/50">
+                        <div>
+                          <p className="text-[8px]s text-slate-500 dark:text-slate-400">
+                            {order.items?.length || 0} {(order.items?.length || 0) === 1 ? 'item' : 'items'}
+                          </p>
+                          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(order.totalAmount, currency)}
+                          </p>
+                        </div>
+                        {order.cardReferenceNumber && (
+                          <div className="text-right">
+                            <p className="text-[8px]s text-slate-500 dark:text-slate-400">Ref: {order.cardReferenceNumber}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+          <DialogFooter className="pt-4 border-t">
+            <div className="flex-1 text-left">
+              {currentShift && shiftOrders.length > 0 && (
+                <div className="flex gap-4 text-sm">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    Total: {formatCurrency(shiftOrders.reduce((sum, order) => sum + order.totalAmount, 0), currency)}
+                  </span>
+                </div>
+              )}
+            </div>
+            <Button
+              onClick={() => setShowShiftOrdersDialog(false)}
+              variant="outline"
+              className="h-11 px-6 rounded-xl font-semibold"
             >
               Close
             </Button>

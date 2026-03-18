@@ -879,6 +879,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const branchId = searchParams.get('branchId');
+    const shiftId = searchParams.get('shiftId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const limit = parseInt(searchParams.get('limit') || '100');
@@ -887,6 +888,11 @@ export async function GET(request: NextRequest) {
     const where: any = {};
     if (branchId && branchId !== 'all') {
       where.branchId = branchId;
+    }
+
+    // Filter by shiftId if provided (for shift orders view)
+    if (shiftId) {
+      where.shiftId = shiftId;
     }
 
     if (startDate || endDate) {
