@@ -236,8 +236,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await storage.setString('isLoggedIn', 'true');
         await storage.setJSON('user', userData);
+        
+        // Cache all users for offline authentication (void/refund)
+        console.log('[Auth] Caching users for offline authentication...');
+        const usersResponse = await fetch('/api/users');
+        if (usersResponse.ok) {
+          const usersData = await usersResponse.json();
+          if (usersData.users && Array.isArray(usersData.users)) {
+            // Store each user in IndexedDB
+            await storage.init();
+            for (const user of usersData.users) {
+              await storage.put('users', {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                name: user.name,
+                fullName: user.fullName,
+                role: user.role,
+                branchId: user.branchId,
+                userCode: user.userCode,
+                pin: user.pin, // PIN hash for offline authentication
+                isActive: user.isActive !== false, // Default to true if not specified
+              });
+            }
+            console.log('[Auth] Cached', usersData.users.length, 'users for offline authentication');
+          }
+        }
       } catch (error) {
-        console.warn('[Auth] IndexedDB not accessible:', error);
+        console.warn('[Auth] IndexedDB not accessible or failed to cache users:', error);
       }
 
       showSuccessToast('Welcome back!', `Logged in as ${data.session.name || data.session.username}`);
@@ -367,6 +393,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               try {
                 await storage.setJSON('user', data.user);
                 await storage.setString('isLoggedIn', 'true');
+                
+                // Cache users for offline authentication (if not already cached)
+                const cachedUsers = await storage.getAll('users');
+                if (!cachedUsers || cachedUsers.length === 0) {
+                  console.log('[Auth] Caching users for offline authentication on session check...');
+                  const usersResponse = await fetch(`/api/users?currentUserRole=${data.user.role}&currentUserBranchId=${data.user.branchId || ''}`);
+                  if (usersResponse.ok) {
+                    const usersData = await usersResponse.json();
+                    if (usersData.users && Array.isArray(usersData.users)) {
+                      await storage.init();
+                      for (const user of usersData.users) {
+                        await storage.put('users', {
+                          id: user.id,
+                          username: user.username,
+                          email: user.email,
+                          name: user.name,
+                          fullName: user.fullName,
+                          role: user.role,
+                          branchId: user.branchId,
+                          userCode: user.userCode,
+                          pin: user.pin, // PIN hash for offline authentication
+                          isActive: user.isActive !== false,
+                        });
+                      }
+                      console.log('[Auth] Cached', usersData.users.length, 'users for offline authentication');
+                    }
+                  }
+                }
               } catch (error) {
                 console.warn('[Auth] IndexedDB not accessible:', error);
               }
