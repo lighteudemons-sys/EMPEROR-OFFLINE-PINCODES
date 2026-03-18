@@ -941,10 +941,10 @@ export default function POSInterface() {
   const currentBranchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
   useAutoSync(currentBranchId);
 
-  // Fetch current shift for cashiers
+  // Fetch current shift for cashiers and branch managers
   useEffect(() => {
     const fetchCurrentShift = async () => {
-      if (!user || user.role !== 'CASHIER') {
+      if (!user || (user.role !== 'CASHIER' && user.role !== 'BRANCH_MANAGER')) {
         setCurrentShift(null);
         return;
       }
@@ -2920,9 +2920,10 @@ export default function POSInterface() {
       }
     }
 
-    // For cashiers, check if they have an active shift
-    if (user?.role === 'CASHIER' && !currentShift) {
+    // For cashiers and branch managers, check if they have an active shift
+    if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && !currentShift) {
       alert('Please open a shift in the Shifts tab before processing sales.');
+      setProcessing(false);
       return;
     }
 
