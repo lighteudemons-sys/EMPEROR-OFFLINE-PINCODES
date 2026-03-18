@@ -2883,8 +2883,17 @@ export default function POSInterface() {
             const allUsers = await indexedDBStorage.getAll('users');
             const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
 
-            if (!user || user.pin !== authPin) {
+            if (!user) {
               alert('Invalid User Code or PIN (Offline mode only supports User Code + PIN)');
+              return;
+            }
+
+            // Verify PIN using bcrypt (PIN is stored as hash)
+            const bcrypt = await import('bcryptjs');
+            const isValidPin = await bcrypt.compare(authPin, user.pin);
+            
+            if (!isValidPin) {
+              alert('Invalid User Code or PIN');
               return;
             }
 
@@ -2975,7 +2984,16 @@ export default function POSInterface() {
             const allUsers = await indexedDBStorage.getAll('users');
             const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
 
-            if (!user || user.pin !== authPin) {
+            if (!user) {
+              alert('Invalid User Code or PIN');
+              return;
+            }
+
+            // Verify PIN using bcrypt (PIN is stored as hash)
+            const bcrypt = await import('bcryptjs');
+            const isValidPin = await bcrypt.compare(authPin, user.pin);
+            
+            if (!isValidPin) {
               alert('Invalid User Code or PIN');
               return;
             }
