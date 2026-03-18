@@ -1,0 +1,5719 @@
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Coffee, Cake, Cookie, IceCream, Trash2, Plus, Minus, CreditCard, DollarSign,
+  Printer, ShoppingCart, Store, X, CheckCircle, Package, Truck,
+  Search, User, Clock, MapPin, Phone, Star, Flame, Zap,
+  TrendingUp, AlertTriangle, Grid, Filter, Menu as MenuIcon,
+  Sparkles, Bell, Layers, Wallet, Calendar, Barcode, Receipt, Utensils,
+  ChevronRight, Tag, Gift, ShoppingBag, RefreshCw, Check, Info,
+  PanelLeftClose, PanelLeftOpen, Users, MessageSquare, Edit3, Smartphone, Pause, Play, Calculator, ArrowRight, Settings, Building, Percent
+} from 'lucide-react';
+import { useI18n } from '@/lib/i18n-context';
+import { useAuth } from '@/lib/auth-context';
+import { formatCurrency } from '@/lib/utils';
+import { ReceiptViewer } from '@/components/receipt-viewer';
+import CustomerSearch from '@/components/customer-search';
+import { NumberPad } from '@/components/ui/number-pad';
+import { useOfflineData, offlineDataFetchers } from '@/hooks/use-offline-data';
+import { useAutoSync } from '@/hooks/use-auto-sync';
+import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
+import TableGridView from '@/components/table-grid-view';
+
+// Create IndexedDB storage instance for table cart persistence
+const storage = getIndexedDBStorage();
+
+// Helper function to create order offline
+async function createOrderOffline(orderData: any, shift: any, cartItems: CartItem[], branchInfo?: { id: string; name: string; phone?: string; address?: string }): Promise<any> {
+  try {
+    console.log('[Order] Creating order offline, orderData:', orderData);
+    console.log('[Order] Cart items:', cartItems);
+
+    // Import IndexedDB storage (not localStorage)
+    const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+    const indexedDBStorage = getIndexedDBStorage();
+    console.log('[Order] IndexedDB storage imported');
+
+    // Initialize storage if not already initialized
+    await indexedDBStorage.init();
+    console.log('[Order] IndexedDB storage initialized');
+
+    // Create a temporary order ID (will be replaced on sync)
+    const tempId = `temp-order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log('[Order] Created tempId:', tempId);
+
+    // Get the last order number from IndexedDB to generate a new one
+    const allOrders = await indexedDBStorage.getAllOrders();
+    const lastOrderNum = allOrders.reduce((max: number, order: any) => {
+      return order.orderNumber ? Math.max(max, order.orderNumber) : max;
+    }, 0);
+
+    // Prepare items in the format expected by the API
+    const preparedItems = cartItems.map((cartItem) => {
+      const unitPrice = cartItem.price || 0;
+      const totalPrice = unitPrice * cartItem.quantity;
+
+      return {
+        menuItemId: cartItem.menuItemId,
+        itemName: cartItem.name, // Include item name for receipt
+        quantity: cartItem.quantity,
+        unitPrice,
+        subtotal: totalPrice, // Include subtotal for receipt
+        menuItemVariantId: cartItem.variantId || null,
+        customVariantValue: cartItem.customVariantValue || null,
+        totalPrice,
+        specialInstructions: cartItem.note || null,
+      };
+    });
+
+    // Calculate total amount including tax
+    // Apply discounts before calculating tax
+    const totalDiscounts = (orderData.promoDiscount || 0) + (orderData.loyaltyDiscount || 0) + (orderData.manualDiscountAmount || 0);
+    const discountedSubtotal = Math.max(0, orderData.subtotal - totalDiscounts);
+    // Only calculate tax if there's a positive subtotal after discounts
+    const taxAmount = discountedSubtotal > 0 ? discountedSubtotal * (orderData.taxRate || 0.14) : 0;
+    const totalAmount = orderData.total || (discountedSubtotal + taxAmount + (orderData.deliveryFee || 0));
+
+    // Generate transaction hash for tamper detection
+    const transactionHash = Buffer.from(
+      `${orderData.branchId}-${lastOrderNum + 1}-${totalAmount}-${orderData.cashierId || shift.cashierId}-${Date.now()}`
+    ).toString('base64');
+
+    // Create order object with fields matching API expectations
+    const newOrder = {
+      id: tempId,
+      branchId: orderData.branchId,
+      orderNumber: lastOrderNum + 1,
+      customerId: orderData.customerId || null,
+      orderType: orderData.orderType,
+      totalAmount,
+      subtotal: orderData.subtotal, // Store subtotal at top level for shift revenue calculation
+      deliveryFee: orderData.deliveryFee || 0, // Store deliveryFee at top level for shift revenue calculation
+      status: 'completed' as const, // Use correct Prisma enum value
+      paymentStatus: 'paid' as const, // Use correct Prisma enum value
+      paymentMethod: orderData.paymentMethod,
+      paymentMethodDetail: orderData.paymentMethodDetail || null,
+      cardReferenceNumber: orderData.cardReferenceNumber || null,
+      // Store discount fields at top level (CRITICAL for offline tracking)
+      promoCodeId: orderData.promoCodeId || null,
+      promoDiscount: orderData.promoDiscount || 0,
+      manualDiscountPercent: orderData.manualDiscountPercent || 0,
+      manualDiscountAmount: orderData.manualDiscountAmount || 0,
+      manualDiscountComment: orderData.manualDiscountComment || null,
+      loyaltyDiscount: orderData.loyaltyDiscount || 0, // Also at top level for consistency
+      notes: orderData.notes || null,
+      orderTimestamp: new Date().toISOString(), // Set orderTimestamp for receipt
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      // Include shift ID to associate order with the shift
+      shiftId: shift.id,
+      // Include transaction hash for tamper detection
+      transactionHash,
+      // Include items for receipt display
+      items: preparedItems.map(item => {
+        // Find the matching cart item - match by menuItemId AND menuItemVariantId (or undefined for non-variant items)
+        const cartItem = cartItems.find(c =>
+          c.menuItemId === item.menuItemId &&
+          (c.variantId || null) === (item.menuItemVariantId || null)
+        );
+
+        return {
+          id: `${tempId}-${item.menuItemId}-${item.menuItemVariantId || 'no-variant'}`,
+          menuItemId: item.menuItemId,
+          itemName: item.itemName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          recipeVersion: 1,
+          menuItemVariantId: item.menuItemVariantId,
+          variantName: cartItem?.variantName,
+          specialInstructions: item.specialInstructions,
+          categoryName: cartItem?.category,
+          categoryId: cartItem?.categoryId,
+          requiresCaptainReceipt: cartItem?.requiresCaptainReceipt || false,
+          createdAt: new Date().toISOString(),
+        };
+      }),
+      // Store additional fields that will be synced separately
+      _offlineData: {
+        items: preparedItems,
+        subtotal: orderData.subtotal,
+        taxRate: orderData.taxRate,
+        tax: taxAmount,
+        deliveryFee: orderData.deliveryFee || 0,
+        loyaltyPointsRedeemed: orderData.loyaltyPointsRedeemed || 0,
+        loyaltyDiscount: orderData.loyaltyDiscount || 0,
+        // Keep backup of discount fields in _offlineData
+        promoCodeId: orderData.promoCodeId || null,
+        promoDiscount: orderData.promoDiscount || 0,
+        manualDiscountPercent: orderData.manualDiscountPercent || 0,
+        manualDiscountAmount: orderData.manualDiscountAmount || 0,
+        manualDiscountComment: orderData.manualDiscountComment || null,
+        deliveryAddress: orderData.deliveryAddress || null,
+        deliveryAreaId: orderData.deliveryAreaId || null,
+        courierId: orderData.courierId || null,
+        customerAddressId: orderData.customerAddressId || null,
+        customerPhone: orderData.customerPhone || null,
+        customerName: orderData.customerName || null,
+      },
+    };
+
+    console.log('[Order] Created order object:', newOrder);
+
+    // Add branch information for receipt
+    if (branchInfo) {
+      (newOrder as any).branch = {
+        id: branchInfo.id,
+        branchName: branchInfo.name,
+        phone: branchInfo.phone,
+        address: branchInfo.address,
+      };
+    }
+
+    // Save order to IndexedDB
+    await indexedDBStorage.put('orders', newOrder);
+    console.log('[Order] Order saved to IndexedDB');
+
+    // Update shift statistics
+    if (shift && shift.id) {
+      console.log('[Order] Updating shift statistics for shift:', shift.id);
+
+      // Get all shifts from IndexedDB and find the current one
+      const allShifts = await indexedDBStorage.getAllShifts();
+      const currentShift = allShifts.find((s: any) => s.id === shift.id);
+
+      if (currentShift) {
+        // Update shift statistics
+        // Use discounted subtotal for currentRevenue (excludes delivery fees - couriers take them)
+        const totalDiscounts = (orderData.promoDiscount || 0) + (orderData.loyaltyDiscount || 0) + (orderData.manualDiscountAmount || 0);
+        const discountedSubtotal = Math.max(0, (orderData.subtotal || 0) - totalDiscounts);
+        const updatedShift = {
+          ...currentShift,
+          currentRevenue: (currentShift.currentRevenue || 0) + discountedSubtotal,
+          orderCount: (currentShift.orderCount || 0) + 1,
+          currentOrders: (currentShift.currentOrders || 0) + 1,
+          updatedAt: new Date().toISOString(),
+        };
+
+        // Save updated shift to IndexedDB
+        await indexedDBStorage.put('shifts', updatedShift);
+        console.log('[Order] Shift statistics updated:', updatedShift);
+
+        // Update the local shift object reference
+        Object.assign(shift, updatedShift);
+      } else {
+        console.warn('[Order] Could not find shift in IndexedDB:', shift.id);
+      }
+    }
+
+    // Queue operation for sync
+    await indexedDBStorage.addOperation({
+      type: 'CREATE_ORDER',
+      data: {
+        ...orderData,
+        id: tempId,
+        shiftId: shift.id, // Include shiftId to link order to shift
+        orderNumber: newOrder.orderNumber,
+        status: newOrder.status,
+        totalAmount,
+        subtotal: orderData.subtotal, // Include subtotal for sync
+        deliveryFee: orderData.deliveryFee || 0, // Include deliveryFee for sync
+        paymentStatus: 'paid',
+        notes: newOrder.notes,
+        transactionHash, // Include transaction hash for sync
+        items: preparedItems,
+        _offlineData: newOrder._offlineData, // Include _offlineData for sync
+        createdAt: newOrder.createdAt,
+        updatedAt: newOrder.updatedAt,
+      },
+      branchId: orderData.branchId,
+    });
+    console.log('[Order] Operation queued for sync (IndexedDB)');
+
+    // Award loyalty points immediately (if customer linked and not refunded)
+    if (!orderData.isRefunded && orderData.customerId && !orderData.customerId.startsWith('temp-')) {
+      try {
+        // Import local loyalty manager
+        const { awardLoyaltyPointsOffline } = await import('@/lib/offline/local-loyalty');
+        const loyaltyResult = await awardLoyaltyPointsOffline(
+          orderData.customerId,
+          tempId, // Use the temp order ID
+          orderData.subtotal || 0  // Award based on subtotal (excludes delivery fees)
+        );
+
+        if (loyaltyResult.success) {
+          console.log('[Order] Loyalty points awarded immediately:', loyaltyResult.pointsEarned, 'points');
+        }
+      } catch (loyaltyError) {
+        console.error('[Order] Failed to award loyalty points offline:', loyaltyError);
+        // Don't fail the order if loyalty fails
+      }
+    }
+
+    console.log('[Order] Order created offline successfully:', newOrder);
+    return { order: newOrder, success: true };
+  } catch (error) {
+    console.error('[Order] Failed to create order offline, error:', error);
+    throw error;
+  }
+}
+
+// Helper function to create daily expense offline
+async function createExpenseOffline(expenseData: any, currentShift: any): Promise<any> {
+  try {
+    console.log('[Daily Expense] Creating expense offline, expenseData:', expenseData);
+
+    // Import IndexedDB storage (not localStorage)
+    const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+    const indexedDBStorage = getIndexedDBStorage();
+    console.log('[Daily Expense] IndexedDB storage imported');
+
+    // Initialize storage if not already initialized
+    await indexedDBStorage.init();
+    console.log('[Daily Expense] IndexedDB storage initialized');
+
+    // Create a temporary expense ID (will be replaced on sync)
+    const tempId = `temp-expense-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log('[Daily Expense] Created tempId:', tempId);
+
+    // Create expense object with fields matching API expectations
+    const newExpense = {
+      id: tempId,
+      branchId: expenseData.branchId,
+      shiftId: expenseData.shiftId,
+      amount: expenseData.amount,
+      reason: expenseData.reason,
+      recordedBy: expenseData.recordedBy,
+      category: expenseData.category,
+      ingredientId: expenseData.ingredientId || null,
+      quantity: expenseData.quantity || null,
+      quantityUnit: expenseData.quantityUnit || null,
+      unitPrice: expenseData.unitPrice || null,
+      createdAt: new Date().toISOString(),
+      costId: null,
+      _offlineData: {
+        willSync: true,
+        needsInventoryUpdate: expenseData.category === 'INVENTORY',
+      },
+    };
+
+    // Handle inventory update locally for INVENTORY category
+    let inventoryUpdate = null;
+    if (expenseData.category === 'INVENTORY' && expenseData.ingredientId) {
+      console.log('[Daily Expense] Handling inventory update offline');
+
+      // Get current inventory data
+      const allInventory = await indexedDBStorage.getAllInventory();
+      const branchInventory = allInventory.find(
+        (inv: any) => inv.branchId === expenseData.branchId && inv.ingredientId === expenseData.ingredientId
+      );
+
+      let oldStock = 0;
+      let finalStock = expenseData.quantity;
+      let finalPrice = expenseData.unitPrice;
+
+      if (branchInventory) {
+        oldStock = branchInventory.currentStock || 0;
+        finalStock = oldStock + expenseData.quantity;
+
+        // Update inventory in IndexedDB
+        await indexedDBStorage.put('inventory', {
+          ...branchInventory,
+          currentStock: finalStock,
+          lastRestockAt: new Date().toISOString(),
+          lastModifiedAt: new Date().toISOString(),
+          lastModifiedBy: expenseData.recordedBy,
+        });
+
+        console.log('[Daily Expense] Inventory updated offline:', { oldStock, finalStock });
+
+        inventoryUpdate = {
+          oldStock,
+          newStock: finalStock,
+          oldPrice: expenseData.unitPrice, // Will be updated on sync with weighted average
+          newPrice: expenseData.unitPrice, // Temporary, will be recalculated on sync
+        };
+      } else {
+        // CRITICAL FIX: Try to fetch current stock from cached ingredients or database
+        console.log('[Daily Expense] No inventory record in IndexedDB, trying to get current stock');
+
+        // First, try to get from cached ingredients (includes currentStock)
+        try {
+          const allIngredients = await indexedDBStorage.getAllIngredients();
+          const ingredient = allIngredients.find((ing: any) => ing.id === expenseData.ingredientId);
+          if (ingredient && ingredient.currentStock !== undefined) {
+            oldStock = ingredient.currentStock;
+            finalStock = oldStock + expenseData.quantity;
+            console.log('[Daily Expense] Found current stock in cached ingredients:', { oldStock, finalStock });
+          } else {
+            // Try fetching from database API (might fail if offline)
+            try {
+              const response = await fetch(`/api/ingredients?branchId=${expenseData.branchId}`);
+              if (response.ok) {
+                const result = await response.json();
+                const ingredients = result.ingredients || [];
+                const ing = ingredients.find((i: any) => i.id === expenseData.ingredientId);
+                if (ing && ing.currentStock !== undefined) {
+                  oldStock = ing.currentStock;
+                  finalStock = oldStock + expenseData.quantity;
+                  console.log('[Daily Expense] Fetched current stock from database:', { oldStock, finalStock });
+                }
+              }
+            } catch (error) {
+              console.log('[Daily Expense] Could not fetch from database (likely offline), using oldStock = 0:', error);
+            }
+          }
+        } catch (error) {
+          console.log('[Daily Expense] Could not access cached ingredients, using oldStock = 0:', error);
+        }
+
+        // Create new inventory record
+        await indexedDBStorage.put('inventory', {
+          id: `temp-inventory-${Date.now()}`,
+          branchId: expenseData.branchId,
+          ingredientId: expenseData.ingredientId,
+          currentStock: finalStock,
+          reservedStock: 0,
+          lastRestockAt: new Date().toISOString(),
+          lastModifiedAt: new Date().toISOString(),
+          lastModifiedBy: expenseData.recordedBy,
+          _offlineCreated: true,
+        });
+
+        console.log('[Daily Expense] New inventory record created offline');
+
+        inventoryUpdate = {
+          oldStock,
+          newStock: finalStock,
+          oldPrice: expenseData.unitPrice,
+          newPrice: expenseData.unitPrice,
+        };
+      }
+
+      // Mark that inventory was already updated offline and save final state for sync
+      newExpense._offlineData.inventoryAlreadyUpdated = true;
+      newExpense._offlineData.oldStock = oldStock;
+      newExpense._offlineData.finalStock = finalStock;
+      newExpense._offlineData.finalPrice = finalPrice;
+
+      console.log('[Daily Expense] Saved final inventory state for sync:', {
+        oldStock,
+        finalStock,
+        finalPrice,
+      });
+    }
+
+    // Save expense to IndexedDB (after updating _offlineData if needed)
+    await indexedDBStorage.put('daily_expenses', newExpense);
+    console.log('[Daily Expense] Expense saved to IndexedDB:', newExpense);
+
+    // Queue operation for sync
+    await indexedDBStorage.addOperation({
+      type: 'CREATE_DAILY_EXPENSE',
+      data: {
+        ...expenseData,
+        id: tempId,
+        shiftId: expenseData.shiftId,
+        _offlineData: newExpense._offlineData,
+        createdAt: newExpense.createdAt,
+      },
+      branchId: expenseData.branchId,
+    });
+    console.log('[Daily Expense] Operation queued for sync (IndexedDB)');
+
+    console.log('[Daily Expense] Expense created offline successfully:', newExpense);
+    return { expense: newExpense, inventoryUpdate, success: true };
+  } catch (error) {
+    console.error('[Daily Expense] Failed to create expense offline, error:', error);
+    throw error;
+  }
+}
+
+interface CartItem {
+  id: string;
+  menuItemId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image?: string;
+  variantName?: string;
+  variantId?: string;
+  customVariantValue?: number;
+  note?: string;
+  category?: string;
+  categoryId?: string | null;
+  requiresCaptainReceipt?: boolean;
+}
+
+interface MenuItemVariant {
+  id: string;
+  menuItemId: string;
+  variantTypeId: string;
+  variantOptionId: string;
+  priceModifier: number;
+  sortOrder: number;
+  isActive: boolean;
+  variantType: {
+    id: string;
+    name: string;
+    isCustomInput: boolean;
+  };
+  variantOption: {
+    id: string;
+    name: string;
+  };
+}
+
+interface MenuItem {
+  id: string;
+  name: string;
+  category: string;
+  categoryId?: string | null;
+  price: number;
+  isActive: boolean;
+  hasVariants: boolean;
+  imagePath?: string;
+  sortOrder?: number | null;
+  variants?: MenuItemVariant[];
+  categoryRel?: {
+    id: string;
+    name: string;
+    sortOrder: number;
+    requiresCaptainReceipt: boolean;
+  };
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  defaultVariantTypeId?: string | null;
+  imagePath?: string | null;
+  requiresCaptainReceipt?: boolean;
+}
+
+export default function POSInterface() {
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptData, setReceiptData] = useState<any>(null);
+  const [lowStockAlerts, setLowStockAlerts] = useState<any[]>([]);
+  const [currentShift, setCurrentShift] = useState<any>(null);
+  const [branches, setBranches] = useState<Array<{ id: string; name: string; phone?: string; address?: string }>>([]);
+  const [orderType, setOrderType] = useState<'dine-in' | 'take-away' | 'delivery'>('take-away');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryArea, setDeliveryArea] = useState('');
+  const [deliveryAreas, setDeliveryAreas] = useState<any[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<any>(null);
+  const [couriers, setCouriers] = useState<any[]>([]);
+  const [selectedCourierId, setSelectedCourierId] = useState<string>('none');
+  const [lastOrderNumber, setLastOrderNumber] = useState<number>(0);
+  const [processing, setProcessing] = useState(false);
+
+  // Loyalty redemption state
+  const [redeemedPoints, setRedeemedPoints] = useState<number>(0);
+  const [loyaltyDiscount, setLoyaltyDiscount] = useState<number>(0);
+
+  // Promo code state
+  const [promoCode, setPromoCode] = useState<string>('');
+  const [promoCodeId, setPromoCodeId] = useState<string>('');
+  const [promoDiscount, setPromoDiscount] = useState<number>(0);
+  const [promoMessage, setPromoMessage] = useState<string>('');
+  const [validatingPromo, setValidatingPromo] = useState(false);
+
+  // Manual discount state
+  const [manualDiscountType, setManualDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [manualDiscountPercent, setManualDiscountPercent] = useState<number>(0);
+  const [manualDiscountAmount, setManualDiscountAmount] = useState<number>(0);
+  const [manualDiscountComment, setManualDiscountComment] = useState<string>('');
+  const [tempManualDiscountPercent, setTempManualDiscountPercent] = useState<string>(''); // Local state for percentage input
+  const [tempManualDiscountAmount, setTempManualDiscountAmount] = useState<string>(''); // Local state for fixed amount input
+
+  // Categories expanded state
+  const [categoriesExpanded, setCategoriesExpanded] = useState(true);
+
+  // Search bar visibility state
+  const [searchExpanded, setSearchExpanded] = useState(false);
+
+  // Variant selection dialog state
+  const [variantDialogOpen, setVariantDialogOpen] = useState(false);
+  const [selectedItemForVariant, setSelectedItemForVariant] = useState<MenuItem | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<MenuItemVariant | null>(null);
+  const [customVariantValue, setCustomVariantValue] = useState<string>('');
+
+  // Add New Address dialog state
+  const [showAddAddressDialog, setShowAddAddressDialog] = useState(false);
+  const [newAddress, setNewAddress] = useState({
+    building: '',
+    streetAddress: '',
+    floor: '',
+    apartment: '',
+    deliveryAreaId: '',
+  });
+  const [creatingAddress, setCreatingAddress] = useState(false);
+
+  // Mobile cart drawer state
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+
+  // Table management state for Dine In
+  const [selectedTable, setSelectedTable] = useState<any>(null);
+  const [showTableGrid, setShowTableGrid] = useState(false);
+  const [tableCart, setTableCart] = useState<CartItem[]>([]);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [tableRefreshTrigger, setTableRefreshTrigger] = useState(0); // Force table refresh
+
+  // Restore selected table on mount (for dine-in)
+  useEffect(() => {
+    const restoreSelectedTable = async () => {
+      try {
+        const savedTable = await storage.getJSON('selected-table');
+        if (savedTable && orderType === 'dine-in') {
+          setSelectedTable(savedTable);
+          setShowTableGrid(false);
+
+          // Load table cart
+          const storedTableCart = await storage.getJSON(`table-cart-${savedTable.id}`);
+          if (storedTableCart) {
+            setTableCart(storedTableCart);
+          }
+
+          console.log('[POS] Restored selected table:', savedTable);
+        }
+      } catch (error) {
+        console.error('[POS] Failed to restore selected table:', error);
+      }
+    };
+
+    restoreSelectedTable();
+  }, [orderType]); // Re-run when orderType changes
+
+  // Save selected table to storage when it changes
+  useEffect(() => {
+    if (selectedTable && orderType === 'dine-in') {
+      storage.setJSON('selected-table', selectedTable);
+    } else if (!selectedTable) {
+      storage.removeSetting('selected-table');
+    }
+  }, [selectedTable, orderType]);
+
+  // Card payment confirmation dialog state
+  const [showCardPaymentDialog, setShowCardPaymentDialog] = useState(false);
+  const [cardReferenceNumber, setCardReferenceNumber] = useState('');
+  const [paymentMethodDetail, setPaymentMethodDetail] = useState<'CARD' | 'INSTAPAY' | 'MOBILE_WALLET'>('CARD');
+
+  // Item note dialog state
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [editingItem, setEditingItem] = useState<CartItem | null>(null);
+  const [editingNote, setEditingNote] = useState('');
+  const [editingQuantity, setEditingQuantity] = useState(1);
+
+  // Daily Expenses dialog state
+  const [showDailyExpenseDialog, setShowDailyExpenseDialog] = useState(false);
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseReason, setExpenseReason] = useState('');
+  const [currentDailyExpenses, setCurrentDailyExpenses] = useState<number>(0);
+  const [loadingDailyExpenses, setLoadingDailyExpenses] = useState(false);
+  const [submittingExpense, setSubmittingExpense] = useState(false);
+  const [expenseCategory, setExpenseCategory] = useState<string>('OTHER');
+  const [expenseIngredientId, setExpenseIngredientId] = useState<string>('');
+  const [expenseQuantity, setExpenseQuantity] = useState<string>('');
+  const [expenseQuantityUnit, setExpenseQuantityUnit] = useState<string>('');
+  const [expenseUnitPrice, setExpenseUnitPrice] = useState<string>('');
+  const [ingredients, setIngredients] = useState<any[]>([]);
+  const [loadingIngredients, setLoadingIngredients] = useState(false);
+
+  // Hold Orders state
+  const [heldOrders, setHeldOrders] = useState<any[]>([]);
+  const [showHeldOrdersDialog, setShowHeldOrdersDialog] = useState(false);
+
+  // Number Pad state
+  const [showNumberPad, setShowNumberPad] = useState(false);
+  const [numberPadValue, setNumberPadValue] = useState('');
+  const [numberPadCallback, setNumberPadCallback] = useState<((value: string) => void) | null>(null);
+
+  // Table Item Transfer state
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferItems, setTransferItems] = useState<Record<string, number>>({});
+  const [targetTableId, setTargetTableId] = useState<string>('');
+  const [availableTables, setAvailableTables] = useState<any[]>([]);
+
+  // Settings dialog state
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+
+  // Low Stock Alerts dialog state
+  const [showLowStockDialog, setShowLowStockDialog] = useState(false);
+
+  // Discount dialog state
+  const [showDiscountDialog, setShowDiscountDialog] = useState(false);
+
+  // Collapsible sections state
+  const [customerSearchCollapsed, setCustomerSearchCollapsed] = useState(true);
+  const [deliveryCollapsed, setDeliveryCollapsed] = useState(false);
+
+  // Get user context FIRST before using it in hooks
+  const { user } = useAuth();
+  const { currency, t } = useI18n();
+  const { data: categoriesData, loading: categoriesLoading } = useOfflineData(
+    '/api/categories?active=true',
+    {
+      fetchFromDB: offlineDataFetchers.categories,
+      useCache: true, // Enable in-memory caching for instant tab switching
+    }
+  );
+
+  const { data: menuItemsData, loading: menuItemsLoading, refetch: refetchMenuItems } = useOfflineData(
+    // Only fetch when we have a valid branchId
+    // This prevents loading ALL menu items for ALL branches (which causes 4GB+ data transfer)
+    (() => {
+      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+      if (!branchId) return null; // Don't fetch if no branchId
+      return `/api/menu-items/pos?branchId=${branchId}`;
+    })(),
+    {
+      fetchFromDB: offlineDataFetchers.menuItems,
+      deps: [selectedBranch, user?.branchId, user?.role],
+      useCache: true, // Enable in-memory caching for instant tab switching
+    }
+  );
+
+  const { data: branchesData } = useOfflineData(
+    '/api/branches',
+    {
+      fetchFromDB: offlineDataFetchers.branches,
+    }
+  );
+
+  const { data: deliveryAreasData } = useOfflineData(
+    '/api/delivery-areas',
+    {
+      fetchFromDB: offlineDataFetchers.deliveryAreas,
+    }
+  );
+
+  const { data: couriersData } = useOfflineData(
+    '',
+    {
+      fetchFromDB: offlineDataFetchers.couriers,
+      enabled: !!user?.branchId,
+      deps: [selectedBranch, user?.branchId, user?.role],
+    }
+  );
+
+  // Update local state when data changes
+  useEffect(() => {
+    if (categoriesData && Array.isArray(categoriesData)) {
+      setCategories(categoriesData);
+    }
+  }, [categoriesData]);
+
+  useEffect(() => {
+    if (menuItemsData && Array.isArray(menuItemsData)) {
+      setMenuItems(menuItemsData);
+      setLoading(false);
+    } else if (!menuItemsLoading) {
+      setLoading(false);
+    }
+  }, [menuItemsData, menuItemsLoading]);
+
+  // Update branches from offline data
+  useEffect(() => {
+    if (branchesData) {
+      const branchesList = Array.isArray(branchesData) 
+        ? branchesData.map((branch: any) => ({
+            id: branch.id,
+            name: branch.branchName,
+            phone: branch.phone || undefined,
+            address: branch.address || undefined,
+          }))
+        : (branchesData.branches || []).map((branch: any) => ({
+            id: branch.id,
+            name: branch.branchName,
+            phone: branch.phone || undefined,
+            address: branch.address || undefined,
+          }));
+      setBranches(branchesList);
+    }
+  }, [branchesData]);
+
+  // Update delivery areas from offline data
+  useEffect(() => {
+    if (deliveryAreasData) {
+      const areas = Array.isArray(deliveryAreasData) 
+        ? deliveryAreasData 
+        : (deliveryAreasData.areas || []);
+      setDeliveryAreas(areas);
+    }
+  }, [deliveryAreasData]);
+
+  // Update couriers from offline data
+  useEffect(() => {
+    if (couriersData && user) {
+      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+      if (!branchId) {
+        setCouriers([]);
+        return;
+      }
+      const allCouriers = Array.isArray(couriersData) ? couriersData : [];
+      const filtered = allCouriers.filter((c: any) => 
+        c.branchId === branchId && c.isActive
+      );
+      setCouriers(filtered);
+    }
+  }, [couriersData, selectedBranch, user?.branchId, user?.role]);
+
+  // Fetch branches (fallback if offline data not available)
+  useEffect(() => {
+    if (branchesData) return; // Already have data from offline hook
+
+    const fetchBranches = async () => {
+      try {
+        const response = await fetch('/api/branches');
+        const data = await response.json();
+        if (response.ok && data.branches) {
+          const branchesList = data.branches.map((branch: any) => ({
+            id: branch.id,
+            name: branch.branchName,
+          }));
+          setBranches(branchesList);
+        }
+      } catch (error) {
+        console.error('Failed to fetch branches:', error);
+      }
+    };
+    fetchBranches();
+  }, [branchesData]);
+
+  // Fetch delivery areas (fallback if offline data not available)
+  useEffect(() => {
+    if (deliveryAreasData) return; // Already have data from offline hook
+
+    const fetchDeliveryAreas = async () => {
+      try {
+        const response = await fetch('/api/delivery-areas');
+        const data = await response.json();
+        if (response.ok && data.areas) {
+          setDeliveryAreas(data.areas);
+        }
+      } catch (error) {
+        console.error('Failed to fetch delivery areas:', error);
+      }
+    };
+    fetchDeliveryAreas();
+  }, [deliveryAreasData]);
+
+  // Fetch couriers (fallback if offline data not available)
+  useEffect(() => {
+    if (couriersData) return; // Already have data from offline hook
+
+    const fetchCouriers = async () => {
+      try {
+        const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+        if (!branchId) {
+          setCouriers([]);
+          return;
+        }
+        const response = await fetch(`/api/couriers?branchId=${branchId}`);
+        const data = await response.json();
+        if (response.ok && data.couriers) {
+          setCouriers(data.couriers.filter((c: any) => c.isActive));
+        }
+      } catch (error) {
+        console.error('Failed to fetch couriers:', error);
+      }
+    };
+    fetchCouriers();
+  }, [couriersData, selectedBranch, user?.branchId, user?.role]);
+
+
+
+  // Refresh shift when window/tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user?.role === 'CASHIER') {
+        const fetchCurrentShift = async () => {
+          try {
+            const branchId = user.branchId;
+            if (!branchId) {
+              setCurrentShift(null);
+              return;
+            }
+            const params = new URLSearchParams({
+              branchId,
+              cashierId: user.id,
+              status: 'open',
+            });
+            const response = await fetch(`/api/shifts?${params.toString()}`);
+            const data = await response.json();
+            if (response.ok && data.shifts && data.shifts.length > 0) {
+              setCurrentShift(data.shifts[0]);
+            } else {
+              // API failed or no shift found - check IndexedDB for offline shift
+              const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+              const indexedDBStorage = getIndexedDBStorage();
+              await indexedDBStorage.init();
+              const allShifts = await indexedDBStorage.getAllShifts();
+              
+              const offlineShift = allShifts.find(
+                (s: any) => 
+                  s.cashierId === user.id && 
+                  s.branchId === branchId && 
+                  !s.isClosed
+              );
+              
+              if (offlineShift) {
+                console.log('[POS] Using offline shift on visibility change:', offlineShift);
+                setCurrentShift(offlineShift);
+              } else {
+                setCurrentShift(null);
+              }
+            }
+          } catch (error) {
+            console.error('Failed to refresh shift on tab visibility:', error);
+            // Try IndexedDB on error
+            try {
+              const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+              const indexedDBStorage = getIndexedDBStorage();
+              await indexedDBStorage.init();
+              const allShifts = await indexedDBStorage.getAllShifts();
+              
+              // Find shifts for this cashier and branch, sorted by createdAt (most recent first)
+              const userShifts = allShifts
+                .filter((s: any) => s.cashierId === user.id && s.branchId === user.branchId)
+                .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+              
+              console.log('[POS] Visibility change - Found shifts for current user:', userShifts.length);
+              
+              if (userShifts.length > 0) {
+                // Use the most recently created shift (whether open or closed)
+                const mostRecentShift = userShifts[0];
+                console.log('[POS] Visibility change - Using most recent shift:', mostRecentShift);
+                setCurrentShift(mostRecentShift);
+              } else {
+                setCurrentShift(null);
+              }
+            } catch (dbError) {
+              console.error('Failed to fetch offline shift on visibility change:', dbError);
+              setCurrentShift(null);
+            }
+          }
+        };
+        fetchCurrentShift();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, user?.branchId]);
+
+  // Set default branch for admin and branch manager
+  useEffect(() => {
+    // For Admin, set to first available branch
+    if (user?.role === 'ADMIN' && branches.length > 0 && !selectedBranch) {
+      setSelectedBranch(branches[0].id);
+    }
+    // For Branch Manager, set to their assigned branch
+    if (user?.role === 'BRANCH_MANAGER' && user?.branchId && !selectedBranch) {
+      setSelectedBranch(user.branchId);
+    }
+  }, [user, branches, selectedBranch]);
+
+  // Auto-sync when connection is restored
+  const currentBranchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+  useAutoSync(currentBranchId);
+
+  // Fetch current shift for cashiers
+  useEffect(() => {
+    const fetchCurrentShift = async () => {
+      if (!user || user.role !== 'CASHIER') {
+        setCurrentShift(null);
+        return;
+      }
+      const branchId = user.role === 'CASHIER' ? user.branchId : selectedBranch;
+      if (!branchId) {
+        setCurrentShift(null);
+        return;
+      }
+      try {
+        const params = new URLSearchParams({
+          branchId,
+          cashierId: user.id,
+          status: 'open',
+        });
+        const response = await fetch(`/api/shifts?${params.toString()}`);
+        const data = await response.json();
+        if (response.ok && data.shifts && data.shifts.length > 0) {
+          setCurrentShift(data.shifts[0]);
+        } else {
+          // API failed or no shift found - check IndexedDB for offline shift
+          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+          const indexedDBStorage = getIndexedDBStorage();
+          await indexedDBStorage.init();
+          const allShifts = await indexedDBStorage.getAllShifts();
+          
+          // Find shifts for this cashier and branch, sorted by createdAt (most recent first)
+          const userShifts = allShifts
+            .filter((s: any) => s.cashierId === user.id && s.branchId === branchId)
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          
+          console.log('[POS] Found shifts for current user:', userShifts.length);
+          
+          if (userShifts.length > 0) {
+            // Use the most recently created shift (whether open or closed)
+            const mostRecentShift = userShifts[0];
+            console.log('[POS] Using most recent shift:', mostRecentShift);
+            setCurrentShift(mostRecentShift);
+          } else {
+            setCurrentShift(null);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch current shift, trying offline:', error);
+        
+        // On error, check IndexedDB
+        try {
+          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+          const indexedDBStorage = getIndexedDBStorage();
+          await indexedDBStorage.init();
+          const allShifts = await indexedDBStorage.getAllShifts();
+          
+          // Find shifts for this cashier and branch, sorted by createdAt (most recent first)
+          const userShifts = allShifts
+            .filter((s: any) => s.cashierId === user.id && s.branchId === branchId)
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          
+          console.log('[POS] Found shifts for current user (error path):', userShifts.length);
+          
+          if (userShifts.length > 0) {
+            // Use the most recently created shift (whether open or closed)
+            const mostRecentShift = userShifts[0];
+            console.log('[POS] Using most recent shift from error handler:', mostRecentShift);
+            setCurrentShift(mostRecentShift);
+          } else {
+            setCurrentShift(null);
+          }
+        } catch (dbError) {
+          console.error('Failed to fetch offline shift:', dbError);
+          setCurrentShift(null);
+        }
+      }
+    };
+    fetchCurrentShift();
+  }, [user, user?.branchId, selectedBranch]);
+
+  // Fetch daily expenses for current shift
+  useEffect(() => {
+    const fetchDailyExpenses = async () => {
+      if (!currentShift?.id) {
+        setCurrentDailyExpenses(0);
+        return;
+      }
+
+      setLoadingDailyExpenses(true);
+      try {
+        const response = await fetch(`/api/daily-expenses?shiftId=${currentShift.id}`);
+        const data = await response.json();
+        if (response.ok && data.expenses) {
+          const total = data.expenses.reduce((sum: number, exp: any) => sum + exp.amount, 0);
+          setCurrentDailyExpenses(total);
+        } else {
+          setCurrentDailyExpenses(0);
+        }
+      } catch (error) {
+        console.error('Failed to fetch daily expenses:', error);
+        setCurrentDailyExpenses(0);
+      } finally {
+        setLoadingDailyExpenses(false);
+      }
+    };
+    fetchDailyExpenses();
+  }, [currentShift?.id]);
+
+  // Fetch ingredients for inventory expenses
+  useEffect(() => {
+    const fetchIngredients = async () => {
+      if (!showDailyExpenseDialog) return;
+
+      setLoadingIngredients(true);
+      try {
+        const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+        const response = await fetch(`/api/ingredients?branchId=${branchId}`);
+        const data = await response.json();
+        if (response.ok && data.ingredients) {
+          setIngredients(data.ingredients);
+        } else {
+          setIngredients([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch ingredients:', error);
+        setIngredients([]);
+      } finally {
+        setLoadingIngredients(false);
+      }
+    };
+    fetchIngredients();
+  }, [showDailyExpenseDialog, user, selectedBranch]);
+
+  // Fetch low stock alerts
+  useEffect(() => {
+    const fetchLowStockAlerts = async () => {
+      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+      if (!branchId) {
+        setLowStockAlerts([]);
+        return;
+      }
+      try {
+        const response = await fetch(`/api/inventory/low-stock?branchId=${branchId}`);
+        const data = await response.json();
+        if (response.ok && data.alerts) {
+          setLowStockAlerts(data.alerts);
+        }
+      } catch (error) {
+        console.error('Failed to fetch low stock alerts:', error);
+      }
+    };
+    fetchLowStockAlerts();
+  }, [selectedBranch, user?.branchId, user?.role]);
+
+  // Auto-fill delivery info when address is selected
+  useEffect(() => {
+    if (selectedAddress) {
+      const parts = [];
+      if (selectedAddress.building) parts.push(selectedAddress.building);
+      parts.push(selectedAddress.streetAddress);
+      if (selectedAddress.floor) parts.push(`${selectedAddress.floor} Floor`);
+      if (selectedAddress.apartment) parts.push(`Apt ${selectedAddress.apartment}`);
+      setDeliveryAddress(parts.join(', '));
+      if (selectedAddress.deliveryAreaId) {
+        setDeliveryArea(selectedAddress.deliveryAreaId);
+      }
+    }
+  }, [selectedAddress]);
+
+  // Reset selected courier when order type changes
+  useEffect(() => {
+    if (orderType !== 'delivery') {
+      setSelectedCourierId('none');
+    }
+  }, [orderType]);
+
+  // Show table grid when switching to Dine In
+  useEffect(() => {
+    if (orderType === 'dine-in' && !selectedTable) {
+      setShowTableGrid(true);
+    } else if (orderType !== 'dine-in') {
+      setShowTableGrid(false);
+      setSelectedTable(null);
+    }
+  }, [orderType, selectedTable]);
+
+  // Auto-open numpad when variant dialog opens with custom input variant
+  useEffect(() => {
+    if (variantDialogOpen && selectedVariant?.variantType?.isCustomInput) {
+      // Small delay to ensure the dialog is fully rendered
+      const timer = setTimeout(() => {
+        openNumberPad(
+          (value) => {
+            console.log('[Auto-open Numpad] Called with value:', value);
+            setCustomVariantValue(value);
+          },
+          customVariantValue || ''
+        );
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [variantDialogOpen, selectedVariant?.id]);
+
+  // Filter menu items by category and search
+  const filteredMenuItems = useMemo(() => {
+    let items = menuItems.filter((item) => {
+      const matchesCategory = selectedCategory === 'all' ||
+                            item.categoryId === selectedCategory ||
+                            item.category === selectedCategory;
+      const matchesSearch = searchQuery === '' ||
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.category.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+
+    // Sort items: when "All Products" is selected, sort by category sortOrder, then item sortOrder, then name
+    // When specific category is selected, sort by item sortOrder, then name
+    items = [...items].sort((a, b) => {
+      if (selectedCategory === 'all') {
+        // Sort by category sortOrder first
+        const categoryASortOrder = a.categoryRel?.sortOrder ?? 9999;
+        const categoryBSortOrder = b.categoryRel?.sortOrder ?? 9999;
+
+        if (categoryASortOrder !== categoryBSortOrder) {
+          return categoryASortOrder - categoryBSortOrder;
+        }
+
+        // Then by category name (as a tiebreaker for same sortOrder)
+        const categoryAName = a.category?.toLowerCase() || '';
+        const categoryBName = b.category?.toLowerCase() || '';
+        if (categoryAName !== categoryBName) {
+          return categoryAName.localeCompare(categoryBName);
+        }
+      }
+
+      // Sort by item sortOrder (null values go last)
+      const sortA = a.sortOrder ?? 9999;
+      const sortB = b.sortOrder ?? 9999;
+
+      if (sortA !== sortB) {
+        return sortA - sortB;
+      }
+
+      // Then by name
+      return a.name.localeCompare(b.name);
+    });
+
+    return items;
+  }, [menuItems, selectedCategory, searchQuery]);
+
+  const getCategoryColor = (categoryName: string): string => {
+    const name = categoryName.toLowerCase();
+    const colors = {
+      coffee: 'from-amber-500 to-orange-600',
+      hot: 'from-red-500 to-pink-600',
+      ice: 'from-cyan-500 to-blue-600',
+      cold: 'from-blue-500 to-indigo-600',
+      cake: 'from-pink-500 to-rose-600',
+      pastry: 'from-purple-500 to-violet-600',
+      snack: 'from-yellow-500 to-amber-600',
+      food: 'from-orange-500 to-red-600',
+      bean: 'from-green-500 to-emerald-600',
+    };
+    for (const [key, color] of Object.entries(colors)) {
+      if (name.includes(key)) return color;
+    }
+    return 'from-emerald-500 to-teal-600';
+  };
+
+  const allCategories = useMemo(() => {
+    const cats = [
+      { id: 'all', name: 'All Products', color: 'from-slate-600 to-slate-700' },
+      ...categories.map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        color: getCategoryColor(cat.name),
+        imagePath: cat.imagePath,
+      }))
+    ];
+    return cats;
+  }, [categories]);
+
+  const handleItemClick = (item: MenuItem) => {
+    if (item.hasVariants && item.variants && item.variants.length > 0) {
+      setSelectedItemForVariant(item);
+      setCustomVariantValue('');
+      
+      // Auto-select custom input variant if present
+      const customInputVariant = item.variants.find(v => v.variantType?.isCustomInput);
+      if (customInputVariant) {
+        setSelectedVariant(customInputVariant);
+      } else {
+        setSelectedVariant(null);
+      }
+      
+      setVariantDialogOpen(true);
+    } else {
+      addToCart(item, null);
+    }
+  };
+
+  // Helper function to get requiresCaptainReceipt for a category
+  const getCategoryRequiresCaptainReceipt = (categoryId: string | null): boolean => {
+    if (!categoryId) return false;
+
+    const category = categories.find(c => c.id === categoryId);
+    const result = category?.requiresCaptainReceipt || false;
+    console.log('[Captain Receipt] getCategoryRequiresCaptainReceipt:', {
+      categoryId,
+      category: category?.name,
+      requiresCaptainReceipt: result,
+    });
+    return result;
+  };
+
+  // Helper function to get requiresCaptainReceipt for a menu item
+  const getMenuItemRequiresCaptainReceipt = (item: MenuItem): boolean => {
+    console.log('[Captain Receipt] getMenuItemRequiresCaptainReceipt called:', {
+      itemId: item.id,
+      itemName: item.name,
+      categoryRel: item.categoryRel,
+      categoryId: item.categoryId,
+    });
+
+    // First try to use the categoryRel if available
+    if (item.categoryRel?.requiresCaptainReceipt !== undefined) {
+      console.log('[Captain Receipt] Using categoryRel:', item.categoryRel.requiresCaptainReceipt);
+      return item.categoryRel.requiresCaptainReceipt;
+    }
+
+    // Fallback to look up category by categoryId
+    const result = getCategoryRequiresCaptainReceipt(item.categoryId || null);
+    console.log('[Captain Receipt] Fallback to getCategoryRequiresCaptainReceipt:', result);
+    return result;
+  };
+
+  const addToCart = async (item: MenuItem, variant: MenuItemVariant | null, note?: string) => {
+    const uniqueId = note
+      ? `${variant ? `${item.id}-${variant.id}` : item.id}-note-${btoa(note).slice(0, 8)}`
+      : (variant ? `${item.id}-${variant.id}` : item.id);
+    const finalPrice = variant ? item.price + variant.priceModifier : item.price;
+    const variantName = variant ? `${variant.variantType.name}: ${variant.variantOption.name}` : undefined;
+    const requiresCaptainReceiptValue = getMenuItemRequiresCaptainReceipt(item);
+
+    console.log('[Cart] Creating cart item:', {
+      itemId: item.id,
+      itemName: item.name,
+      requiresCaptainReceipt: requiresCaptainReceiptValue,
+    });
+
+    const cartItem = {
+      id: uniqueId,
+      menuItemId: item.id,
+      name: item.name,
+      price: finalPrice,
+      quantity: 1,
+      variantName,
+      variantId: variant?.id,
+      note: note || undefined,
+      category: item.category,
+      categoryId: item.categoryId,
+      categoryName: item.category,
+      requiresCaptainReceipt: requiresCaptainReceiptValue,
+    };
+
+    // If dine-in with table selected, add to table cart
+    if (orderType === 'dine-in' && selectedTable) {
+      setTableCart((prevCart) => {
+        const existingItem = prevCart.find((i) => i.id === uniqueId);
+        if (existingItem) {
+          return prevCart.map((i) =>
+            i.id === uniqueId ? { ...i, quantity: i.quantity + 1 } : i
+          );
+        }
+        return [...prevCart, cartItem];
+      });
+
+      // Save to IndexedDB for persistence
+      const updatedCart = tableCart.some(i => i.id === uniqueId)
+        ? tableCart.map((i) => i.id === uniqueId ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...tableCart, cartItem];
+
+      await storage.setJSON(`table-cart-${selectedTable.id}`, updatedCart);
+    } else {
+      // Regular cart for other order types
+      setCart((prevCart) => {
+        const existingItem = prevCart.find((i) => i.id === uniqueId);
+        if (existingItem) {
+          return prevCart.map((i) =>
+            i.id === uniqueId ? { ...i, quantity: i.quantity + 1 } : i
+          );
+        }
+        return [...prevCart, cartItem];
+      });
+    }
+  };
+
+  const handleVariantConfirm = async () => {
+    if (selectedItemForVariant) {
+      if (selectedVariant?.variantType?.isCustomInput) {
+        // For custom input variants, calculate price dynamically
+        const multiplier = parseFloat(customVariantValue);
+        if (isNaN(multiplier) || multiplier <= 0) {
+          alert('Please enter a valid multiplier (e.g., 0.125 for 1/8)');
+          return;
+        }
+
+        const finalPrice = selectedItemForVariant.price * multiplier;
+        const variantName = `${selectedVariant.variantType.name}: ${multiplier}x`;
+        const requiresCaptainReceiptValue = getMenuItemRequiresCaptainReceipt(selectedItemForVariant);
+
+        console.log('[Cart] Creating custom variant cart item:', {
+          itemId: selectedItemForVariant.id,
+          itemName: selectedItemForVariant.name,
+          requiresCaptainReceipt: requiresCaptainReceiptValue,
+        });
+
+        const uniqueId = `${selectedItemForVariant.id}-${selectedVariant.id}-${multiplier}`;
+        const cartItem = {
+          id: uniqueId,
+          menuItemId: selectedItemForVariant.id,
+          name: selectedItemForVariant.name,
+          price: finalPrice,
+          quantity: 1,
+          variantName,
+          variantId: selectedVariant.id,
+          customVariantValue: multiplier,
+          category: selectedItemForVariant.category,
+          categoryId: selectedItemForVariant.categoryId,
+          requiresCaptainReceipt: requiresCaptainReceiptValue,
+        };
+
+        if (orderType === 'dine-in' && selectedTable) {
+          setTableCart((prevCart) => [...prevCart, cartItem]);
+          await storage.setJSON(`table-cart-${selectedTable.id}`, [...tableCart, cartItem]);
+        } else {
+          setCart((prevCart) => [...prevCart, cartItem]);
+        }
+      } else if (selectedVariant) {
+        // For regular variants
+        await addToCart(selectedItemForVariant, selectedVariant);
+      }
+
+      setVariantDialogOpen(false);
+      setSelectedItemForVariant(null);
+      setSelectedVariant(null);
+      setCustomVariantValue('');
+    }
+  };
+
+  const updateQuantity = async (itemId: string, newQuantity: number) => {
+    if (newQuantity < 1) return;
+
+    if (orderType === 'dine-in' && selectedTable) {
+      setTableCart((prevCart) => {
+        const updated = prevCart
+          .map((item) =>
+            item.id === itemId ? { ...item, quantity: newQuantity } : item
+          )
+          .filter((item) => item.quantity > 0);
+
+        // Save to IndexedDB
+        storage.setJSON(`table-cart-${selectedTable.id}`, updated);
+        return updated;
+      });
+    } else {
+      setCart((prevCart) =>
+        prevCart
+          .map((item) =>
+            item.id === itemId ? { ...item, quantity: newQuantity } : item
+          )
+          .filter((item) => item.quantity > 0)
+      );
+    }
+  };
+
+  const handleIncrementQuantity = async (itemId: string) => {
+    const currentCart = (orderType === 'dine-in' && selectedTable) ? tableCart : cart;
+    const item = currentCart.find(i => i.id === itemId);
+    if (item) {
+      await updateQuantity(itemId, item.quantity + 1);
+    }
+  };
+
+  const handleDecrementQuantity = async (itemId: string) => {
+    const currentCart = (orderType === 'dine-in' && selectedTable) ? tableCart : cart;
+    const item = currentCart.find(i => i.id === itemId);
+    if (item && item.quantity > 1) {
+      await updateQuantity(itemId, item.quantity - 1);
+    }
+  };
+
+  const handleQuantityChange = async (itemId: string, value: string) => {
+    console.log('[handleQuantityChange] itemId:', itemId, 'value:', value);
+    const numValue = parseInt(value);
+    console.log('[handleQuantityChange] parsed numValue:', numValue, 'isValid:', !isNaN(numValue) && numValue >= 1);
+    if (!isNaN(numValue) && numValue >= 1) {
+      await updateQuantity(itemId, numValue);
+    }
+  };
+
+  const openNoteDialog = (item: CartItem) => {
+    setEditingItem(item);
+    setEditingNote(item.note || '');
+    setEditingQuantity(item.quantity);
+    setShowNoteDialog(true);
+  };
+
+  const handleSaveNote = async () => {
+    if (!editingItem) return;
+
+    const menuItem = menuItems.find(m => m.id === editingItem.menuItemId);
+    const variant = menuItem?.variants?.find(v => v.id === editingItem.variantId);
+
+    if (orderType === 'dine-in' && selectedTable) {
+      setTableCart((prevCart) => {
+        // Remove the old item
+        const filtered = prevCart.filter((i) => i.id !== editingItem.id);
+
+        // If quantity is 0 or note was cleared and no variant, don't add back
+        if (editingQuantity === 0 || (!editingNote.trim() && !editingItem.variantId)) {
+          storage.setJSON(`table-cart-${selectedTable.id}`, filtered);
+          return filtered;
+        }
+
+        // Create new unique ID based on note
+        const newUniqueId = editingNote.trim()
+          ? `${editingItem.menuItemId}-${editingItem.variantId || 'no-variant'}-note-${btoa(editingNote.trim()).slice(0, 8)}`
+          : (editingItem.variantId ? `${editingItem.menuItemId}-${editingItem.variantId}` : editingItem.menuItemId);
+
+        const updatedItem = {
+          ...editingItem,
+          id: newUniqueId,
+          quantity: editingQuantity,
+          note: editingNote.trim() || undefined,
+        };
+
+        const updated = [...filtered, updatedItem];
+        storage.setJSON(`table-cart-${selectedTable.id}`, updated);
+        return updated;
+      });
+    } else {
+      setCart((prevCart) => {
+        const filtered = prevCart.filter((i) => i.id !== editingItem.id);
+
+        if (editingQuantity === 0 || (!editingNote.trim() && !editingItem.variantId)) {
+          return filtered;
+        }
+
+        const newUniqueId = editingNote.trim()
+          ? `${editingItem.menuItemId}-${editingItem.variantId || 'no-variant'}-note-${btoa(editingNote.trim()).slice(0, 8)}`
+          : (editingItem.variantId ? `${editingItem.menuItemId}-${editingItem.variantId}` : editingItem.menuItemId);
+
+        const updatedItem = {
+          ...editingItem,
+          id: newUniqueId,
+          quantity: editingQuantity,
+          note: editingNote.trim() || undefined,
+        };
+
+        return [...filtered, updatedItem];
+      });
+    }
+
+    setShowNoteDialog(false);
+    setEditingItem(null);
+    setEditingNote('');
+    setEditingQuantity(1);
+  };
+
+
+  const removeFromCart = (itemId: string) => {
+    if (orderType === 'dine-in' && selectedTable) {
+      setTableCart((prevCart) => {
+        const updated = prevCart.filter((item) => item.id !== itemId);
+        storage.setJSON(`table-cart-${selectedTable.id}`, updated);
+        return updated;
+      });
+    } else {
+      setCart((prevCart) => prevCart.filter((item) => item.id !== itemId));
+    }
+  };
+
+  const clearCart = () => {
+    if (orderType === 'dine-in' && selectedTable) {
+      setTableCart([]);
+      storage.setJSON(`table-cart-${selectedTable.id}`, []);
+    } else {
+      setCart([]);
+    }
+    setRedeemedPoints(0);
+    setLoyaltyDiscount(0);
+    handleClearPromoCode();
+    handleClearManualDiscount();
+  };
+
+  // Sync temp manual discount percent when discount dialog opens
+  useEffect(() => {
+    if (showDiscountDialog) {
+      setTempManualDiscountPercent(manualDiscountPercent > 0 ? manualDiscountPercent.toString() : '');
+    }
+  }, [showDiscountDialog, manualDiscountPercent]);
+
+  // Table handling functions
+  const handleTableSelect = async (table: any) => {
+    setSelectedTable(table);
+    setShowTableGrid(false);
+
+    // Load existing table cart from IndexedDB if table has items
+    const storedTableCart = await storage.getJSON(`table-cart-${table.id}`);
+    if (storedTableCart) {
+      setTableCart(storedTableCart);
+    } else {
+      setTableCart([]);
+    }
+
+    // Refresh tables to show updated status
+    setTableRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleDeselectTable = () => {
+    // Save current table cart before deselecting
+    if (selectedTable) {
+      storage.setJSON(`table-cart-${selectedTable.id}`, tableCart);
+    }
+
+    setSelectedTable(null);
+    setShowTableGrid(true);
+    setTableCart([]);
+
+    // Refresh tables to show updated status
+    setTableRefreshTrigger(prev => prev + 1);
+  };
+
+  // Transfer Items handlers
+  const handleOpenTransferDialog = async () => {
+    if (!selectedTable) return;
+
+    const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+    if (!branchId) return;
+
+    try {
+      const response = await fetch(`/api/tables?branchId=${branchId}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Filter only OCCUPIED tables (excluding current table)
+        const occupiedTables = (data.tables || []).filter(
+          (t: any) => t.status === 'OCCUPIED' && t.id !== selectedTable.id
+        );
+        setAvailableTables(occupiedTables);
+
+        if (occupiedTables.length === 0) {
+          alert('No other occupied tables available for transfer');
+          return;
+        }
+
+        // Initialize transfer items with current quantities
+        const initialTransferItems: Record<string, number> = {};
+        tableCart.forEach(item => {
+          initialTransferItems[item.id] = 0;
+        });
+        setTransferItems(initialTransferItems);
+        setTargetTableId('');
+        setShowTransferDialog(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch tables:', error);
+      alert('Failed to load available tables');
+    }
+  };
+
+  const handleTransferItems = async () => {
+    if (!selectedTable || !targetTableId) {
+      alert('Please select a target table');
+      return;
+    }
+
+    // Validate at least one item is selected
+    const itemsToTransfer = Object.entries(transferItems).filter(([_, qty]) => qty > 0);
+    if (itemsToTransfer.length === 0) {
+      alert('Please select at least one item to transfer');
+      return;
+    }
+
+    // Validate quantities
+    for (const [itemId, qty] of itemsToTransfer) {
+      const item = tableCart.find(i => i.id === itemId);
+      if (!item || qty > item.quantity) {
+        alert(`Invalid quantity for ${item?.name || 'item'}`);
+        return;
+      }
+    }
+
+    if (!confirm(`Transfer ${itemsToTransfer.length} item(s) to Table ${availableTables.find(t => t.id === targetTableId)?.tableNumber}?`)) {
+      return;
+    }
+
+    // Perform transfer
+    try {
+      const sourceCart = [...tableCart];
+      const targetCartKey = `table-cart-${targetTableId}`;
+      const targetCartJson = await storage.getJSON(targetCartKey);
+      let targetCart: CartItem[] = targetCartJson || [];
+
+      itemsToTransfer.forEach(([itemId, qty]) => {
+        const sourceItem = sourceCart.find(i => i.id === itemId);
+        if (!sourceItem) return;
+
+        // Check if item exists in target cart
+        const targetItem = targetCart.find(t =>
+          t.menuItemId === sourceItem.menuItemId &&
+          t.variantId === sourceItem.variantId &&
+          t.note === sourceItem.note &&
+          t.customVariantValue === sourceItem.customVariantValue
+        );
+
+        if (targetItem) {
+          // Update existing item
+          targetItem.quantity += qty;
+        } else {
+          // Add new item
+          targetCart.push({
+            ...sourceItem,
+            quantity: qty,
+          });
+        }
+
+        // Update or remove from source cart
+        if (qty >= sourceItem.quantity) {
+          // Remove item completely
+          const idx = sourceCart.findIndex(i => i.id === itemId);
+          if (idx > -1) sourceCart.splice(idx, 1);
+        } else {
+          // Update quantity
+          sourceItem.quantity -= qty;
+        }
+      });
+
+      // Save both carts
+      setTableCart(sourceCart);
+      await storage.setJSON(`table-cart-${selectedTable.id}`, sourceCart);
+      await storage.setJSON(targetCartKey, targetCart);
+
+      setShowTransferDialog(false);
+      setTransferItems({});
+      setTargetTableId('');
+      alert('Items transferred successfully!');
+    } catch (error) {
+      console.error('Transfer failed:', error);
+      alert('Failed to transfer items');
+    }
+  };
+
+  const handleTransferQuantityChange = (itemId: string, value: number) => {
+    setTransferItems(prev => ({
+      ...prev,
+      [itemId]: Math.max(0, value),
+    }));
+  };
+
+  const handleSetMaxQuantity = (itemId: string) => {
+    const item = tableCart.find(i => i.id === itemId);
+    if (item) {
+      setTransferItems(prev => ({
+        ...prev,
+        [itemId]: item.quantity,
+      }));
+    }
+  };
+
+  const handleCloseTable = async () => {
+    if (!selectedTable) return;
+
+    if (tableCart.length === 0) {
+      if (confirm(`Table ${selectedTable.tableNumber} has no items. Close it anyway?`)) {
+        // Just close the table without creating an order
+        await closeTableInDB();
+      }
+      return;
+    }
+
+    // Show payment dialog
+    setShowPaymentDialog(true);
+  };
+
+  const handlePaymentSelect = async (paymentMethod: 'cash' | 'card') => {
+    if (paymentMethod === 'cash') {
+      // Process cash payment immediately
+      setShowPaymentDialog(false);
+      await createTableOrder('cash');
+    } else {
+      // For card payments, show card payment dialog to select payment method detail
+      setShowPaymentDialog(false);
+      setCardReferenceNumber('');
+      setPaymentMethodDetail('CARD');
+      setShowCardPaymentDialog(true);
+    }
+  };
+
+  const closeTableInDB = async (skipDeselect: boolean = false) => {
+    if (!selectedTable) return;
+
+    try {
+      if (!user) {
+        alert('User not logged in');
+        return;
+      }
+
+      let closedSuccessfully = false;
+
+      // Try to close table via API (online)
+      try {
+        const response = await fetch(`/api/tables/${selectedTable.id}/close`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cashierId: user.id,
+          }),
+        });
+
+        if (response.ok) {
+          closedSuccessfully = true;
+        } else {
+          throw new Error('API request failed');
+        }
+      } catch (apiError) {
+        console.error('Failed to close table via API (likely offline), trying offline fallback:', apiError);
+
+        // OFFLINE FALLBACK: Close table locally and queue for sync
+        try {
+          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+          const indexedDBStorage = getIndexedDBStorage();
+          await indexedDBStorage.init();
+
+          // Update table status back to AVAILABLE in IndexedDB
+          const updatedTable = {
+            ...selectedTable,
+            status: 'AVAILABLE' as const,
+            openedAt: null as string | null,
+            _offlineModified: true,
+          };
+
+          await indexedDBStorage.put('tables', updatedTable);
+
+          // Queue operation for sync
+          await indexedDBStorage.addOperation({
+            type: 'UPDATE_TABLE',
+            data: {
+              id: selectedTable.id,
+              status: 'AVAILABLE',
+              closedBy: user.id,
+              closedAt: new Date().toISOString(),
+            },
+            branchId: user?.role === 'CASHIER' ? user?.branchId : selectedBranch,
+          });
+
+          console.log('[closeTableInDB] Table closed offline:', updatedTable);
+          closedSuccessfully = true;
+        } catch (offlineError) {
+          console.error('Failed to close table offline:', offlineError);
+          throw offlineError;
+        }
+      }
+
+      if (closedSuccessfully) {
+        // Clear table cart from IndexedDB (only if not already cleared)
+        const tableCartData = await storage.getJSON(`table-cart-${selectedTable.id}`);
+        if (tableCartData) {
+          await storage.removeSetting(`table-cart-${selectedTable.id}`);
+        }
+        if (!skipDeselect) {
+          alert(`Table ${selectedTable.tableNumber} closed successfully`);
+          handleDeselectTable();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to close table:', error);
+      alert('Failed to close table');
+    }
+  };
+
+  // Helper function to create table order offline
+  const createTableOrderOffline = async (orderData: any, cartItems: any[], paymentMethod: 'cash' | 'card') => {
+    console.log('[Table Order Offline] Creating table order offline:', orderData);
+    console.log('[Table Order Offline] Current shift:', currentShift);
+
+    // Find branch information for receipt
+    const branchInfo = branches.find(b => b.id === orderData.branchId);
+
+    // Create a fallback shift object if currentShift is null
+    const shiftForOrder = currentShift || {
+      id: orderData.shiftId || `temp-shift-${Date.now()}`,
+      cashierId: user?.id,
+      branchId: orderData.branchId,
+      startTime: new Date().toISOString(),
+      isClosed: false,
+    };
+
+    if (!currentShift) {
+      console.warn('[Table Order Offline] No current shift found, using fallback:', shiftForOrder);
+    }
+
+    // Create order offline
+    const result = await createOrderOffline(orderData, shiftForOrder, cartItems, branchInfo);
+
+    // Close table offline
+    try {
+      const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+      const indexedDBStorage = getIndexedDBStorage();
+      await indexedDBStorage.init();
+
+      // Update table status back to AVAILABLE in IndexedDB
+      const updatedTable = {
+        ...selectedTable,
+        status: 'AVAILABLE' as const,
+        openedAt: null as string | null,
+        _offlineModified: true,
+      };
+
+      await indexedDBStorage.put('tables', updatedTable);
+
+      // Queue operation for sync
+      await indexedDBStorage.addOperation({
+        type: 'UPDATE_TABLE',
+        data: {
+          id: selectedTable.id,
+          status: 'AVAILABLE',
+          closedBy: user.id,
+          closedAt: new Date().toISOString(),
+        },
+        branchId: orderData.branchId,
+      });
+
+      console.log('[Table Order Offline] Table closed offline:', updatedTable);
+    } catch (tableError) {
+      console.error('[Table Order Offline] Failed to close table offline:', tableError);
+      // Don't fail the order if table closing fails
+    }
+
+    // Clear table cart from IndexedDB
+    await storage.removeSetting(`table-cart-${selectedTable.id}`);
+    setTableCart([]);
+
+    // Show receipt
+    setReceiptData(result.order);
+    setShowReceipt(true);
+
+    // Deselect table and show table grid
+    setSelectedTable(null);
+    setShowTableGrid(true);
+
+    // Refresh tables to show updated status
+    setTableRefreshTrigger(prev => prev + 1);
+
+    alert('Table order created (offline mode - will sync when online)');
+  };
+
+  const createTableOrder = async (paymentMethod: 'cash' | 'card') => {
+    if (!selectedTable || tableCart.length === 0) return;
+
+    setProcessing(true);
+
+    try {
+      if (!user) {
+        alert('User not logged in');
+        setProcessing(false);
+        return;
+      }
+
+      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+      if (!branchId) {
+        alert('Branch not found');
+        setProcessing(false);
+        return;
+      }
+
+      // Calculate totals
+      const subtotal = tableCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const total = subtotal; // No delivery fee for dine-in
+
+      // Prepare order items
+      const orderItems = tableCart.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        menuItemVariantId: item.variantId || null,
+        customVariantValue: item.customVariantValue || null,
+        specialInstructions: item.note || null,
+      }));
+
+      const orderData: any = {
+        branchId,
+        orderType: 'dine-in',
+        items: orderItems,
+        subtotal,
+        taxRate: 0.14,
+        total,
+        paymentMethod,
+        cashierId: user?.id,
+        tableId: selectedTable.id,
+        shiftId: currentShift?.id,
+      };
+
+      // Check actual network connectivity before trying API
+      let isActuallyOnline = navigator.onLine;
+
+      if (navigator.onLine) {
+        // Verify with actual network request
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          await fetch('/api/branches', {
+            method: 'HEAD',
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          clearTimeout(timeoutId);
+          isActuallyOnline = true;
+          console.log('[Table Order] Network check passed, trying API...');
+        } catch (netError) {
+          console.log('[Table Order] Network check failed, assuming offline:', netError.message);
+          isActuallyOnline = false;
+        }
+      }
+
+      if (isActuallyOnline) {
+        // Try API first
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Clear table cart from IndexedDB first
+          await storage.removeSetting(`table-cart-${selectedTable.id}`);
+          setTableCart([]);
+
+          // Close the table in DB BEFORE showing receipt
+          const closeResponse = await fetch(`/api/tables/${selectedTable.id}/close`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cashierId: user?.id,
+            }),
+          });
+
+          if (!closeResponse.ok) {
+            console.error('Failed to close table in database');
+            const errorData = await closeResponse.json();
+            alert(`Order created but failed to close table: ${errorData.error || 'Unknown error'}. Please close the table manually.`);
+          }
+
+          // Show receipt
+          setReceiptData(data.order);
+          setShowReceipt(true);
+
+          // Manually deselect table and show table grid
+          setSelectedTable(null);
+          setShowTableGrid(true);
+        } else {
+          // Check if it's a network error - try offline fallback
+          const isNetworkError = !response.ok && (
+            response.status === 0 ||
+            response.type === 'error' ||
+            response.statusText === 'Failed to fetch' ||
+            data.error?.includes('Failed to fetch') ||
+            data.error?.includes('network')
+          );
+
+          if (isNetworkError) {
+            console.log('[Table Order] Network error detected, trying offline mode');
+            try {
+              await createTableOrderOffline(orderData, tableCart, paymentMethod);
+            } catch (offlineError) {
+              console.error('[Table Order] Offline order creation failed:', offlineError);
+              throw new Error(`Failed to create order offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+            }
+          } else {
+            const errorMessage = data.error || data.details || 'Failed to create order';
+            throw new Error(errorMessage);
+          }
+        }
+      } else {
+        // Offline mode - create order locally
+        console.log('[Table Order] Offline mode detected, creating order locally');
+        try {
+          await createTableOrderOffline(orderData, tableCart, paymentMethod);
+        } catch (offlineError) {
+          console.error('[Table Order] Offline order creation failed:', offlineError);
+          throw new Error(`Failed to create order offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create table order:', error);
+      alert(`Failed to create order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const createTableOrderWithCard = async (cardRefNumber: string, paymentMethodDetailParam: 'CARD' | 'INSTAPAY' | 'MOBILE_WALLET') => {
+    if (!selectedTable || tableCart.length === 0) return;
+
+    setProcessing(true);
+
+    try {
+      if (!user) {
+        alert('User not logged in');
+        setProcessing(false);
+        return;
+      }
+
+      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+      if (!branchId) {
+        alert('Branch not found');
+        setProcessing(false);
+        return;
+      }
+
+      // Calculate totals
+      const subtotal = tableCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const total = subtotal; // No delivery fee for dine-in
+
+      // Prepare order items
+      const orderItems = tableCart.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        menuItemVariantId: item.variantId || null,
+        customVariantValue: item.customVariantValue || null,
+        specialInstructions: item.note || null,
+      }));
+
+      const orderData: any = {
+        branchId,
+        orderType: 'dine-in',
+        items: orderItems,
+        subtotal,
+        taxRate: 0.14,
+        total,
+        paymentMethod: 'card',
+        cardReferenceNumber: cardRefNumber,
+        paymentMethodDetail: paymentMethodDetailParam,
+        cashierId: user?.id,
+        tableId: selectedTable.id,
+        shiftId: currentShift?.id,
+      };
+
+      // Check actual network connectivity before trying API
+      let isActuallyOnline = navigator.onLine;
+
+      if (navigator.onLine) {
+        // Verify with actual network request
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          await fetch('/api/branches', {
+            method: 'HEAD',
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          clearTimeout(timeoutId);
+          isActuallyOnline = true;
+          console.log('[Table Order With Card] Network check passed, trying API...');
+        } catch (netError) {
+          console.log('[Table Order With Card] Network check failed, assuming offline:', netError.message);
+          isActuallyOnline = false;
+        }
+      }
+
+      if (isActuallyOnline) {
+        // Try API first
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Clear table cart from IndexedDB first
+          await storage.removeSetting(`table-cart-${selectedTable.id}`);
+          setTableCart([]);
+
+          // Close the table in DB BEFORE showing receipt
+          const closeResponse = await fetch(`/api/tables/${selectedTable.id}/close`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cashierId: user?.id,
+            }),
+          });
+
+          if (!closeResponse.ok) {
+            console.error('Failed to close table in database');
+            const errorData = await closeResponse.json();
+            alert(`Order created but failed to close table: ${errorData.error || 'Unknown error'}. Please close the table manually.`);
+          }
+
+          // Show receipt
+          setReceiptData(data.order);
+          setShowReceipt(true);
+
+          // Manually deselect table and show table grid
+          setSelectedTable(null);
+          setShowTableGrid(true);
+        } else {
+          // Check if it's a network error - try offline fallback
+          const isNetworkError = !response.ok && (
+            response.status === 0 ||
+            response.type === 'error' ||
+            response.statusText === 'Failed to fetch' ||
+            data.error?.includes('Failed to fetch') ||
+            data.error?.includes('network')
+          );
+
+          if (isNetworkError) {
+            console.log('[Table Order With Card] Network error detected, trying offline mode');
+            try {
+              await createTableOrderOffline(orderData, tableCart, 'card');
+            } catch (offlineError) {
+              console.error('[Table Order With Card] Offline order creation failed:', offlineError);
+              throw new Error(`Failed to create order offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+            }
+          } else {
+            const errorMessage = data.error || data.details || 'Failed to create order';
+            throw new Error(errorMessage);
+          }
+        }
+      } else {
+        // Offline mode - create order locally
+        console.log('[Table Order With Card] Offline mode detected, creating order locally');
+        try {
+          await createTableOrderOffline(orderData, tableCart, 'card');
+        } catch (offlineError) {
+          console.error('[Table Order With Card] Offline order creation failed:', offlineError);
+          throw new Error(`Failed to create order offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create table order:', error);
+      alert(`Failed to create order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const getDeliveryFee = () => {
+    if (orderType === 'delivery' && deliveryArea) {
+      const area = deliveryAreas.find(a => a.id === deliveryArea);
+      return area ? area.fee : 0;
+    }
+    return 0;
+  };
+
+  // Use tableCart for dine-in with selected table, otherwise use regular cart
+  const currentCart = (orderType === 'dine-in' && selectedTable) ? tableCart : cart;
+
+  const subtotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const deliveryFee = getDeliveryFee();
+  const total = subtotal + deliveryFee - loyaltyDiscount - promoDiscount - manualDiscountAmount;
+  const totalItems = currentCart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Reset loyalty redemption when customer changes or cart is cleared
+  useEffect(() => {
+    setRedeemedPoints(0);
+    setLoyaltyDiscount(0);
+  }, [selectedAddress]);
+
+  const handleRedeemPoints = () => {
+    if (!selectedAddress || selectedAddress.loyaltyPoints === undefined) {
+      alert('Please select a customer first');
+      return;
+    }
+
+    const customerPoints = selectedAddress.loyaltyPoints || 0;
+    if (customerPoints < 100) {
+      alert('Customer needs at least 100 loyalty points to redeem');
+      return;
+    }
+
+    // Calculate maximum redeemable points (multiples of 100)
+    const maxRedeemable = Math.floor(customerPoints / 100) * 100;
+
+    // Ask user how many points to redeem
+    const pointsToRedeem = prompt(
+      `Enter points to redeem (multiples of 100, max ${maxRedeemable}):`,
+      maxRedeemable.toString()
+    );
+
+    if (!pointsToRedeem) return;
+
+    const pointsToRedeemNum = parseInt(pointsToRedeem);
+
+    // Validate the input
+    if (isNaN(pointsToRedeemNum)) {
+      alert('Please enter a valid number');
+      return;
+    }
+
+    if (pointsToRedeemNum < 100) {
+      alert('Minimum 100 points required for redemption');
+      return;
+    }
+
+    if (pointsToRedeemNum > customerPoints) {
+      alert(`Customer only has ${customerPoints} points available`);
+      return;
+    }
+
+    if (pointsToRedeemNum % 100 !== 0) {
+      alert('Points must be redeemed in multiples of 100');
+      return;
+    }
+
+    // Set the redemption (1 point = 0.1 EGP discount, so 100 points = 10 EGP)
+    setRedeemedPoints(pointsToRedeemNum);
+    setLoyaltyDiscount(pointsToRedeemNum * 0.1);
+  };
+
+  const handleClearRedemption = () => {
+    setRedeemedPoints(0);
+    setLoyaltyDiscount(0);
+  };
+
+  const handleValidatePromoCode = async () => {
+    if (!promoCode.trim()) {
+      setPromoMessage('Please enter a promo code');
+      return;
+    }
+
+    if (cart.length === 0) {
+      setPromoMessage('Add items to cart first');
+      return;
+    }
+
+    const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+    if (!branchId) {
+      setPromoMessage('Branch not found');
+      return;
+    }
+
+    setValidatingPromo(true);
+    setPromoMessage('');
+
+    try {
+      const response = await fetch('/api/promo-codes/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: promoCode.trim(),
+          branchId,
+          customerId: selectedAddress?.customerId || undefined,
+          orderSubtotal: subtotal,
+          orderItems: cart.map(item => {
+            // Find the menu item to get the category ID
+            const menuItem = menuItems.find(m => m.id === item.menuItemId);
+            return {
+              menuItemId: item.menuItemId,
+              categoryId: menuItem?.categoryId || null,
+              price: item.price,
+              quantity: item.quantity,
+            };
+          }),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.valid) {
+        setPromoCodeId(data.promo.id);
+        setPromoDiscount(data.promo.discountAmount);
+        setPromoMessage(data.promo.message);
+      } else {
+        setPromoCodeId('');
+        setPromoDiscount(0);
+        setPromoMessage(data.error || 'Invalid promo code');
+      }
+    } catch (error) {
+      console.error('Error validating promo code:', error);
+      setPromoMessage('Failed to validate promo code');
+    } finally {
+      setValidatingPromo(false);
+    }
+  };
+
+  const handleClearPromoCode = () => {
+    setPromoCode('');
+    setPromoCodeId('');
+    setPromoDiscount(0);
+    setPromoMessage('');
+  };
+
+  // Manual discount handlers
+  const handleManualDiscountPercentChange = (percent: number) => {
+    if (percent < 0 || percent > 100) return;
+    setManualDiscountPercent(percent);
+    setManualDiscountAmount(0); // Clear fixed amount when using percentage
+    // Calculate discount amount based on subtotal + delivery (before other discounts)
+    const baseAmount = subtotal + deliveryFee;
+    const discountAmount = (baseAmount * percent) / 100;
+    setManualDiscountAmount(discountAmount);
+    // Also update the temp input value to show the applied discount
+    setTempManualDiscountPercent(percent.toString());
+    setTempManualDiscountAmount('');
+  };
+
+  const handleManualDiscountFixedAmountChange = (amount: number) => {
+    if (amount < 0) return;
+    setManualDiscountAmount(amount);
+    setManualDiscountPercent(0); // Clear percentage when using fixed amount
+    setTempManualDiscountPercent('');
+    setTempManualDiscountAmount(amount.toString());
+  };
+
+  const handleClearManualDiscount = () => {
+    setManualDiscountType('percentage');
+    setManualDiscountPercent(0);
+    setManualDiscountAmount(0);
+    setManualDiscountComment('');
+    setTempManualDiscountPercent('');
+    setTempManualDiscountAmount('');
+  };
+
+  const handleAddAddress = async () => {
+    if (!selectedAddress) return;
+
+    if (!newAddress.streetAddress.trim()) {
+      alert('Please enter a street address');
+      return;
+    }
+
+    setCreatingAddress(true);
+    try {
+      const response = await fetch(`/api/customers/${selectedAddress.customerId}/addresses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          building: newAddress.building || null,
+          streetAddress: newAddress.streetAddress,
+          floor: newAddress.floor || null,
+          apartment: newAddress.apartment || null,
+          deliveryAreaId: newAddress.deliveryAreaId || null,
+          isDefault: false,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        alert(data.error || 'Failed to add address');
+        setCreatingAddress(false);
+        return;
+      }
+
+      // Get the created address
+      if (data.address) {
+        const newAddressObj: Address = {
+          id: data.address.id,
+          customerId: data.address.customerId,
+          customerName: selectedAddress.customerName,
+          customerPhone: selectedAddress.customerPhone,
+          building: data.address.building,
+          streetAddress: data.address.streetAddress,
+          floor: data.address.floor,
+          apartment: data.address.apartment,
+          deliveryAreaId: data.address.deliveryAreaId,
+          orderCount: 0,
+          isDefault: data.address.isDefault,
+          loyaltyPoints: selectedAddress.loyaltyPoints,
+        };
+
+        // Auto-select the new address
+        setSelectedAddress(newAddress);
+        setShowAddAddressDialog(false);
+
+        // Reset form
+        setNewAddress({
+          building: '',
+          streetAddress: '',
+          floor: '',
+          apartment: '',
+          deliveryAreaId: '',
+        });
+      }
+    } catch (error) {
+      console.error('Add address error:', error);
+      alert('Failed to add address. Please try again.');
+    } finally {
+      setCreatingAddress(false);
+    }
+  };
+
+  // Daily expense handlers
+  const handleDailyExpenseSubmit = async () => {
+    // Prevent double submission
+    if (submittingExpense) {
+      return;
+    }
+
+    if (!currentShift) {
+      alert('No active shift. Please open a shift first.');
+      return;
+    }
+
+    const amount = parseFloat(expenseAmount);
+    if (!amount || amount <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    if (!expenseReason.trim()) {
+      alert('Please enter a reason for expense');
+      return;
+    }
+
+    // Validate inventory-specific fields
+    if (expenseCategory === 'INVENTORY') {
+      if (!expenseIngredientId) {
+        alert('Please select an ingredient for inventory expenses');
+        return;
+      }
+      const quantity = parseFloat(expenseQuantity);
+      if (!quantity || quantity <= 0) {
+        alert('Please enter a valid quantity');
+        return;
+      }
+      const unitPrice = parseFloat(expenseUnitPrice);
+      if (!unitPrice || unitPrice <= 0) {
+        alert('Please enter a valid unit price');
+        return;
+      }
+    }
+
+    // Move expenseData outside try block so it's accessible in catch block
+    const expenseData: any = {
+      branchId: user?.role === 'CASHIER' ? user?.branchId : selectedBranch,
+      shiftId: currentShift.id,
+      amount,
+      reason: expenseReason.trim(),
+      recordedBy: user.id,
+      category: expenseCategory,
+    };
+
+    // Add inventory-specific fields if applicable
+    if (expenseCategory === 'INVENTORY') {
+      expenseData.ingredientId = expenseIngredientId;
+      expenseData.quantity = parseFloat(expenseQuantity);
+      expenseData.quantityUnit = expenseQuantityUnit;
+      expenseData.unitPrice = parseFloat(expenseUnitPrice);
+    }
+
+    console.log('[Daily Expense] expenseData created:', expenseData);
+
+    setSubmittingExpense(true);
+
+    try {
+      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+
+      // Check if online
+      let isActuallyOnline = navigator.onLine;
+      console.log('[Daily Expense] Network status:', isActuallyOnline);
+
+      if (isActuallyOnline) {
+        console.log('[Daily Expense] Online mode, submitting to API');
+        
+        const response = await fetch('/api/daily-expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(expenseData),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Update daily expenses total (only for non-inventory expenses)
+          if (expenseCategory !== 'INVENTORY') {
+            setCurrentDailyExpenses(prev => prev + amount);
+          }
+
+          // Show appropriate success message
+          let successMessage = 'Daily expense recorded successfully!';
+          if (expenseCategory === 'INVENTORY' && data.inventoryUpdate) {
+            const { oldPrice, newPrice } = data.inventoryUpdate;
+            successMessage = `Inventory updated successfully!\n\nOld price: ${formatCurrency(oldPrice, currency)}\nNew price: ${formatCurrency(newPrice, currency)}\n\nNew stock: ${data.inventoryUpdate.newStock} ${expenseQuantityUnit}`;
+          }
+
+          // Close dialog and reset form
+          setShowDailyExpenseDialog(false);
+          setExpenseAmount('');
+          setExpenseReason('');
+          setExpenseCategory('OTHER');
+          setExpenseIngredientId('');
+          setExpenseQuantity('');
+          setExpenseQuantityUnit('');
+          setExpenseUnitPrice('');
+
+          alert(successMessage);
+        } else {
+          // Check if it's a network error and try offline
+          const isNetworkError = 
+            !response.ok && (
+              data.error?.includes('Failed to fetch') ||
+              data.error?.includes('net::ERR_NAME_NOT_RESOLVED') ||
+              data.error?.includes('ECONNREFUSED') ||
+              data.error?.includes('Network') ||
+              data.error?.includes('ERR_INTERNET_DISCONNECTED') ||
+              data.error?.includes('503') ||
+              response.status === 503
+            );
+
+          if (isNetworkError) {
+            console.log('[Daily Expense] Network error detected, trying offline mode');
+            try {
+              const result = await createExpenseOffline(expenseData, currentShift);
+              
+              // Show appropriate success message
+              let successMessage = 'Daily expense recorded (offline mode - will sync when online)!';
+              if (expenseCategory === 'INVENTORY' && result.inventoryUpdate) {
+                const { oldPrice, newPrice, newStock } = result.inventoryUpdate;
+                successMessage = `Inventory updated successfully (offline mode)!\n\nNew stock: ${newStock} ${expenseQuantityUnit}\n\nWill sync with weighted average price when online.`;
+              }
+
+              // Close dialog and reset form
+              setShowDailyExpenseDialog(false);
+              setExpenseAmount('');
+              setExpenseReason('');
+              setExpenseCategory('OTHER');
+              setExpenseIngredientId('');
+              setExpenseQuantity('');
+              setExpenseQuantityUnit('');
+              setExpenseUnitPrice('');
+
+              alert(successMessage);
+            } catch (offlineError) {
+              console.error('[Daily Expense] Offline expense creation failed:', offlineError);
+              throw new Error(`Failed to create expense offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+            }
+          } else {
+            alert(data.error || 'Failed to record expense');
+          }
+        }
+      } else {
+        // Offline mode - create expense locally
+        console.log('[Daily Expense] Offline mode detected, creating expense locally');
+        try {
+          const result = await createExpenseOffline(expenseData, currentShift);
+          
+          // Show appropriate success message
+          let successMessage = 'Daily expense recorded (offline mode - will sync when online)!';
+          if (expenseCategory === 'INVENTORY' && result.inventoryUpdate) {
+            const { oldPrice, newPrice, newStock } = result.inventoryUpdate;
+            successMessage = `Inventory updated successfully (offline mode)!\n\nNew stock: ${newStock} ${expenseQuantityUnit}\n\nWill sync with weighted average price when online.`;
+          }
+
+          // Close dialog and reset form
+          setShowDailyExpenseDialog(false);
+          setExpenseAmount('');
+          setExpenseReason('');
+          setExpenseCategory('OTHER');
+          setExpenseIngredientId('');
+          setExpenseQuantity('');
+          setExpenseQuantityUnit('');
+          setExpenseUnitPrice('');
+
+          alert(successMessage);
+        } catch (offlineError) {
+          console.error('[Daily Expense] Offline expense creation failed:', offlineError);
+          throw new Error(`Failed to create expense offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+        }
+      }
+    } catch (error) {
+      console.error('[Daily Expense] Error caught:', error);
+      console.log('[Daily Expense] expenseData available:', !!expenseData, expenseData);
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to record expense. Please try again.';
+
+      // Check if it's a network error
+      const isNetworkError = errorMessage.includes('Failed to fetch') ||
+                            errorMessage.includes('ERR_INTERNET_DISCONNECTED') ||
+                            errorMessage.includes('ECONNREFUSED') ||
+                            errorMessage.includes('Network') ||
+                            errorMessage.includes('503');
+
+      console.log('[Daily Expense] Is network error:', isNetworkError, 'Expense category:', expenseCategory);
+
+      if (isNetworkError && expenseCategory === 'INVENTORY') {
+        console.log('[Daily Expense] Network error for inventory expense, trying offline fallback');
+        try {
+          console.log('[Daily Expense] Calling createExpenseOffline with expenseData:', expenseData);
+          const result = await createExpenseOffline(expenseData, currentShift);
+
+          let successMessage = `Inventory updated successfully (offline mode)!\n\nNew stock: ${result.inventoryUpdate?.newStock || expenseQuantity} ${expenseQuantityUnit}\n\nWill sync with weighted average price when online.`;
+
+          // Close dialog and reset form
+          setShowDailyExpenseDialog(false);
+          setExpenseAmount('');
+          setExpenseReason('');
+          setExpenseCategory('OTHER');
+          setExpenseIngredientId('');
+          setExpenseQuantity('');
+          setExpenseQuantityUnit('');
+          setExpenseUnitPrice('');
+
+          alert(successMessage);
+        } catch (offlineError) {
+          console.error('[Daily Expense] Offline expense creation failed:', offlineError);
+          alert(`Failed to record expense offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+        }
+      } else if (isNetworkError) {
+        console.log('[Daily Expense] Network error detected, trying offline mode');
+        try {
+          console.log('[Daily Expense] Calling createExpenseOffline with expenseData:', expenseData);
+          const result = await createExpenseOffline(expenseData, currentShift);
+
+          let successMessage = 'Daily expense recorded (offline mode - will sync when online)!';
+
+          // Close dialog and reset form
+          setShowDailyExpenseDialog(false);
+          setExpenseAmount('');
+          setExpenseReason('');
+          setExpenseCategory('OTHER');
+          setExpenseIngredientId('');
+          setExpenseQuantity('');
+          setExpenseQuantityUnit('');
+          setExpenseUnitPrice('');
+
+          alert(successMessage);
+        } catch (offlineError) {
+          console.error('[Daily Expense] Offline expense creation failed:', offlineError);
+          alert(`Failed to record expense offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+        }
+      } else {
+        alert(`${errorMessage}\n\nPlease check the browser console for more details.`);
+      }
+    } finally {
+      setSubmittingExpense(false);
+    }
+  };
+
+  // Held Orders handlers
+  const getLocalStorageKey = () => {
+    const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+    return `heldOrders_${branchId}_${currentShift?.id || 'no-shift'}`;
+  };
+
+  const loadHeldOrders = async () => {
+    try {
+      const key = getLocalStorageKey();
+      const stored = await storage.getJSON(key);
+      setHeldOrders(stored || []);
+    } catch (error) {
+      console.error('Failed to load held orders:', error);
+      setHeldOrders([]);
+    }
+  };
+
+  const handleHoldOrder = async () => {
+    const currentCart = (orderType === 'dine-in' && selectedTable) ? tableCart : cart;
+
+    if (currentCart.length === 0) {
+      alert('Cart is empty. Add items before holding.');
+      return;
+    }
+
+    try {
+      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+      const holdOrder = {
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+        items: currentCart,
+        orderType: orderType,
+        tableNumber: selectedTable?.tableNumber || null,
+        tableId: selectedTable?.id || null,
+        customerData: selectedAddress || null,
+        customerAddressId: selectedAddress?.id || null,
+        deliveryAddress: orderType === 'delivery' ? deliveryAddress : null,
+        deliveryArea: orderType === 'delivery' ? deliveryArea : null,
+        selectedCourierId: orderType === 'delivery' ? selectedCourierId : null,
+        notes: '', // Can be extended if needed
+        subtotal: subtotal,
+        deliveryFee: deliveryFee,
+        loyaltyDiscount: loyaltyDiscount,
+        promoDiscount: promoDiscount,
+        promoCodeId: promoCodeId,
+        promoCode: promoCode,
+        redeemedPoints: redeemedPoints,
+      };
+
+      const key = getLocalStorageKey();
+      const existingHeldOrders = await storage.getJSON(key) || [];
+      const updatedHeldOrders = [...existingHeldOrders, holdOrder];
+      await storage.setJSON(key, updatedHeldOrders);
+
+      // Clear cart state
+      if (orderType === 'dine-in' && selectedTable) {
+        setTableCart([]);
+        storage.setJSON(`table-cart-${selectedTable.id}`, []);
+      } else {
+        setCart([]);
+      }
+
+      // Clear discounts and customer
+      setRedeemedPoints(0);
+      setLoyaltyDiscount(0);
+      setPromoCode('');
+      setPromoCodeId('');
+      setPromoDiscount(0);
+      setSelectedAddress(null);
+      setDeliveryAddress('');
+      setDeliveryArea('');
+      setSelectedCourierId('none');
+
+      // Refresh held orders list
+      await loadHeldOrders();
+
+      alert('Order held successfully!');
+    } catch (error) {
+      console.error('Failed to hold order:', error);
+      alert('Failed to hold order. Please try again.');
+    }
+  };
+
+  const handleRestoreHeldOrder = async (holdId: string) => {
+    try {
+      const key = getLocalStorageKey();
+      const existingHeldOrders = await storage.getJSON(key) || [];
+      const heldOrderIndex = existingHeldOrders.findIndex((h: any) => h.id === holdId);
+
+      if (heldOrderIndex === -1) {
+        alert('Held order not found');
+        return;
+      }
+
+      const heldOrder = existingHeldOrders[heldOrderIndex];
+
+      // Restore cart
+      if (heldOrder.orderType === 'dine-in' && heldOrder.tableId) {
+        // Find and select the table
+        setOrderType('dine-in');
+        // Note: We'd need to fetch the table details and set selectedTable
+        // For now, restore to table cart
+        setTableCart(heldOrder.items);
+        if (heldOrder.tableId) {
+          storage.setJSON(`table-cart-${heldOrder.tableId}`, heldOrder.items);
+        }
+      } else {
+        setOrderType(heldOrder.orderType);
+        setCart(heldOrder.items);
+      }
+
+      // Restore other state
+      setSelectedAddress(heldOrder.customerData);
+      if (heldOrder.orderType === 'delivery') {
+        setDeliveryAddress(heldOrder.deliveryAddress || '');
+        setDeliveryArea(heldOrder.deliveryArea || '');
+        setSelectedCourierId(heldOrder.selectedCourierId || 'none');
+      }
+      setRedeemedPoints(heldOrder.redeemedPoints || 0);
+      setLoyaltyDiscount(heldOrder.loyaltyDiscount || 0);
+      setPromoCode(heldOrder.promoCode || '');
+      setPromoCodeId(heldOrder.promoCodeId || '');
+      setPromoDiscount(heldOrder.promoDiscount || 0);
+
+      // Remove from IndexedDB
+      const updatedHeldOrders = existingHeldOrders.filter((h: any) => h.id !== holdId);
+      await storage.setJSON(key, updatedHeldOrders);
+      await loadHeldOrders();
+
+      alert('Order restored successfully!');
+      setShowHeldOrdersDialog(false);
+    } catch (error) {
+      console.error('Failed to restore held order:', error);
+      alert('Failed to restore order. Please try again.');
+    }
+  };
+
+  const handleDeleteHeldOrder = async (holdId: string) => {
+    if (!confirm('Are you sure you want to delete this held order?')) {
+      return;
+    }
+
+    try {
+      const key = getLocalStorageKey();
+      const existingHeldOrders = await storage.getJSON(key) || [];
+      const updatedHeldOrders = existingHeldOrders.filter((h: any) => h.id !== holdId);
+      await storage.setJSON(key, updatedHeldOrders);
+      await loadHeldOrders();
+    } catch (error) {
+      console.error('Failed to delete held order:', error);
+      alert('Failed to delete held order. Please try again.');
+    }
+  };
+
+  // Number Pad handlers
+  const openNumberPad = (callback: (value: string) => void, initialValue: string = '') => {
+    console.log('[openNumberPad] Opening numpad with initialValue:', initialValue);
+    setNumberPadValue(initialValue);
+    setNumberPadCallback(() => callback);
+    setShowNumberPad(true);
+  };
+
+  const handleNumberPadValueChange = (value: string) => {
+    console.log('[handleNumberPadValueChange] Value changed:', value, 'type:', typeof value, 'isNull:', value === null);
+    setNumberPadValue(value);
+    // Immediately call the callback to update the input field
+    if (numberPadCallback) {
+      console.log('[handleNumberPadValueChange] Calling callback with value:', value, 'type:', typeof value);
+      numberPadCallback(value);
+    } else {
+      console.log('[handleNumberPadValueChange] No callback, skipping');
+    }
+  };
+
+  const handleNumberPadClose = () => {
+    console.log('[handleNumberPadClose] Closing numpad');
+    setShowNumberPad(false);
+    setNumberPadValue('');
+    setNumberPadCallback(null);
+  };
+
+  // Load held orders when shift changes
+  useEffect(() => {
+    loadHeldOrders();
+  }, [currentShift?.id, selectedBranch, user?.branchId, user?.role]);
+
+  const handlePrint = () => {
+    if (receiptData) {
+      setShowReceipt(true);
+    }
+  };
+
+  // Card payment handlers
+  const handleCardPaymentClick = () => {
+    if (cart.length === 0) return;
+    setShowCardPaymentDialog(true);
+    setCardReferenceNumber('');
+    setPaymentMethodDetail('CARD');
+  };
+
+  const handleCardPaymentSubmit = async () => {
+    if (!cardReferenceNumber.trim()) {
+      alert('Please enter the reference number');
+      return;
+    }
+    setShowCardPaymentDialog(false);
+
+    // Check if this is a table order or regular cart order
+    if (orderType === 'dine-in' && selectedTable && tableCart.length > 0) {
+      // Create table order with card payment
+      await createTableOrderWithCard(cardReferenceNumber.trim(), paymentMethodDetail);
+    } else {
+      // Regular cart order
+      await handleCheckout('card', cardReferenceNumber.trim(), paymentMethodDetail);
+    }
+  };
+
+  const handleCardPaymentCancel = () => {
+    setShowCardPaymentDialog(false);
+    setCardReferenceNumber('');
+    setPaymentMethodDetail('CARD');
+  };
+
+  const handleCheckout = async (paymentMethod: 'cash' | 'card', cardRefNumber?: string, paymentMethodDetailParam?: 'CARD' | 'INSTAPAY' | 'MOBILE_WALLET') => {
+    if (cart.length === 0) return;
+
+    // Warn if manual discount is entered but not applied
+    if (tempManualDiscountPercent && parseFloat(tempManualDiscountPercent) > 0 && parseFloat(tempManualDiscountPercent) !== manualDiscountPercent) {
+      if (!confirm(`You have entered a ${tempManualDiscountPercent}% discount but haven't applied it yet. Apply it now?`)) {
+        // User clicked Cancel - clear the temp value
+        setTempManualDiscountPercent('');
+      } else {
+        // User clicked OK - apply the discount
+        handleManualDiscountPercentChange(parseFloat(tempManualDiscountPercent) || 0);
+      }
+    }
+
+    // For cashiers, check if they have an active shift
+    if (user?.role === 'CASHIER' && !currentShift) {
+      alert('Please open a shift in the Shifts tab before processing sales.');
+      return;
+    }
+
+    // Validate branch selection for admin
+    if (user?.role === 'ADMIN' && !selectedBranch) {
+      alert('Please select a branch to process this sale');
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+      if (!branchId) {
+        alert('Branch not found. Please contact administrator.');
+        return;
+      }
+
+      // Prepare order items with variant info
+      const orderItems = cart.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        menuItemVariantId: item.variantId || null,
+        customVariantValue: item.customVariantValue || null,
+        specialInstructions: item.note || null,
+      }));
+
+      // Validate delivery fields
+      if (orderType === 'delivery') {
+        if (!deliveryArea) {
+          alert('Please select a delivery area for delivery orders.');
+          setProcessing(false);
+          return;
+        }
+        if (!deliveryAddress.trim()) {
+          alert('Please enter a delivery address for delivery orders.');
+          setProcessing(false);
+          return;
+        }
+      }
+
+      const orderData: any = {
+        branchId,
+        orderType,
+        items: orderItems,
+        subtotal,
+        taxRate: 0.14,
+        total,
+        paymentMethod,
+        cashierId: user?.id,
+      };
+
+      // Add card reference number if provided
+      if (paymentMethod === 'card' && cardRefNumber) {
+        orderData.cardReferenceNumber = cardRefNumber;
+        orderData.paymentMethodDetail = paymentMethodDetailParam || 'CARD';
+      }
+
+      // Add shiftId to order data
+      orderData.shiftId = currentShift?.id;
+
+      // Add tableId for dine-in orders
+      if (orderType === 'dine-in' && selectedTable) {
+        orderData.tableId = selectedTable.id;
+      }
+
+      // Add loyalty redemption if points are being redeemed (independent of customer)
+      if (redeemedPoints > 0) {
+        orderData.loyaltyPointsRedeemed = redeemedPoints;
+        orderData.loyaltyDiscount = loyaltyDiscount;
+      }
+
+      // Add promo code if applied (independent of customer)
+      if (promoCodeId && promoDiscount > 0) {
+        orderData.promoCodeId = promoCodeId;
+        orderData.promoDiscount = promoDiscount;
+      }
+
+      // Add manual discount if applied
+      if (manualDiscountAmount > 0) {
+        orderData.manualDiscountPercent = manualDiscountPercent;
+        orderData.manualDiscountAmount = manualDiscountAmount;
+        orderData.manualDiscountComment = manualDiscountComment;
+      }
+
+      console.log('[Checkout] Order data being sent:', orderData);
+      console.log('[Checkout] Manual discount:', { manualDiscountPercent, manualDiscountAmount, manualDiscountComment });
+
+      // Add customer data for all order types (not just delivery)
+      if (selectedAddress) {
+        orderData.customerId = selectedAddress.customerId;
+        orderData.customerAddressId = selectedAddress.id;
+        if (selectedAddress.customerPhone) {
+          orderData.customerPhone = selectedAddress.customerPhone;
+        }
+        if (selectedAddress.customerName) {
+          orderData.customerName = selectedAddress.customerName;
+        }
+      }
+
+      // Add delivery-specific fields
+      if (orderType === 'delivery') {
+        orderData.deliveryAddress = deliveryAddress;
+        orderData.deliveryAreaId = deliveryArea;
+        orderData.deliveryFee = deliveryFee;
+        if (selectedCourierId && selectedCourierId !== 'none') {
+          orderData.courierId = selectedCourierId;
+        }
+      }
+
+      console.log('Order data prepared:', orderData);
+
+      // Check actual network connectivity before trying API
+      let isActuallyOnline = navigator.onLine;
+
+      if (navigator.onLine) {
+        // Verify with actual network request
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          await fetch('/api/branches', {
+            method: 'HEAD',
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          clearTimeout(timeoutId);
+          isActuallyOnline = true;
+          console.log('[Order] Network check passed, trying API...');
+        } catch (netError) {
+          console.log('[Order] Network check failed, assuming offline:', netError.message);
+          isActuallyOnline = false;
+        }
+      }
+
+      if (isActuallyOnline) {
+        // Try API first
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          setReceiptData(data.order);
+          setLastOrderNumber(data.order.orderNumber);
+          clearCart();
+          setShowReceipt(true);
+          setDeliveryAddress('');
+          setDeliveryArea('');
+          setSelectedCourierId('none');
+          // Clear customer selection for all order types
+          setSelectedAddress(null);
+          // Clear loyalty redemption
+          setRedeemedPoints(0);
+          setLoyaltyDiscount(0);
+          // Clear promo code
+          handleClearPromoCode();
+          // Clear manual discount
+          handleClearManualDiscount();
+        } else {
+          // Check if it's a menu item not found error - suggest clearing cart
+          if (data.error?.includes('Menu item not found') || data.error?.includes('Invalid menu item ID')) {
+            const itemError = data.details || data.error;
+            console.error('[Order] Menu item error:', itemError);
+            
+            if (confirm(`${itemError}\n\nWould you like to clear your cart and try again?`)) {
+              clearCart();
+            }
+            setProcessing(false);
+            return;
+          }
+          
+          // API failed - check if it's a network error
+          const isNetworkError = !response.ok && (
+            response.status === 0 || // Network error
+            response.type === 'error' ||
+            response.statusText === 'Failed to fetch' ||
+            data.error?.includes('Failed to fetch') ||
+            data.error?.includes('network') ||
+            data.error?.includes('ENOTFOUND') ||
+            data.error?.includes('ERR_NAME_NOT_RESOLVED') ||
+            data.error?.includes('TypeError') ||
+            data.error?.includes('Failed to fetch\n') ||
+            data.error?.includes('net::ERR_NAME_NOT_RESOLVED')
+          );
+
+          if (isNetworkError) {
+            console.log('[Order] Network error detected (API), trying offline mode');
+            try {
+              // Find branch information for receipt
+              const branchInfo = branches.find(b => b.id === orderData.branchId);
+              const result = await createOrderOffline(orderData, currentShift, cart, branchInfo);
+              setReceiptData(result.order);
+              setLastOrderNumber(result.order.orderNumber);
+              clearCart();
+              setShowReceipt(true);
+              setDeliveryAddress('');
+              setDeliveryArea('');
+              setSelectedCourierId('none');
+              setSelectedAddress(null);
+              setRedeemedPoints(0);
+              setLoyaltyDiscount(0);
+              handleClearPromoCode();
+              handleClearManualDiscount();
+              alert('Order created (offline mode - will sync when online)');
+            } catch (offlineError) {
+              console.error('[Order] Offline order creation failed:', offlineError);
+              throw new Error(`Failed to create order offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+            }
+          } else {
+            console.error('Order creation failed:', {
+              status: response.status,
+              data,
+              orderData,
+            });
+            const errorMessage = data.error || data.details || 'Failed to create order';
+            console.error('[Checkout] Error details:', errorMessage);
+            if (data.errorName || data.details) {
+              console.error('Error details:', {
+                name: data.errorName,
+                details: data.details,
+              });
+            }
+            throw new Error(errorMessage);
+          }
+        }
+      } else {
+        // Offline mode - create order locally
+        console.log('[Order] Offline mode detected, creating order locally');
+        try {
+          // Find branch information for receipt
+          const branchInfo = branches.find(b => b.id === orderData.branchId);
+          const result = await createOrderOffline(orderData, currentShift, cart, branchInfo);
+          setReceiptData(result.order);
+          setLastOrderNumber(result.order.orderNumber);
+          clearCart();
+          setShowReceipt(true);
+          setDeliveryAddress('');
+          setDeliveryArea('');
+          setSelectedCourierId('none');
+          setSelectedAddress(null);
+          setRedeemedPoints(0);
+          setLoyaltyDiscount(0);
+          handleClearPromoCode();
+          handleClearManualDiscount();
+          alert('Order created (offline mode - will sync when online)');
+        } catch (offlineError) {
+          console.error('[Order] Offline order creation failed:', offlineError);
+          throw new Error(`Failed to create order offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+        }
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process order';
+      alert(`${errorMessage}\n\nPlease check the browser console for more details.`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // If no user, show loading
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 overflow-hidden">
+      {/* HORIZONTAL CATEGORY TABS - BIGGER */}
+      <div className="flex-shrink-0 h-[64px] bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+        <div className="flex items-center h-full gap-2.5 px-3">
+          {allCategories.map((category) => {
+            const isActive = selectedCategory === category.id;
+            const categoryColor = getCategoryColor(category.name);
+            const itemCount = category.id === 'all'
+              ? menuItems.length
+              : menuItems.filter(m => m.categoryId === category.id || m.category === categories.find(c => c.id === category.id)?.name).length;
+
+            return (
+              <button
+                key={category.id}
+                onClick={() => {
+                  setSelectedCategory(category.id);
+                  setSearchQuery('');
+                }}
+                className={`flex-shrink-0 flex items-center gap-2.5 px-5 h-[52px] rounded-xl text-[14px] font-bold transition-all duration-200 border active:scale-95 shadow-sm ${
+                  isActive
+                    ? `bg-gradient-to-r shadow-lg ${categoryColor} text-white border-transparent`
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <span className="whitespace-nowrap">{category.name}</span>
+                {category.id !== 'all' && (
+                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                    isActive ? 'bg-white/20' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}>
+                    {itemCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left: Product Grid */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Order Type & Actions Bar - BIGGER */}
+          <div className="flex-shrink-0 h-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-3 gap-2">
+            {/* Order Type Selector */}
+            <div className="flex items-center gap-1.5">
+              {(['take-away', 'dine-in', 'delivery'] as const).map((type) => {
+                const configs = {
+                  'dine-in': { icon: <Utensils className="h-4 w-4" />, label: 'Dine In', gradient: 'from-purple-500 to-violet-600' },
+                  'take-away': { icon: <Package className="h-4 w-4" />, label: 'Take Away', gradient: 'from-amber-500 to-orange-600' },
+                  'delivery': { icon: <Truck className="h-4 w-4" />, label: 'Delivery', gradient: 'from-blue-500 to-cyan-600' },
+                };
+                const config = configs[type];
+                const isActive = orderType === type;
+
+                return (
+                  <button
+                    key={type}
+                    onClick={() => setOrderType(type)}
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-[12px] font-bold transition-all duration-200 border active:scale-95 shadow-sm ${
+                      isActive
+                        ? `bg-gradient-to-r ${config.gradient} text-white border-transparent shadow-md`
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {config.icon}
+                    <span className="hidden sm:inline">{config.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* Branch Selector (Admin Only) - On Right Side */}
+            {user?.role === 'ADMIN' && branches.length > 0 && (
+              <div className="flex items-center gap-2 px-2 py-1 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                <Building className="h-4 w-4 text-emerald-600" />
+                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                  <SelectTrigger className="h-7 w-40 bg-white dark:bg-slate-800 border-emerald-300 dark:border-emerald-700 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 rounded-md">
+                    <SelectValue placeholder="Select Branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id} className="text-[11px]">
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Table Info (Dine In Only) */}
+            {orderType === 'dine-in' && selectedTable && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                <div className="w-6 h-6 bg-emerald-600 rounded flex items-center justify-center text-white font-bold text-[10px]">
+                  {selectedTable.tableNumber}
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                  {selectedTable.tableNumber}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleDeselectTable}
+                  className="h-5 w-5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-800"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+
+            {/* Close Table Button (Dine In) */}
+            {orderType === 'dine-in' && selectedTable && (
+              <Button
+                onClick={handleCloseTable}
+                size="sm"
+                className={`h-8 px-2.5 text-[10px] font-bold ${
+                  tableCart.length > 0
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white rounded-lg'
+                    : 'bg-slate-600 hover:bg-slate-700 text-white rounded-lg'
+                }`}
+              >
+                <X className="h-3 w-3 mr-1" />
+                {tableCart.length > 0 ? 'Close Table' : 'Cancel Table'}
+              </Button>
+            )}
+
+            {/* Select Table Button (Dine In) */}
+            {orderType === 'dine-in' && !selectedTable && (
+              <Button
+                onClick={() => setShowTableGrid(true)}
+                size="sm"
+                className="h-8 px-2.5 text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+              >
+                <Utensils className="h-3 w-3 mr-1" />
+                Table
+              </Button>
+            )}
+          </div>
+
+          {/* Table Grid Overlay (Dine In) - Scrollable independently */}
+          {orderType === 'dine-in' && showTableGrid && (
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-900/50">
+              <TableGridView
+                branchId={user?.role === 'CASHIER' ? user?.branchId : selectedBranch}
+                onTableSelect={handleTableSelect}
+                selectedTableId={selectedTable?.id || null}
+                refreshTrigger={tableRefreshTrigger}
+              />
+            </div>
+          )}
+
+          {/* Product Grid - Scrollable independently */}
+          <div className={`flex-1 min-h-0 overflow-y-auto p-4 ${orderType === 'dine-in' && showTableGrid ? 'hidden' : ''}`}>
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <div className="animate-spin h-10 w-10 border-3 border-emerald-500/30 border-t-emerald-500 rounded-full mx-auto mb-3" />
+                  <p className="text-[8px]s text-slate-600 dark:text-slate-400 font-semibold">Loading...</p>
+                </div>
+              </div>
+            ) : filteredMenuItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3">
+                  <Search className="h-8 w-8 opacity-40" />
+                </div>
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">No products found</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {filteredMenuItems.map((item) => {
+                  const categoryColor = getCategoryColor(item.category);
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleItemClick(item)}
+                      className="group relative aspect-[4/5] bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-200 border border-slate-200 dark:border-slate-700 active:scale-95"
+                    >
+                      {/* Category Color Bar (Top 4px) */}
+                      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${categoryColor}`} />
+
+                      {/* Gradient Background */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${categoryColor} opacity-5 group-hover:opacity-10 transition-opacity duration-200`} />
+
+                      {/* Content */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-between p-3 pb-4">
+                        {/* Product Name - Bigger, more space */}
+                        <h3 className="text-[18px] font-bold text-slate-900 dark:text-white text-center leading-snug line-clamp-3 mb-2 px-1 w-full">
+                          {item.name}
+                        </h3>
+
+                        {/* Price - Good size */}
+                        <div className={`text-[20px] font-black bg-gradient-to-r ${categoryColor} bg-clip-text text-transparent`}>
+                          {item.price.toFixed(2)}
+                        </div>
+                      </div>
+
+                      {/* Quick Add Indicator */}
+                      <div className={`absolute bottom-3 right-3 w-8 h-8 rounded-full bg-gradient-to-r ${categoryColor} flex items-center justify-center shadow-lg transform scale-0 group-hover:scale-100 transition-transform duration-200`}>
+                        <Plus className="h-4 w-4 text-white" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Compact Cart Sidebar (380px) - SHOW ON LG (1024px+) */}
+        <div className="hidden lg:flex flex-col w-[380px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+          {/* Cart Header (48px) - Bigger for touch */}
+          <div className="flex-shrink-0 h-[48px] px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-base font-bold text-slate-900 dark:text-white">
+                {orderType === 'dine-in' && selectedTable ? `Table ${selectedTable.tableNumber}` : 'Order'}
+              </span>
+              <Badge variant="secondary" className="h-6 text-xs px-2">
+                {totalItems}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-1">
+              {/* Daily Expenses Button in Cart Header - ALWAYS VISIBLE */}
+              <Button
+                onClick={() => setShowDailyExpenseDialog(true)}
+                variant="outline"
+                className="h-8 px-2 border-amber-500 dark:border-amber-500 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/50 text-xs font-bold rounded-md gap-0.5 shadow-sm"
+              >
+                <Wallet className="h-3 w-3" />
+                <span className="font-black">Exp</span>
+              </Button>
+              {/* Alerts Button - Behind Held Orders */}
+              {lowStockAlerts.length > 0 && (
+                <div className="relative">
+                  <div
+                    onClick={() => setShowLowStockDialog(true)}
+                    className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center cursor-pointer hover:shadow-lg hover:scale-105 transition-all"
+                  >
+                    <AlertTriangle className="h-4 w-4 text-white" />
+                  </div>
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {lowStockAlerts.length}
+                  </span>
+                </div>
+              )}
+              <Button
+                onClick={() => setShowHeldOrdersDialog(true)}
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-slate-500 hover:text-slate-700"
+              >
+                <Clock className="h-4 w-4" />
+              </Button>
+              {orderType === 'dine-in' && selectedTable && tableCart.length > 0 && (
+                <Button
+                  onClick={handleOpenTransferDialog}
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-blue-500 hover:text-blue-700"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+          {/* Cart Items (Scrollable - Takes All Available Space) */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="p-3 space-y-3">
+              {currentCart.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <ShoppingCart className="h-12 w-12 opacity-30 mb-3" />
+                  <p className="text-sm font-medium">Add items to start</p>
+                </div>
+              ) : (
+                currentCart.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700/50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1 min-w-0 pr-3">
+                        <h4 className="text-[15px] font-bold text-slate-900 dark:text-white leading-tight">
+                          {item.name}
+                        </h4>
+                        {item.variantName && (
+                          <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                            {item.variantName}
+                          </div>
+                        )}
+                        {item.note && (
+                          <div className="text-xs text-slate-500 italic truncate mt-1">
+                            "{item.note}"
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openNoteDialog(item)}
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-blue-600"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => removeFromCart(item.id)}
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-red-600"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => handleDecrementQuantity(item.id)}
+                          className="h-9 w-9 p-0 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                        <span className="w-10 text-center text-[15px] font-bold text-slate-900 dark:text-white">
+                          {item.quantity}
+                        </span>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => handleIncrementQuantity(item.id)}
+                          className="h-9 w-9 p-0 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <div className="text-[15px] font-bold text-slate-900 dark:text-white">
+                        {formatCurrency(item.price * item.quantity, currency)}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Customer Search (Collapsible - 32px when collapsed) */}
+          <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800">
+            <button
+              onClick={() => setCustomerSearchCollapsed(!customerSearchCollapsed)}
+              className="w-full h-8 px-3 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <User className="h-3.5 w-3.5 text-slate-600 dark:text-slate-400" />
+                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase">Customer</span>
+                {selectedAddress && (
+                  <Badge className="h-4 text-[8px] px-1 bg-emerald-500 hover:bg-emerald-600">Linked</Badge>
+                )}
+              </div>
+              <ChevronRight className={`h-3.5 w-3.5 text-slate-400 transition-transform ${!customerSearchCollapsed ? 'rotate-90' : ''}`} />
+            </button>
+            {!customerSearchCollapsed && (
+              <div className="p-2 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+                <CustomerSearch
+                  onAddressSelect={setSelectedAddress}
+                  selectedAddress={selectedAddress}
+                  deliveryAreas={deliveryAreas}
+                  branchId={user?.role === 'ADMIN' ? selectedBranch : user?.branchId}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Delivery Section (Collapsible - Only for delivery orders) */}
+          {orderType === 'delivery' && (
+            <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800">
+              <button
+                onClick={() => setDeliveryCollapsed(!deliveryCollapsed)}
+                className="w-full h-8 px-3 flex items-center justify-between bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Truck className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase">Delivery</span>
+                  {deliveryFee > 0 && (
+                    <span className="text-[8px] font-medium text-amber-600">+{formatCurrency(deliveryFee, currency)}</span>
+                  )}
+                </div>
+                <ChevronRight className={`h-3.5 w-3.5 text-amber-500 transition-transform ${!deliveryCollapsed ? 'rotate-90' : ''}`} />
+              </button>
+              {!deliveryCollapsed && (
+                <div className="p-2 bg-white dark:bg-slate-900 border-t border-amber-100 dark:border-amber-900/30 space-y-2">
+                  <div>
+                    <Textarea
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      placeholder="Delivery address..."
+                      rows={2}
+                      className="text-[10px] resize-none rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <Select value={deliveryArea} onValueChange={setDeliveryArea}>
+                      <SelectTrigger className="text-[10px] h-7 rounded-lg">
+                        <SelectValue placeholder="Area" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {deliveryAreas.map((area) => (
+                          <SelectItem key={area.id} value={area.id} className="text-[10px]">
+                            {area.name} ({formatCurrency(area.fee, currency)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Daily Expenses - REMOVED (Now in header) */}
+
+          {/* Order Summary - BIGGER FOR TOUCH (100px, STICKY) */}
+          <div className="flex-shrink-0 px-3 py-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky bottom-0 z-10 shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
+            <div className="space-y-1.5 mb-3">
+              <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                <span className="font-medium">Subtotal</span>
+                <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(subtotal, currency)}</span>
+              </div>
+              {deliveryFee > 0 && (
+                <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                  <span className="font-medium">Delivery</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(deliveryFee, currency)}</span>
+                </div>
+              )}
+              {(promoDiscount > 0 || loyaltyDiscount > 0 || manualDiscountAmount > 0) && (
+                <div className="flex justify-between text-sm text-orange-600 dark:text-orange-400">
+                  <span className="font-medium">Discount</span>
+                  <span className="font-bold">-{formatCurrency(promoDiscount + loyaltyDiscount + manualDiscountAmount, currency)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-lg font-bold text-slate-900 dark:text-white">Total</span>
+                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(total, currency)}
+                </span>
+              </div>
+            </div>
+
+            {/* Checkout Buttons - BIGGER FOR TOUCH */}
+            <div className="space-y-2">
+              <Button
+                onClick={() => handleCheckout('cash')}
+                disabled={processing || currentCart.length === 0}
+                className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/20 font-bold text-lg rounded-xl"
+              >
+                <DollarSign className="h-5 w-5 mr-2" />
+                CASH
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCardPaymentClick}
+                  disabled={processing || currentCart.length === 0}
+                  variant="outline"
+                  className="flex-1 h-10 border-2 border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-bold text-sm rounded-xl"
+                >
+                  <CreditCard className="h-4 w-4 mr-1" />
+                  CARD
+                </Button>
+                <Button
+                  onClick={handleHoldOrder}
+                  disabled={processing || currentCart.length === 0}
+                  variant="outline"
+                  className="flex-1 h-10 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-sm rounded-xl"
+                >
+                  <Pause className="h-4 w-4 mr-1" />
+                  HOLD
+                </Button>
+              </div>
+              <Button
+                onClick={() => setShowDiscountDialog(true)}
+                disabled={processing || currentCart.length === 0}
+                variant="outline"
+                className="w-full h-10 border-2 border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 font-bold text-sm rounded-xl"
+              >
+                <Tag className="h-4 w-4 mr-1" />
+                DISCOUNT
+                {(loyaltyDiscount > 0 || promoDiscount > 0 || manualDiscountAmount > 0) && (
+                  <span className="ml-auto text-purple-700 font-bold text-sm">
+                    -{formatCurrency(loyaltyDiscount + promoDiscount + manualDiscountAmount, currency)}
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Cart Bottom Bar - Show on mobile (hidden on lg+) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200/50 dark:border-slate-800/50 shadow-2xl pb-safe">
+        <div className="px-4 py-3 flex items-center gap-3 max-w-4xl mx-auto">
+          <button
+            onClick={() => setMobileCartOpen(true)}
+            className={`flex-1 flex items-center justify-between gap-3 h-11 px-4 rounded-xl shadow-lg transition-all active:scale-[0.98] ${
+              currentCart.length > 0
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-500/30'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <ShoppingBag className="h-5 w-5" />
+                {currentCart.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
+                    {totalItems}
+                  </span>
+                )}
+              </div>
+              <span className="text-sm font-semibold">
+                {currentCart.length > 0 ? 'View Cart' : 'Add Items'}
+              </span>
+            </div>
+            {currentCart.length > 0 && (
+              <span className="text-base font-bold">
+                {formatCurrency(total, currency)}
+              </span>
+            )}
+          </button>
+        </div>
+        {/* Safe area inset for iOS */}
+        <div className="h-0" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
+      </div>
+
+      {/* Mobile Cart Drawer */}
+      <Dialog open={mobileCartOpen} onOpenChange={setMobileCartOpen}>
+        <DialogContent
+          className="fixed bottom-0 left-0 right-0 top-auto translate-x-0 translate-y-0 w-full max-w-none max-h-[85vh] h-auto rounded-t-3xl border-b-0 pb-safe p-0 gap-0 z-[100]"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
+          {/* Hidden DialogTitle for accessibility */}
+          <DialogHeader className="sr-only">
+            <DialogTitle>Shopping Cart</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col h-full max-h-[85vh] overflow-y-auto">
+            {/* Drawer Handle */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full" />
+            </div>
+
+            {/* Header */}
+            <div className="px-4 pb-3 border-b border-slate-200/50 dark:border-slate-800/50 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-800/50 dark:to-slate-850/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <ShoppingCart className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Current Order</h2>
+                    <p className="text-[8px]s text-slate-500 dark:text-slate-400">
+                      {totalItems} {totalItems === 1 ? 'item' : 'items'}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileCartOpen(false)}
+                  className="h-10 w-10 rounded-xl"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto">
+              {/* Cart Items */}
+              <div className="p-4">
+                {currentCart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3">
+                      <ShoppingCart className="h-8 w-8 opacity-40" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Cart is empty</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {currentCart.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-850 rounded-2xl p-3 border border-slate-200/50 dark:border-slate-700/50"
+                      >
+                        <div className="flex justify-between items-start mb-1.5">
+                          <div className="flex-1 min-w-0 pr-2">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-2 leading-snug">
+                                {item.name}
+                              </h4>
+                              {item.note && (
+                                <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400" title={item.note}>
+                                  <MessageSquare className="h-3 w-3 flex-shrink-0" />
+                                </div>
+                              )}
+                            </div>
+                            {item.variantName && (
+                              <div className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold px-2 py-0.5 rounded-lg mb-1">
+                                <Layers className="h-2.5 w-2.5" />
+                                {item.variantName}
+                              </div>
+                            )}
+                            {item.note && (
+                              <div className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 italic">
+                                "{item.note}"
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 flex-shrink-0 rounded-lg"
+                              onClick={() => openNoteDialog(item)}
+                              title="Edit note or quantity"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 flex-shrink-0 rounded-lg"
+                              onClick={() => removeFromCart(item.id)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-9 w-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
+                              onClick={() => handleDecrementQuantity(item.id)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                              className="w-14 h-9 text-center font-bold text-base text-slate-900 dark:text-white border-slate-200 dark:border-slate-700"
+                            />
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-600 dark:hover:text-emerald-400 border-slate-200 dark:border-slate-700"
+                              onClick={() => openNumberPad(
+                                (value) => handleQuantityChange(item.id, value),
+                                item.quantity.toString()
+                              )}
+                              title="Open Numpad"
+                            >
+                              <Calculator className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-9 w-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
+                              onClick={() => handleIncrementQuantity(item.id)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                              {formatCurrency(item.price * item.quantity, currency)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Customer Section */}
+              <div className="px-4 pb-4 border-t border-slate-200/50 dark:border-slate-800/50 bg-gradient-to-br from-emerald-50/80 to-teal-50/80 dark:from-emerald-950/20 dark:to-teal-950/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-7 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <User className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Customer</h3>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Link customer for loyalty points</p>
+                  </div>
+                </div>
+                <CustomerSearch
+                  onAddressSelect={setSelectedAddress}
+                  selectedAddress={selectedAddress}
+                  deliveryAreas={deliveryAreas}
+                  branchId={user?.role === 'ADMIN' ? selectedBranch : user?.branchId}
+                />
+                {selectedAddress && (
+                  <div className="space-y-2 mt-3">
+                    <div className="p-2 bg-white/50 dark:bg-slate-800/50 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-[8px]s">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                          <span className="text-slate-700 dark:text-slate-300">
+                            {selectedAddress.customerName}
+                          </span>
+                        </div>
+                        <Button
+                          onClick={() => setShowAddAddressDialog(true)}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-[10px] text-emerald-600 hover:bg-emerald-50 border-emerald-200 dark:border-emerald-800 dark:hover:bg-emerald-950/50 px-2"
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add Address
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Promo Code Section - Always Visible When Customer Selected */}
+                <div className="p-2 bg-orange-50 dark:bg-orange-950/30 rounded-xl border border-orange-200 dark:border-orange-800">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Tag className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+                    <span className="text-[10px] font-bold text-orange-700 dark:text-orange-300">
+                      Promo Code
+                    </span>
+                  </div>
+                  {promoCodeId ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                        <div>
+                          <p className="text-[8px]s font-bold text-green-700 dark:text-green-300">
+                            {promoCode}
+                          </p>
+                          <p className="text-[10px] text-green-600 dark:text-green-400">
+                            Discount: {formatCurrency(promoDiscount, currency)}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleClearPromoCode}
+                        size="sm"
+                        variant="outline"
+                        className="h-8 w-8 p-0 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/50"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                        onKeyPress={(e) => e.key === 'Enter' && handleValidatePromoCode()}
+                        placeholder="Enter code..."
+                        className="flex-1 h-8 text-[8px]s"
+                        disabled={validatingPromo}
+                      />
+                      <Button
+                        onClick={handleValidatePromoCode}
+                        disabled={validatingPromo || !promoCode.trim()}
+                        size="sm"
+                        className="bg-orange-600 hover:bg-orange-700 text-white h-8 px-3"
+                      >
+                        {validatingPromo ? (
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Check className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                  {promoMessage && !promoCodeId && (
+                    <p className="text-[10px] mt-2 text-red-600 dark:text-red-400">
+                      {promoMessage}
+                    </p>
+                  )}
+                </div>
+
+                {/* Loyalty Redemption Section */}
+                    {redeemedPoints === 0 && selectedAddress.loyaltyPoints !== undefined && selectedAddress.loyaltyPoints >= 100 && (
+                      <div className="p-2 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Star className="h-3.5 w-3.5 text-[8px]urple-600 dark:text-[8px]urple-400" />
+                            <div>
+                              <p className="text-[10px] font-semibold text-[8px]urple-700 dark:text-[8px]urple-300">
+                                {selectedAddress.loyaltyPoints.toFixed(0)} pts available
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={handleRedeemPoints}
+                            size="sm"
+                            className="h-8 text-[10px] bg-purple-600 hover:bg-purple-700 text-white px-2"
+                          >
+                            <Gift className="h-3 w-3 mr-1" />
+                            Redeem
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Active Redemption Display */}
+                    {redeemedPoints > 0 && (
+                      <div className="p-2 bg-green-50 dark:bg-green-950/30 rounded-xl border border-green-200 dark:border-green-800">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                            <div>
+                              <p className="text-[8px]s font-bold text-green-700 dark:text-green-300">
+                                {redeemedPoints} pts redeemed
+                              </p>
+                              <p className="text-[10px] text-green-600 dark:text-green-400">
+                                -{formatCurrency(loyaltyDiscount, currency)}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={handleClearRedemption}
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/50"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Delivery Section - Only for Delivery Orders */}
+              {orderType === 'delivery' && (
+                <div className="px-4 pb-4 border-t border-slate-200/50 dark:border-slate-800/50 bg-gradient-to-br from-amber-50/80 to-orange-50/80 dark:from-amber-950/20 dark:to-orange-950/20">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-7 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/30">
+                      <Truck className="h-4 w-4 text-white" />
+                    </div>
+                    <h3 className="text-sm font-bold text-amber-700 dark:text-amber-400">Delivery Info</h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Delivery Address</Label>
+                      <Textarea
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                        placeholder="Enter full delivery address..."
+                        rows={2}
+                        className="text-[8px]s mt-1 resize-none rounded-xl h-20"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Delivery Area</Label>
+                      <Select value={deliveryArea} onValueChange={setDeliveryArea}>
+                        <SelectTrigger className="text-[8px]s h-10 mt-1 rounded-xl">
+                          <SelectValue placeholder="Select area" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[150]">
+                          {deliveryAreas.map((area) => (
+                            <SelectItem key={area.id} value={area.id}>
+                              {area.name} ({formatCurrency(area.fee, currency)})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {couriers.length > 0 && (
+                      <div>
+                        <Label className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Assign Courier</Label>
+                        <Select value={selectedCourierId} onValueChange={setSelectedCourierId}>
+                          <SelectTrigger className="text-[8px]s h-10 mt-1 rounded-xl">
+                            <SelectValue placeholder="Select courier (optional)" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[150]">
+                            <SelectItem value="none">No courier assigned</SelectItem>
+                            {couriers.map((courier: any) => (
+                              <SelectItem key={courier.id} value={courier.id}>
+                                {courier.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Order Summary */}
+              <div className="px-4 py-4 border-t border-slate-200/50 dark:border-slate-800/50 bg-gradient-to-t from-slate-50/80 to-white dark:from-slate-800/80 dark:to-slate-900">
+                <div className="space-y-2.5 mb-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-400 font-medium">Subtotal</span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {formatCurrency(subtotal, currency)}
+                    </span>
+                  </div>
+
+                  {deliveryFee > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600 dark:text-slate-400 font-medium">Delivery</span>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        {formatCurrency(deliveryFee, currency)}
+                      </span>
+                    </div>
+                  )}
+                  {promoDiscount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-orange-600 dark:text-orange-400 font-medium">Promo Discount</span>
+                      <span className="font-bold text-orange-600 dark:text-orange-400">
+                        -{formatCurrency(promoDiscount, currency)}
+                      </span>
+                    </div>
+                  )}
+                  {loyaltyDiscount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-purple-600 dark:text-purple-400 font-medium">Loyalty Discount ({redeemedPoints} pts)</span>
+                      <span className="font-bold text-purple-600 dark:text-purple-400">
+                        -{formatCurrency(loyaltyDiscount, currency)}
+                      </span>
+                    </div>
+                  )}
+                  {manualDiscountAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-orange-600 dark:text-orange-400 font-medium">Manual Discount ({manualDiscountPercent}%)</span>
+                      <span className="font-bold text-orange-600 dark:text-orange-400">
+                        -{formatCurrency(manualDiscountAmount, currency)}
+                      </span>
+                    </div>
+                  )}
+                  <Separator className="bg-slate-200 dark:bg-slate-700" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-base font-bold text-slate-900 dark:text-white">Total</span>
+                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(total, currency)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={() => {
+                      setMobileCartOpen(false);
+                      handleCheckout('cash');
+                    }}
+                    disabled={processing || cart.length === 0}
+                    className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-xl shadow-emerald-500/30 font-bold h-12 text-sm rounded-xl transition-all"
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Cash
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setMobileCartOpen(false);
+                      handleCardPaymentClick();
+                    }}
+                    disabled={processing || cart.length === 0}
+                    variant="outline"
+                    className="border-2 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold h-12 text-sm rounded-xl transition-all"
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Card
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Variant Selection Dialog */}
+      <Dialog open={variantDialogOpen} onOpenChange={setVariantDialogOpen}>
+        <DialogContent className="sm:max-w-[520px] rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Layers className="h-5 w-5 text-white" />
+              </div>
+              <DialogTitle className="text-[8px]l font-bold">Select Variant</DialogTitle>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 pl-13">
+              Choose an option for <span className="font-semibold text-slate-900 dark:text-white">{selectedItemForVariant?.name}</span>
+            </p>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {/* Check if any variant has custom input enabled */}
+            {selectedItemForVariant?.variants?.some(v => v.variantType?.isCustomInput) ? (
+              // Show custom input for custom input variants
+              <div className="space-y-4">
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <span className="font-semibold text-blue-900 dark:text-blue-100">
+                      {selectedItemForVariant.variants[0].variantType.name}
+                    </span>
+                    <Badge variant="default" className="bg-purple-600 hover:bg-purple-700 ml-auto text-[8px]s">
+                      Custom Input
+                    </Badge>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="customVariantValue">Enter Multiplier</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="customVariantValue"
+                          type="number"
+                          step="0.001"
+                          min="0.001"
+                          max="999"
+                          value={customVariantValue}
+                          onChange={(e) => setCustomVariantValue(e.target.value)}
+                          placeholder="e.g., 0.125 for 1/8, 0.5 for half"
+                          className="h-11 text-lg font-semibold flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-11 w-11 shrink-0"
+                          onClick={() => {
+                            console.log('[Custom Input Numpad Button] Clicked, current customVariantValue:', customVariantValue);
+                            openNumberPad(
+                              (value) => {
+                                console.log('[Custom Input Callback] Called with value:', value);
+                                setCustomVariantValue(value);
+                              },
+                              customVariantValue || ''
+                            );
+                          }}
+                          title="Open Number Pad"
+                        >
+                          <Calculator className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="text-[8px]s text-slate-600 dark:text-slate-400">
+                      Enter a multiplier to calculate the price proportionally. For example, if the base is 500g and you want 62.5g (1/8), enter 0.125.
+                    </p>
+                    {customVariantValue && !isNaN(parseFloat(customVariantValue)) && parseFloat(customVariantValue) > 0 && (
+                      <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-slate-600 dark:text-slate-400">Base Price:</span>
+                          <span className="font-semibold">{formatCurrency(selectedItemForVariant.price, currency)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-sm text-slate-600 dark:text-slate-400">Multiplier:</span>
+                          <span className="font-semibold">{customVariantValue}x</span>
+                        </div>
+                        <Separator className="my-2" />
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-slate-900 dark:text-white">Final Price:</span>
+                          <span className="font-black text-lg text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(selectedItemForVariant.price * parseFloat(customVariantValue), currency)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Select the custom input variant */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedVariant(selectedItemForVariant.variants[0])}
+                  className={`w-full p-4 border-2 rounded-2xl text-left transition-all duration-300 group hover:shadow-lg ${
+                    selectedVariant?.id === selectedItemForVariant.variants[0].id
+                      ? 'border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 shadow-lg shadow-emerald-500/10'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-5 w-5 text-[8px]urple-600 dark:text-[8px]urple-400" />
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        Use Custom Input
+                      </span>
+                    </div>
+                    {selectedVariant?.id === selectedItemForVariant.variants[0].id && (
+                      <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle className="h-5 w-5" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+              </div>
+            ) : (
+              // Show regular variant list
+              selectedItemForVariant?.variants?.map((variant) => {
+                const finalPrice = selectedItemForVariant.price + variant.priceModifier;
+                return (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    onClick={() => setSelectedVariant(variant)}
+                    className={`w-full p-4 border-2 rounded-2xl text-left transition-all duration-300 group hover:shadow-lg ${
+                      selectedVariant?.id === variant.id
+                        ? 'border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 shadow-lg shadow-emerald-500/10'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-bold text-slate-900 dark:text-white mb-1.5 text-base">
+                          {variant.variantType.name}: {variant.variantOption.name}
+                        </div>
+                        {variant.priceModifier !== 0 && (
+                          <div className={`inline-flex items-center gap-1.5 text-sm font-semibold px-2.5 py-1 rounded-lg ${
+                            variant.priceModifier > 0 
+                              ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' 
+                              : 'bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400'
+                          }`}>
+                            {variant.priceModifier > 0 ? <Plus className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                            {formatCurrency(Math.abs(variant.priceModifier), currency)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end ml-4">
+                        <div className="font-black text-[8px]l text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(finalPrice, currency)}
+                        </div>
+                        {selectedVariant?.id === variant.id && (
+                          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-[8px]s font-bold mt-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Selected
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <DialogFooter className="gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setVariantDialogOpen(false);
+                setSelectedItemForVariant(null);
+                setSelectedVariant(null);
+                setCustomVariantValue('');
+              }}
+              className="rounded-xl h-11 px-6 font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleVariantConfirm}
+              disabled={
+                !selectedVariant || 
+                (selectedVariant?.variantType?.isCustomInput && !customVariantValue)
+              }
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 rounded-xl h-11 px-6 font-semibold shadow-lg shadow-emerald-500/30"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add to Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add New Address Dialog */}
+      <Dialog open={showAddAddressDialog} onOpenChange={setShowAddAddressDialog}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Address</DialogTitle>
+            <DialogDescription>
+              Add a new delivery address for {selectedAddress?.customerName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="building">Building (Optional)</Label>
+              <Input
+                id="building"
+                value={newAddress.building}
+                onChange={(e) => setNewAddress(prev => ({ ...prev, building: e.target.value }))}
+                placeholder="Building name/number"
+              />
+            </div>
+            <div>
+              <Label htmlFor="streetAddress">Street Address *</Label>
+              <Input
+                id="streetAddress"
+                value={newAddress.streetAddress}
+                onChange={(e) => setNewAddress(prev => ({ ...prev, streetAddress: e.target.value }))}
+                placeholder="Street address"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="floor">Floor (Optional)</Label>
+                <Input
+                  id="floor"
+                  value={newAddress.floor}
+                  onChange={(e) => setNewAddress(prev => ({ ...prev, floor: e.target.value }))}
+                  placeholder="Floor"
+                />
+              </div>
+              <div>
+                <Label htmlFor="apartment">Apartment (Optional)</Label>
+                <Input
+                  id="apartment"
+                  value={newAddress.apartment}
+                  onChange={(e) => setNewAddress(prev => ({ ...prev, apartment: e.target.value }))}
+                  placeholder="Apt #"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="deliveryArea">Delivery Area</Label>
+              <Select value={newAddress.deliveryAreaId} onValueChange={(value) => setNewAddress(prev => ({ ...prev, deliveryAreaId: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select delivery area" />
+                </SelectTrigger>
+                <SelectContent>
+                  {deliveryAreas.map((area) => (
+                    <SelectItem key={area.id} value={area.id}>
+                      {area.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowAddAddressDialog(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddAddress}
+                disabled={creatingAddress}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {creatingAddress ? 'Adding...' : 'Add Address'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Card Payment Confirmation Dialog */}
+      <Dialog open={showCardPaymentDialog} onOpenChange={setShowCardPaymentDialog}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                <CreditCard className="h-5 w-5 text-white" />
+              </div>
+              <DialogTitle className="text-[8px]l font-bold">Card Payment</DialogTitle>
+            </div>
+            <DialogDescription>
+              Enter the card transaction reference number after successful payment
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">
+                    Process payment on terminal first
+                  </p>
+                  <p className="text-[8px]s text-blue-700 dark:text-blue-400">
+                    Complete the card transaction on your payment terminal, then select the payment type and enter the reference number below.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Method Selection */}
+            <div>
+              <Label className="text-sm font-semibold mb-3 block">Payment Method Type</Label>
+              <RadioGroup value={paymentMethodDetail} onValueChange={(value: 'CARD' | 'INSTAPAY' | 'MOBILE_WALLET') => setPaymentMethodDetail(value)} className="grid grid-cols-1 gap-3">
+                <div className="flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-white dark:bg-slate-800">
+                  <RadioGroupItem value="CARD" id="card" className="border-slate-300" />
+                  <label htmlFor="card" className="flex items-center gap-3 flex-1 cursor-pointer">
+                    <CreditCard className="h-5 w-5 text-blue-600" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Card</p>
+                      <p className="text-[8px]s text-slate-500 dark:text-slate-400">Credit/Debit Card</p>
+                    </div>
+                  </label>
+                </div>
+                <div className="flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors cursor-pointer bg-white dark:bg-slate-800">
+                  <RadioGroupItem value="INSTAPAY" id="instapay" className="border-slate-300" />
+                  <label htmlFor="instapay" className="flex items-center gap-3 flex-1 cursor-pointer">
+                    <Smartphone className="h-5 w-5 text-emerald-600" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Instapay</p>
+                      <p className="text-[8px]s text-slate-500 dark:text-slate-400">Instant Payment</p>
+                    </div>
+                  </label>
+                </div>
+                <div className="flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-purple-400 dark:hover:border-purple-500 transition-colors cursor-pointer bg-white dark:bg-slate-800">
+                  <RadioGroupItem value="MOBILE_WALLET" id="mobile-wallet" className="border-slate-300" />
+                  <label htmlFor="mobile-wallet" className="flex items-center gap-3 flex-1 cursor-pointer">
+                    <Smartphone className="h-5 w-5 text-[8px]urple-600" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Mobile Wallet</p>
+                      <p className="text-[8px]s text-slate-500 dark:text-slate-400">Vodafone Cash, Etisalat, Orange</p>
+                    </div>
+                  </label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div>
+              <Label htmlFor="cardRefNumber" className="text-sm font-semibold">
+                Reference Number *
+              </Label>
+              <Input
+                id="cardRefNumber"
+                value={cardReferenceNumber}
+                onChange={(e) => setCardReferenceNumber(e.target.value)}
+                placeholder="Enter transaction reference number..."
+                className="mt-2 text-sm h-11 rounded-xl"
+                autoFocus
+                onKeyPress={(e) => e.key === 'Enter' && handleCardPaymentSubmit()}
+              />
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5">
+                This reference will be saved with the order for tracking purposes
+              </p>
+            </div>
+
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                <p className="text-[8px]s text-amber-800 dark:text-amber-300">
+                  If the card transaction fails, click Cancel and pay with Cash instead
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-3">
+            <Button
+              variant="outline"
+              onClick={handleCardPaymentCancel}
+              disabled={processing}
+              className="flex-1 rounded-xl h-11 font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCardPaymentSubmit}
+              disabled={processing || !cardReferenceNumber.trim()}
+              className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-xl h-11 font-semibold shadow-lg shadow-blue-500/30"
+            >
+              {processing ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Submit & Process Order
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Method Dialog for Closing Table */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Select Payment Method</DialogTitle>
+            <DialogDescription>
+              Table {selectedTable?.tableNumber} • {totalItems} {totalItems === 1 ? 'item' : 'items'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="text-center space-y-2">
+              <p className="text-sm text-slate-600">Total Amount</p>
+              <p className="text-3xl font-bold text-emerald-600">
+                {formatCurrency(total, currency)}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-4">
+              <Button
+                onClick={() => handlePaymentSelect('cash')}
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 h-14 text-lg font-semibold"
+              >
+                <DollarSign className="h-5 w-5 mr-2" />
+                Cash
+              </Button>
+              <Button
+                onClick={() => handlePaymentSelect('card')}
+                variant="outline"
+                className="h-14 text-lg font-semibold border-2"
+              >
+                <CreditCard className="h-5 w-5 mr-2" />
+                Card
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt Viewer */}
+      <ReceiptViewer
+        open={showReceipt}
+        onClose={() => setShowReceipt(false)}
+        order={receiptData}
+        autoPrint={true}
+      />
+
+      {/* Number Pad Dialog */}
+      <NumberPad
+        isOpen={showNumberPad}
+        onClose={handleNumberPadClose}
+        onValueChange={handleNumberPadValueChange}
+        title="Enter Value"
+        decimal={true}
+        maxLength={10}
+        initialValue={numberPadValue}
+      />
+
+      {/* Daily Expenses Dialog */}
+      <Dialog open={showDailyExpenseDialog} onOpenChange={setShowDailyExpenseDialog}>
+        <DialogContent className="sm:max-w-md rounded-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Wallet className="h-5 w-5 text-white" />
+              </div>
+              <DialogTitle className="text-[8px]l font-bold">Add Daily Expense</DialogTitle>
+            </div>
+            <DialogDescription>
+              Record a daily expense for the current shift
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Category Selection */}
+            <div>
+              <Label htmlFor="expenseCategory" className="text-sm font-semibold">
+                Category *
+              </Label>
+              <Select
+                value={expenseCategory}
+                onValueChange={(value) => {
+                  setExpenseCategory(value);
+                  // Reset inventory fields when category changes
+                  if (value !== 'INVENTORY') {
+                    setExpenseIngredientId('');
+                    setExpenseQuantity('');
+                    setExpenseQuantityUnit('');
+                    setExpenseUnitPrice('');
+                  }
+                }}
+              >
+                <SelectTrigger className="mt-1.5 h-11 rounded-xl">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="INVENTORY">📦 Inventory (Restock)</SelectItem>
+                  <SelectItem value="EQUIPMENT">🔧 Equipment</SelectItem>
+                  <SelectItem value="REPAIRS">🔨 Repairs</SelectItem>
+                  <SelectItem value="UTILITIES">💡 Utilities</SelectItem>
+                  <SelectItem value="RENT">🏠 Rent</SelectItem>
+                  <SelectItem value="MARKETING">📣 Marketing</SelectItem>
+                  <SelectItem value="SALARIES">💰 Salaries</SelectItem>
+                  <SelectItem value="TRANSPORTATION">🚗 Transportation</SelectItem>
+                  <SelectItem value="SUPPLIES">📝 Supplies</SelectItem>
+                  <SelectItem value="MAINTENANCE">🛠️ Maintenance</SelectItem>
+                  <SelectItem value="INSURANCE">🛡️ Insurance</SelectItem>
+                  <SelectItem value="TAXES">📋 Taxes</SelectItem>
+                  <SelectItem value="OTHER">📌 Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Inventory-specific fields */}
+            {expenseCategory === 'INVENTORY' && (
+              <>
+                <div>
+                  <Label htmlFor="expenseIngredient" className="text-sm font-semibold">
+                    Ingredient *
+                  </Label>
+                  <Select
+                    value={expenseIngredientId}
+                    onValueChange={(value) => {
+                      setExpenseIngredientId(value);
+                      // Set quantity unit based on ingredient
+                      const ingredient = ingredients.find(ing => ing.id === value);
+                      if (ingredient) {
+                        setExpenseQuantityUnit(ingredient.unit);
+                        // Pre-fill unit price with current price
+                        setExpenseUnitPrice(ingredient.costPerUnit?.toString() || '');
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="mt-1.5 h-11 rounded-xl">
+                      <SelectValue placeholder={loadingIngredients ? "Loading..." : "Select ingredient"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ingredients.map((ingredient) => (
+                        <SelectItem key={ingredient.id} value={ingredient.id}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{ingredient.name}</span>
+                            <span className="text-xs text-slate-500">
+                              Stock: {ingredient.currentStock || 0} {ingredient.unit} @ {formatCurrency(ingredient.costPerUnit, currency)}/{ingredient.unit}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="expenseQuantity" className="text-sm font-semibold">
+                    Quantity ({expenseQuantityUnit || 'unit'}) *
+                  </Label>
+                  <Input
+                    id="expenseQuantity"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={expenseQuantity}
+                    onChange={(e) => {
+                      setExpenseQuantity(e.target.value);
+                      // Auto-calculate total
+                      const qty = parseFloat(e.target.value);
+                      const price = parseFloat(expenseUnitPrice);
+                      if (qty > 0 && price > 0) {
+                        setExpenseAmount((qty * price).toString());
+                      }
+                    }}
+                    placeholder="Enter quantity..."
+                    className="mt-1.5 text-sm h-11 rounded-xl"
+                    disabled={!expenseQuantityUnit}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="expenseUnitPrice" className="text-sm font-semibold">
+                    Unit Price ({currency}/{expenseQuantityUnit || 'unit'}) *
+                  </Label>
+                  <Input
+                    id="expenseUnitPrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={expenseUnitPrice}
+                    onChange={(e) => {
+                      setExpenseUnitPrice(e.target.value);
+                      // Auto-calculate total
+                      const qty = parseFloat(expenseQuantity);
+                      const price = parseFloat(e.target.value);
+                      if (qty > 0 && price > 0) {
+                        setExpenseAmount((qty * price).toString());
+                      }
+                    }}
+                    placeholder="Enter price paid..."
+                    className="mt-1.5 text-sm h-11 rounded-xl"
+                    disabled={!expenseQuantityUnit}
+                  />
+                </div>
+
+                {/* Weighted average price preview */}
+                {expenseIngredientId && expenseQuantity && expenseUnitPrice && (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3">
+                    <div className="flex items-start gap-2">
+                      <Package className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-1">
+                          Weighted Average Price Preview:
+                        </p>
+                        {(() => {
+                          const ingredient = ingredients.find(ing => ing.id === expenseIngredientId);
+                          if (!ingredient) return null;
+                          const oldStock = ingredient.currentStock || 0;
+                          const oldPrice = ingredient.costPerUnit || 0;
+                          const newQty = parseFloat(expenseQuantity);
+                          const newPrice = parseFloat(expenseUnitPrice);
+                          const totalStock = oldStock + newQty;
+                          const weightedAvg = totalStock > 0 ? (oldStock * oldPrice + newQty * newPrice) / totalStock : newPrice;
+                          return (
+                            <>
+                              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                Current Stock: {oldStock} {ingredient.unit} @ {formatCurrency(oldPrice, currency)}
+                              </p>
+                              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                Adding: {newQty} {ingredient.unit} @ {formatCurrency(newPrice, currency)}
+                              </p>
+                              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 mt-1">
+                                New Stock: {totalStock} {ingredient.unit}
+                              </p>
+                              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                                New Price: {formatCurrency(weightedAvg, currency)}/{ingredient.unit}
+                              </p>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-[8px]s text-blue-700 dark:text-blue-300">
+                      Inventory expenses will directly update stock and calculate weighted average price. They won't be added to the Costs tab.
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div>
+              <Label htmlFor="expenseAmount" className="text-sm font-semibold">
+                Total Amount ({currency}) *
+              </Label>
+              <Input
+                id="expenseAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={expenseAmount}
+                onChange={(e) => {
+                  // Only allow manual input for non-inventory expenses
+                  if (expenseCategory !== 'INVENTORY') {
+                    setExpenseAmount(e.target.value);
+                  }
+                }}
+                placeholder="Enter amount..."
+                className="mt-1.5 text-sm h-11 rounded-xl"
+                autoFocus={expenseCategory !== 'INVENTORY'}
+                readOnly={expenseCategory === 'INVENTORY'}
+              />
+              {expenseCategory === 'INVENTORY' && (
+                <p className="text-[8px]s text-slate-500 mt-1">
+                  Auto-calculated from quantity × unit price
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="expenseReason" className="text-sm font-semibold">
+                Reason / Notes *
+              </Label>
+              <Textarea
+                id="expenseReason"
+                value={expenseReason}
+                onChange={(e) => setExpenseReason(e.target.value)}
+                placeholder={expenseCategory === 'INVENTORY' ? "e.g., Restocked from ABC Market..." : "e.g., Electricity Company, Supplies, etc..."}
+                rows={3}
+                className="mt-1.5 resize-none rounded-xl"
+                maxLength={200}
+              />
+              <p className="text-[8px]s text-slate-500 mt-1">
+                {expenseReason.length}/200 characters
+              </p>
+            </div>
+
+            {expenseCategory !== 'INVENTORY' && (
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-[8px]s text-blue-700 dark:text-blue-300">
+                    This expense will be automatically added to the Costs tab for tracking and reporting.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDailyExpenseDialog(false);
+                setExpenseAmount('');
+                setExpenseReason('');
+                setExpenseCategory('OTHER');
+                setExpenseIngredientId('');
+                setExpenseQuantity('');
+                setExpenseQuantityUnit('');
+                setExpenseUnitPrice('');
+              }}
+              className="flex-1 rounded-xl h-11 font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDailyExpenseSubmit}
+              disabled={
+                submittingExpense ||
+                !expenseAmount ||
+                !expenseReason.trim() ||
+                (expenseCategory === 'INVENTORY' && (!expenseIngredientId || !expenseQuantity || !expenseUnitPrice))
+              }
+              className="flex-1 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 rounded-xl h-11 font-semibold shadow-lg shadow-amber-500/30"
+            >
+              {submittingExpense ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {expenseCategory === 'INVENTORY' ? 'Restocking...' : 'Recording...'}
+                </>
+              ) : (
+                <>
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  {expenseCategory === 'INVENTORY' ? 'Restock Inventory' : 'Record Expense'}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Item Note Dialog */}
+      <Dialog open={showNoteDialog} onOpenChange={setShowNoteDialog}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+                <MessageSquare className="h-5 w-5 text-white" />
+              </div>
+              <DialogTitle className="text-[8px]l font-bold">Edit Item</DialogTitle>
+            </div>
+            <DialogDescription>
+              {editingItem?.name} {editingItem?.variantName && `(${editingItem.variantName})`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="quantity" className="text-sm font-semibold">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min="1"
+                value={editingQuantity}
+                onChange={(e) => setEditingQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="note" className="text-sm font-semibold">Note (Optional)</Label>
+              <Textarea
+                id="note"
+                value={editingNote}
+                onChange={(e) => setEditingNote(e.target.value)}
+                placeholder="e.g., Very hot please, Extra sugar, No ice..."
+                rows={3}
+                className="mt-1.5 resize-none"
+                maxLength={200}
+              />
+              <p className="text-[8px]s text-slate-500 mt-1">
+                {editingNote.length}/200 characters
+              </p>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+              <p className="text-[8px]s text-amber-700 dark:text-amber-300">
+                <strong>Tip:</strong> Items with different notes will appear on separate lines in the cart.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowNoteDialog(false);
+                setEditingItem(null);
+                setEditingNote('');
+                setEditingQuantity(1);
+              }}
+              className="rounded-xl h-11 px-6 font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveNote}
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 rounded-xl h-11 px-6 font-semibold shadow-lg shadow-emerald-500/30"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Held Orders Dialog */}
+      <Dialog open={showHeldOrdersDialog} onOpenChange={setShowHeldOrdersDialog}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="pb-4 border-b">
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Clock className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-[8px]l font-bold">Held Orders</DialogTitle>
+                <DialogDescription>
+                  {heldOrders.length} {heldOrders.length === 1 ? 'order' : 'orders'} on hold
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <ScrollArea className="flex-1 py-4 px-2">
+            {heldOrders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3">
+                  <Clock className="h-8 w-8 opacity-40" />
+                </div>
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">No held orders</p>
+              </div>
+            ) : (
+              <div className="space-y-3 pr-2">
+                {heldOrders.map((heldOrder) => {
+                  const itemsCount = heldOrder.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
+                  const totalAmount = heldOrder.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) + (heldOrder.deliveryFee || 0) - (heldOrder.loyaltyDiscount || 0) - (heldOrder.promoDiscount || 0);
+                  const timeHeld = Math.floor((Date.now() - heldOrder.timestamp) / 60000); // minutes
+
+                  const getOrderTypeBadge = (type: string) => {
+                    switch (type) {
+                      case 'dine-in':
+                        return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Dine In</Badge>;
+                      case 'take-away':
+                        return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Take Away</Badge>;
+                      case 'delivery':
+                        return <Badge className="bg-orange-100 text-orange-700 border-orange-200">Delivery</Badge>;
+                      default:
+                        return <Badge>{type}</Badge>;
+                    }
+                  };
+
+                  return (
+                    <div key={heldOrder.id} className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-850 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          {getOrderTypeBadge(heldOrder.orderType)}
+                          {heldOrder.tableNumber && (
+                            <Badge variant="outline" className="border-blue-300 text-blue-700">
+                              Table {heldOrder.tableNumber}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-[8px]s text-slate-500 dark:text-slate-400">
+                          {timeHeld < 60 ? `${timeHeld}m ago` : `${Math.floor(timeHeld / 60)}h ${timeHeld % 60}m ago`}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mb-3">
+                        {heldOrder.items.slice(0, 3).map((item: any, idx: number) => (
+                          <div key={idx} className="flex justify-between text-[8px]s">
+                            <span className="text-slate-600 dark:text-slate-300">
+                              {item.name} {item.variantName && `(${item.variantName})`} x{item.quantity}
+                            </span>
+                            <span className="font-medium text-slate-900 dark:text-white">
+                              {formatCurrency(item.price * item.quantity, currency)}
+                            </span>
+                          </div>
+                        ))}
+                        {heldOrder.items.length > 3 && (
+                          <div className="text-[8px]s text-slate-500 dark:text-slate-400">
+                            +{heldOrder.items.length - 3} more items
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-200/50 dark:border-slate-700/50">
+                        <div>
+                          <p className="text-[8px]s text-slate-500 dark:text-slate-400">
+                            {itemsCount} {itemsCount === 1 ? 'item' : 'items'}
+                          </p>
+                          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(totalAmount, currency)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleDeleteHeldOrder(heldOrder.id)}
+                            size="sm"
+                            variant="outline"
+                            className="h-9 px-3 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            onClick={() => handleRestoreHeldOrder(heldOrder.id)}
+                            size="sm"
+                            className="h-9 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold shadow-lg shadow-indigo-500/30"
+                          >
+                            <Play className="h-4 w-4 mr-2" />
+                            Restore
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+          <DialogFooter className="pt-4 border-t">
+            <Button
+              onClick={() => setShowHeldOrdersDialog(false)}
+              variant="outline"
+              className="flex-1 rounded-xl h-11 font-semibold"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Items Dialog */}
+      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="pb-4 border-b">
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg">
+                <ArrowRight className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-[8px]l font-bold">Transfer Items</DialogTitle>
+                <DialogDescription>
+                  From Table {selectedTable?.tableNumber} to another table
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <ScrollArea className="flex-1 py-4 px-2">
+            <div className="space-y-4">
+              {/* Target Table Selection */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Target Table *</Label>
+                <Select value={targetTableId} onValueChange={setTargetTableId}>
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue placeholder="Select a table" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTables.map((table) => (
+                      <SelectItem key={table.id} value={table.id}>
+                        Table {table.tableNumber} {table.customer ? `- ${table.customer.name}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Items to Transfer */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Items to Transfer</Label>
+                <div className="space-y-3">
+                  {tableCart.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex-1 min-w-0 pr-4">
+                          <h4 className="font-semibold text-sm text-slate-900 dark:text-white truncate">
+                            {item.name}
+                          </h4>
+                          {item.variantName && (
+                            <p className="text-[8px]s text-slate-500 dark:text-slate-400 mt-0.5">{item.variantName}</p>
+                          )}
+                          {item.note && (
+                            <p className="text-[8px]s text-emerald-600 dark:text-emerald-400 mt-0.5 italic">"{item.note}"</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(item.price * item.quantity, currency)}
+                          </p>
+                          <p className="text-[8px]s text-slate-500">Available: {item.quantity}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSetMaxQuantity(item.id)}
+                          className="h-8 text-[8px]s"
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          All
+                        </Button>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={item.quantity}
+                          value={transferItems[item.id] || 0}
+                          onChange={(e) => handleTransferQuantityChange(item.id, parseInt(e.target.value) || 0)}
+                          className="h-8 text-center font-semibold"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTransferQuantityChange(item.id, Math.max(0, (transferItems[item.id] || 0) - 1))}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTransferQuantityChange(item.id, Math.min(item.quantity, (transferItems[item.id] || 0) + 1))}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+          <DialogFooter className="pt-4 border-t">
+            <Button
+              onClick={() => setShowTransferDialog(false)}
+              variant="outline"
+              className="flex-1 rounded-xl h-11 font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleTransferItems}
+              disabled={!targetTableId || Object.values(transferItems).every(qty => qty === 0)}
+              className="flex-1 rounded-xl h-11 font-semibold bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 shadow-lg shadow-blue-500/30"
+            >
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Transfer Items
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Low Stock Alerts Dialog */}
+      <Dialog open={showLowStockDialog} onOpenChange={setShowLowStockDialog}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                <AlertTriangle className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-[8px]l font-bold">Low Stock Alerts</DialogTitle>
+                <DialogDescription>
+                  {lowStockAlerts.length} item{lowStockAlerts.length !== 1 ? 's' : ''} running low
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <ScrollArea className="max-h-[400px] py-4">
+            <div className="space-y-2">
+              {lowStockAlerts.map((alert: any) => (
+                <div
+                  key={alert.ingredientId}
+                  className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-orange-800"
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <div className="flex-1">
+                      <p className="font-bold text-sm text-amber-900 dark:text-amber-100">{alert.ingredientName || alert.name}</p>
+                    </div>
+                    <Badge variant="destructive" className="h-5 text-[10px]">
+                      {alert.currentStock} {alert.unit}
+                    </Badge>
+                  </div>
+                  {alert.reorderLevel && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                      Reorder level: {alert.reorderLevel}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          <DialogFooter className="pt-4 border-t">
+            <Button
+              onClick={() => setShowLowStockDialog(false)}
+              className="w-full rounded-xl h-11 font-semibold"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Settings Dialog */}
+      <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-slate-500 to-slate-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Settings className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-[8px]l font-bold">Settings</DialogTitle>
+                <DialogDescription>Account and system information</DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            {/* User Information */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                  {user?.username?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">{user?.username || 'Unknown'}</p>
+                  <p className="text-[8px]s text-slate-500 dark:text-slate-400 capitalize">{user?.role || 'User'}</p>
+                </div>
+              </div>
+              <div className="space-y-1 text-[8px]s">
+                {user?.email && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 dark:text-slate-400">Email</span>
+                    <span className="font-medium text-slate-900 dark:text-white">{user.email}</span>
+                  </div>
+                )}
+                {user?.branchId && user?.role === 'CASHIER' && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 dark:text-slate-400">Branch ID</span>
+                    <span className="font-medium text-slate-900 dark:text-white">{user.branchId}</span>
+                  </div>
+                )}
+                {currentShift && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 dark:text-slate-400">Shift Status</span>
+                    <span className="font-medium text-emerald-600 dark:text-emerald-400">Open</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Shift Information (if cashier has shift open) */}
+            {currentShift && (
+              <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <p className="font-bold text-emerald-900 dark:text-emerald-100 text-sm">Current Shift</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[8px]s">
+                  <div>
+                    <p className="text-emerald-700 dark:text-emerald-400">Orders</p>
+                    <p className="font-bold text-emerald-900 dark:text-emerald-100 text-lg">{currentShift.orderCount || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-700 dark:text-emerald-400">Revenue</p>
+                    <p className="font-bold text-emerald-900 dark:text-emerald-100 text-lg">{formatCurrency(currentShift.currentRevenue || 0, currency)}</p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-700 dark:text-emerald-400">Cash</p>
+                    <p className="font-bold text-emerald-900 dark:text-emerald-100 text-lg">{formatCurrency(currentShift.cashCollected || 0, currency)}</p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-700 dark:text-emerald-400">Card</p>
+                    <p className="font-bold text-emerald-900 dark:text-emerald-100 text-lg">{formatCurrency(currentShift.cardCollected || 0, currency)}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Daily Expenses Quick Access */}
+            {currentShift && (
+              <Button
+                onClick={() => {
+                  setShowSettingsDialog(false);
+                  setShowDailyExpenseDialog(true);
+                }}
+                variant="outline"
+                className="w-full h-11 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/50 rounded-xl font-semibold"
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Add Daily Expense
+              </Button>
+            )}
+          </div>
+          <DialogFooter className="pt-4 border-t">
+            <Button
+              onClick={() => setShowSettingsDialog(false)}
+              variant="outline"
+              className="flex-1 rounded-xl h-11 font-semibold"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={async () => {
+                await storage.removeSetting('user');
+                await storage.removeSetting('token');
+                window.location.href = '/login';
+              }}
+              className="flex-1 rounded-xl h-11 font-semibold bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/30 text-white"
+            >
+              <User className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discount Dialog - Loyalty Points & Promo Codes */}
+      <Dialog open={showDiscountDialog} onOpenChange={setShowDiscountDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-purple-600" />
+              Apply Discount
+            </DialogTitle>
+            <DialogDescription>
+              Redeem loyalty points or apply promo codes to get discounts on this order.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Loyalty Points Section */}
+            <div className="space-y-3 p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 rounded-xl border border-purple-200 dark:border-purple-800">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Gift className="h-5 w-5 text-purple-600" />
+                  <span className="font-bold text-sm text-purple-900 dark:text-purple-100">Loyalty Points</span>
+                </div>
+                {selectedAddress && (
+                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                    {selectedAddress.loyaltyPoints || 0} pts
+                  </Badge>
+                )}
+              </div>
+
+              {!selectedAddress ? (
+                <p className="text-xs text-purple-700 dark:text-purple-300">Select a customer to redeem points</p>
+              ) : (
+                <>
+                  {redeemedPoints > 0 ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg">
+                        <div>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">Points Redeemed</p>
+                          <p className="font-bold text-lg text-purple-600">{redeemedPoints} pts</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-slate-600 dark:text-slate-400">Discount</p>
+                          <p className="font-bold text-lg text-green-600">-{formatCurrency(loyaltyDiscount, currency)}</p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleClearRedemption}
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Clear Redemption
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleRedeemPoints}
+                      disabled={selectedAddress.loyaltyPoints < 100}
+                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Redeem Points (100 pts = 10 EGP)
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Promo Code Section */}
+            <div className="space-y-3 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 rounded-xl border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2">
+                <Tag className="h-5 w-5 text-blue-600" />
+                <span className="font-bold text-sm text-blue-900 dark:text-blue-100">Promo Code</span>
+              </div>
+
+              {promoCodeId ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg">
+                    <div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">Code Applied</p>
+                      <p className="font-bold text-sm text-blue-600">{promoCode}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-600 dark:text-slate-400">Discount</p>
+                      <p className="font-bold text-lg text-green-600">-{formatCurrency(promoDiscount, currency)}</p>
+                    </div>
+                  </div>
+                  {promoMessage && (
+                    <p className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-3 py-2 rounded-lg">
+                      {promoMessage}
+                    </p>
+                  )}
+                  <Button
+                    onClick={handleClearPromoCode}
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Clear Promo Code
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                      placeholder="Enter promo code"
+                      className="flex-1 text-sm"
+                    />
+                    <Button
+                      onClick={handleValidatePromoCode}
+                      disabled={validatingPromo || cart.length === 0}
+                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                    >
+                      {validatingPromo ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        'Apply'
+                      )}
+                    </Button>
+                  </div>
+                  {promoMessage && (
+                    <p className={`text-xs px-3 py-2 rounded-lg ${
+                      promoMessage.includes('Invalid') || promoMessage.includes('Failed')
+                        ? 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/30'
+                        : 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950/30'
+                    }`}>
+                      {promoMessage}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Manual Discount Section */}
+            <div className="space-y-3 p-4 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 rounded-xl border border-orange-200 dark:border-orange-800">
+              <div className="flex items-center gap-2">
+                <Percent className="h-5 w-5 text-orange-600" />
+                <span className="font-bold text-sm text-orange-900 dark:text-orange-100">Manual Discount</span>
+              </div>
+
+              {manualDiscountAmount > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg">
+                    <div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">Discount Applied</p>
+                      {manualDiscountType === 'percentage' ? (
+                        <p className="font-bold text-sm text-orange-600">{manualDiscountPercent}%</p>
+                      ) : (
+                        <p className="font-bold text-sm text-orange-600">{formatCurrency(manualDiscountAmount, currency)}</p>
+                      )}
+                      {manualDiscountComment && (
+                        <p className="text-xs text-slate-500 mt-1">"{manualDiscountComment}"</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-600 dark:text-slate-400">Discount</p>
+                      <p className="font-bold text-lg text-green-600">-{formatCurrency(manualDiscountAmount, currency)}</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleClearManualDiscount}
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Clear Discount
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Discount Type Toggle */}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={manualDiscountType === 'percentage' ? 'default' : 'outline'}
+                      onClick={() => {
+                        setManualDiscountType('percentage');
+                        setTempManualDiscountAmount('');
+                      }}
+                      className="flex-1 h-10"
+                      size="sm"
+                    >
+                      <Percent className="h-4 w-4 mr-1" />
+                      Percentage
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={manualDiscountType === 'fixed' ? 'default' : 'outline'}
+                      onClick={() => {
+                        setManualDiscountType('fixed');
+                        setTempManualDiscountPercent('');
+                      }}
+                      className="flex-1 h-10"
+                      size="sm"
+                    >
+                      <DollarSign className="h-4 w-4 mr-1" />
+                      Fixed Amount
+                    </Button>
+                  </div>
+
+                  {/* Percentage Input */}
+                  {manualDiscountType === 'percentage' && (
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={tempManualDiscountPercent}
+                        onChange={(e) => setTempManualDiscountPercent(e.target.value)}
+                        placeholder="0"
+                        className="w-20 text-center font-bold text-lg"
+                      />
+                      <span className="text-2xl font-bold text-slate-600">%</span>
+                      {tempManualDiscountPercent && parseFloat(tempManualDiscountPercent) > 0 && (
+                        <span className="text-sm font-bold text-green-600 ml-auto flex items-center gap-1">
+                          <span>Preview:</span>
+                          <span className="text-lg">-{formatCurrency((parseFloat(tempManualDiscountPercent) / 100) * (subtotal + deliveryFee), currency)}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Fixed Amount Input */}
+                  {manualDiscountType === 'fixed' && (
+                    <div className="flex gap-2 items-center">
+                      <span className="text-xl font-bold text-slate-600">{currency}</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={tempManualDiscountAmount}
+                        onChange={(e) => setTempManualDiscountAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="flex-1 font-bold text-lg"
+                      />
+                      {tempManualDiscountAmount && parseFloat(tempManualDiscountAmount) > 0 && parseFloat(tempManualDiscountAmount) <= (subtotal + deliveryFee) && (
+                        <span className="text-sm font-bold text-green-600">OK</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Comment Input */}
+                  <Input
+                    value={manualDiscountComment}
+                    onChange={(e) => setManualDiscountComment(e.target.value)}
+                    placeholder="Reason for discount (optional)"
+                    className="text-sm"
+                  />
+
+                  {/* Apply Button */}
+                  <Button
+                    onClick={() => {
+                      if (manualDiscountType === 'percentage') {
+                        handleManualDiscountPercentChange(parseFloat(tempManualDiscountPercent) || 0);
+                      } else {
+                        handleManualDiscountFixedAmountChange(parseFloat(tempManualDiscountAmount) || 0);
+                      }
+                    }}
+                    disabled={
+                      (manualDiscountType === 'percentage' && (!tempManualDiscountPercent || parseFloat(tempManualDiscountPercent) === 0)) ||
+                      (manualDiscountType === 'fixed' && (!tempManualDiscountAmount || parseFloat(tempManualDiscountAmount) === 0))
+                    }
+                    className="w-full h-12 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-bold text-base rounded-xl"
+                  >
+                    <Check className="h-5 w-5 mr-2" />
+                    Apply {manualDiscountType === 'percentage' ? `${tempManualDiscountPercent}%` : formatCurrency(parseFloat(tempManualDiscountAmount) || 0, currency)}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Total Discount Summary */}
+            {(loyaltyDiscount > 0 || promoDiscount > 0 || manualDiscountAmount > 0) && (
+              <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 rounded-xl border border-green-200 dark:border-green-800">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-green-900 dark:text-green-100">Total Discount</span>
+                  <span className="font-black text-2xl text-green-600">
+                    -{formatCurrency(loyaltyDiscount + promoDiscount + manualDiscountAmount, currency)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => setShowDiscountDialog(false)}
+              className="w-full"
+            >
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -1,0 +1,971 @@
+'use client';
+
+import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { ShoppingCart, LayoutDashboard, Utensils, Package, Store, BarChart3, Settings, Users, LogOut, Lock, Globe, Coffee, Clock, TrendingUp, MapPin, UserRound, DollarSign, AlertTriangle, ArrowRight, Trash2, Gift, RefreshCw, Menu, Receipt as ReceiptIcon, Building, Tag, LayoutGrid, FileText, Eye } from 'lucide-react';
+import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { useI18n, Language } from '@/lib/i18n-context';
+import MenuManagement from '@/components/menu-management';
+import POSInterface from '@/components/pos-interface';
+import IngredientManagement from '@/components/ingredient-management';
+import RecipeManagement from '@/components/recipe-management';
+import BranchManagement from '@/components/branch-management';
+import ReportsDashboard from '@/components/reports-dashboard';
+import UserManagement from '@/components/user-management';
+import ShiftManagement from '@/components/shift-management';
+import AdvancedAnalytics from '@/components/advanced-analytics';
+import DeliveryManagement from '@/components/delivery-management';
+import CustomerManagement from '@/components/customer-management';
+import CostManagement from '@/components/cost-management';
+import InventoryAlerts from '@/components/inventory-alerts';
+import InventoryTransfers from '@/components/inventory-transfers';
+import WasteTracking from '@/components/waste-tracking';
+import LoyaltyProgram from '@/components/loyalty-program';
+import PromoCodesManagement from '@/components/promo-codes-management';
+import ReceiptSettings from '@/components/receipt-settings';
+import SuppliersManagement from '@/components/suppliers-management';
+import PurchaseOrdersManagement from '@/components/purchase-orders-management';
+import TableManagement from '@/components/table-management';
+import AuditLogs from '@/components/audit-logs';
+import { OfflineStatusIndicator } from '@/components/offline-status-indicator';
+import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
+import { SyncOperationsViewer } from '@/components/sync-operations-viewer';
+import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
+import { offlineManager } from '@/lib/offline/offline-manager';
+import storageMonitor from '@/lib/storage/storage-monitor';
+import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
+import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
+
+const storage = getIndexedDBStorage();
+
+export default function POSDashboard() {
+  const router = useRouter();
+  const { user, logout, isOnline } = useAuth();
+  const { language, setLanguage, currency, t } = useI18n();
+  const [activeTab, setActiveTab] = useState<'pos' | string>('pos');
+  const [currentShift, setCurrentShift] = useState<any>(null);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [userBranchName, setUserBranchName] = useState<string>('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showSyncViewer, setShowSyncViewer] = useState(false);
+  const [hasOpenShift, setHasOpenShift] = useState(false);
+  const [storageAlert, setStorageAlert] = useState<any>(null);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [syncConflicts, setSyncConflicts] = useState<any[]>([]);
+
+  // Start storage monitoring
+  useEffect(() => {
+    // Only monitor if user has a branch (not HQ admin with no branch)
+    if (user?.branchId) {
+      storageMonitor.startMonitoring();
+
+      // Register alert callback
+      const unsubscribe = storageMonitor.onAlert((alert) => {
+        setStorageAlert(alert);
+        if (alert.type === 'critical') {
+          showWarningToast(
+            'Storage Alert',
+            alert.message
+          );
+        } else if (alert.type === 'warning') {
+          showWarningToast(
+            'Storage Warning',
+            alert.message
+          );
+        }
+      });
+
+      return () => {
+        unsubscribe();
+        storageMonitor.stopMonitoring();
+      };
+    }
+  }, [user?.branchId]);
+
+  // Fetch sync conflicts periodically
+  useEffect(() => {
+    if (!user?.branchId) return;
+
+    const fetchConflicts = async () => {
+      try {
+        const response = await fetch(`/api/sync/conflicts?branchId=${user.branchId}`);
+        if (response.ok) {
+          const data = await response.json();
+          const conflicts = data.conflicts || [];
+
+          // Filter for unresolved conflicts
+          const unresolved = conflicts.filter((c: any) => !c.resolved);
+          setSyncConflicts(unresolved);
+
+          // Show conflict indicator if there are unresolved conflicts
+          if (unresolved.length > 0) {
+            showWarningToast(
+              'Sync Conflicts Detected',
+              `${unresolved.length} conflict${unresolved.length > 1 ? 's' : ''} require resolution`
+            );
+          }
+        }
+      } catch (error) {
+        console.error('[Dashboard] Failed to fetch conflicts:', error);
+      }
+    };
+
+    // Fetch conflicts initially
+    fetchConflicts();
+
+    // Poll for conflicts every 2 minutes
+    const intervalId = setInterval(fetchConflicts, 2 * 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  }, [user?.branchId]);
+
+  // Handle conflict resolution
+  const handleResolveConflict = async (conflictId: string, strategy: string, resolvedData?: any) => {
+    try {
+      const response = await fetch('/api/sync/conflicts/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conflictId,
+          resolutionStrategy: strategy,
+          resolvedData,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          showSuccessToast('Conflict Resolved', 'Sync conflict has been resolved successfully');
+          // Refresh conflicts list
+          const response = await fetch(`/api/sync/conflicts?branchId=${user?.branchId}`);
+          if (response.ok) {
+            const data = await response.json();
+            const conflicts = data.conflicts || [];
+            const unresolved = conflicts.filter((c: any) => !c.resolved);
+            setSyncConflicts(unresolved);
+          }
+        } else {
+          showErrorToast('Resolution Failed', data.error || 'Failed to resolve conflict');
+        }
+      } else {
+        showErrorToast('Resolution Failed', 'Failed to resolve conflict');
+      }
+    } catch (error) {
+      console.error('[Dashboard] Failed to resolve conflict:', error);
+      showErrorToast('Resolution Failed', 'An error occurred');
+    }
+  };
+
+  // Handle resolve all conflicts
+  const handleResolveAllConflicts = async (strategies: Record<string, string>) => {
+    try {
+      const response = await fetch('/api/sync/conflicts/resolve-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branchId: user?.branchId,
+          strategies,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          showSuccessToast('Conflicts Resolved', `${data.resolved} conflicts resolved successfully`);
+          setSyncConflicts([]);
+          setConflictDialogOpen(false);
+        } else {
+          showErrorToast('Resolution Failed', data.error || 'Failed to resolve conflicts');
+        }
+      } else {
+        showErrorToast('Resolution Failed', 'Failed to resolve conflicts');
+      }
+    } catch (error) {
+      console.error('[Dashboard] Failed to resolve all conflicts:', error);
+      showErrorToast('Resolution Failed', 'An error occurred');
+    }
+  };
+
+  // Initialize offline manager (NO AUTO-SYNC to prevent massive data transfers)
+  useEffect(() => {
+    if (user && user.branchId) {
+      // Only initialize offline manager if user has a branch (not HQ admin)
+      const initData = async () => {
+        try {
+          console.log('[Dashboard] Initializing offline manager for branch:', user.branchId);
+
+          // Initialize services
+          await offlineManager.initialize(user.branchId);
+
+          // DISABLED: Auto-sync on login causes massive data transfers (200MB+)
+          // Users can manually sync by clicking the "Sync" button in the header
+          //
+          // const isOnline = offlineManager.isCurrentlyOnline();
+          // if (isOnline) {
+          //   console.log('[Dashboard] Online, triggering sync...');
+          //   const syncResult = await offlineManager.syncAll();
+          //   console.log('[Dashboard] Sync completed:', syncResult);
+          // }
+          //
+          // Instead, we'll let the POS components fetch only the data they need
+          // via the useOfflineData hook which uses optimized endpoints
+
+          console.log('[Dashboard] Offline manager initialized (auto-sync disabled)');
+        } catch (err) {
+          console.error('[Dashboard] Failed to initialize offline manager:', err);
+        }
+      };
+
+      // Run initialization
+      initData();
+    } else if (user && !user.branchId) {
+      console.log('[Dashboard] User has no branchId (HQ Admin), skipping offline sync');
+    }
+  }, [user?.branchId]); // Only re-run when branchId changes, not user.id
+
+  // Fetch branches on mount
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const response = await fetch('/api/branches');
+        const data = await response.json();
+        if (response.ok && data.branches) {
+          setBranches(data.branches);
+          // Set user's branch name if they have a branchId
+          if (user?.branchId) {
+            const userBranch = data.branches.find((b: any) => b.id === user.branchId);
+            if (userBranch) {
+              setUserBranchName(userBranch.branchName);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch branches:', error);
+      }
+    };
+    fetchBranches();
+  }, [user?.branchId]);
+
+  // For cashiers, check if they have an active shift OR an open business day
+  useEffect(() => {
+    if (user && user.role === 'CASHIER' && user.branchId) {
+      const checkPOSAccess = async () => {
+        let hasPOSAccess = false;
+        let accessReason = '';
+
+        // First check for open shift (online or offline)
+        try {
+          const params = new URLSearchParams({
+            branchId: user.branchId,
+            cashierId: user.id,
+            status: 'open',
+          });
+          const response = await fetch(`/api/shifts?${params.toString()}`);
+          const data = await response.json();
+
+          if (response.ok && data.shifts && data.shifts.length > 0) {
+            console.log('[Dashboard] Found open shift from API:', data.shifts[0]);
+            hasPOSAccess = true;
+            accessReason = 'Open shift from API';
+          } else {
+            console.log('[Dashboard] No open shift from API, checking offline...');
+          }
+        } catch (error) {
+          console.error('[Dashboard] Failed to fetch current shift from API, checking local storage:', error);
+
+          // Check IndexedDB for offline shift
+          try {
+            await storage.init();
+            const allShifts = await storage.getAllShifts();
+
+            console.log('[Dashboard] All shifts in IndexedDB:', allShifts);
+
+            const offlineShift = allShifts.find(
+              (s: any) =>
+                s.cashierId === user.id &&
+                s.branchId === user.branchId &&
+                !s.isClosed
+            );
+
+            if (offlineShift) {
+              console.log('[Dashboard] Found open shift in IndexedDB:', offlineShift);
+              hasPOSAccess = true;
+              accessReason = 'Open shift from IndexedDB';
+            } else {
+              console.log('[Dashboard] No open shift in IndexedDB');
+            }
+          } catch (dbError) {
+            console.error('[Dashboard] Failed to check IndexedDB for shift:', dbError);
+          }
+        }
+
+        // If no open shift, check for open business day
+        if (!hasPOSAccess) {
+          let apiResponseSuccessful = false;
+
+          // Try API first
+          try {
+            const response = await fetch(`/api/business-days/status?branchId=${user.branchId}`);
+            const data = await response.json();
+
+            if (response.ok && data.status === 'OPEN' && data.businessDay) {
+              console.log('[Dashboard] Business day is open from API, allowing POS access');
+              hasPOSAccess = true;
+              accessReason = 'Open business day from API';
+              apiResponseSuccessful = true;
+            } else {
+              console.log('[Dashboard] Business day not open from API (status:', response.status, '), checking offline...');
+            }
+          } catch (error) {
+            console.error('[Dashboard] Failed to fetch business day status from API (network error), checking local storage:', error);
+          }
+
+          // Always check IndexedDB as fallback (whether API succeeded or not)
+          if (!apiResponseSuccessful) {
+            try {
+              await storage.init();
+              const businessDays = await storage.getBusinessDays();
+
+              console.log('[Dashboard] All business days in IndexedDB:', businessDays);
+
+              const openBusinessDay = businessDays.find(
+                (bd: any) => bd.branchId === user.branchId && bd.isOpen
+              );
+
+              if (openBusinessDay) {
+                console.log('[Dashboard] Found open business day in IndexedDB:', openBusinessDay);
+                hasPOSAccess = true;
+                accessReason = 'Open business day from IndexedDB';
+              } else {
+                console.log('[Dashboard] No open business day in IndexedDB for branch:', user.branchId);
+              }
+            } catch (dbError) {
+              console.error('[Dashboard] Failed to check IndexedDB for business day:', dbError);
+            }
+          }
+        }
+
+        console.log('[Dashboard] Final POS access decision:', { hasPOSAccess, accessReason });
+        setHasOpenShift(hasPOSAccess);
+
+        // Auto-redirect to shifts tab if currently on POS and no access
+        if (!hasPOSAccess && activeTab === 'pos') {
+          console.log('[Dashboard] No POS access, redirecting to shifts tab');
+          setActiveTab('shifts');
+        } else if (hasPOSAccess) {
+          console.log('[Dashboard] POS access granted because:', accessReason);
+        }
+      };
+
+      checkPOSAccess();
+
+      // Also refresh status when the active tab changes (in case user opened/closed shift or business day)
+      const refreshOnTabChange = async () => {
+        console.log('[Dashboard] refreshOnTabChange triggered, activeTab:', activeTab);
+        await checkPOSAccess();
+      };
+
+      // Create proper event handler functions that can be removed
+      const handleRefreshShiftStatus = async () => {
+        console.log('[Dashboard] refreshShiftStatus event received');
+        await refreshOnTabChange();
+      };
+
+      const handleRefreshBusinessDayStatus = async () => {
+        console.log('[Dashboard] refreshBusinessDayStatus event received');
+        await refreshOnTabChange();
+      };
+
+      // Listen for custom event to refresh status
+      window.addEventListener('refreshShiftStatus', handleRefreshShiftStatus);
+      // Listen for business day status changes
+      window.addEventListener('refreshBusinessDayStatus', handleRefreshBusinessDayStatus);
+
+      return () => {
+        window.removeEventListener('refreshShiftStatus', handleRefreshShiftStatus);
+        window.removeEventListener('refreshBusinessDayStatus', handleRefreshBusinessDayStatus);
+      };
+    }
+  }, [user, activeTab, user?.branchId]);
+
+  // Save activeTab to IndexedDB when it changes
+  useEffect(() => {
+    (async () => {
+      try {
+        if (typeof window !== 'undefined') {
+          await storage.setString('activeTab', activeTab);
+        }
+      } catch (error) {
+        console.warn('IndexedDB not accessible:', error);
+      }
+    })();
+  }, [activeTab]);
+
+  // Load saved activeTab from IndexedDB on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        if (typeof window !== 'undefined') {
+          const savedTab = await storage.getString('activeTab');
+          if (savedTab) {
+            setActiveTab(savedTab);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load activeTab from IndexedDB:', error);
+      }
+    })();
+  }, []);
+
+  // Check authentication on mount
+  useEffect(() => {
+    if (!user) {
+      router.push('/login');
+    }
+  }, [user, router]);
+
+  // If no user, show loading
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Get role badge styling
+  const getRoleBadge = () => {
+    switch (user.role) {
+      case 'ADMIN':
+        return (
+          <span className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
+            HQ Admin
+          </span>
+        );
+      case 'BRANCH_MANAGER':
+        return (
+          <span className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-800 to-emerald-900 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
+            Branch Manager
+          </span>
+        );
+      case 'CASHIER':
+        return (
+          <span className="inline-flex items-center gap-2 bg-white/20 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-full text-xs font-semibold shadow-sm">
+            Cashier
+          </span>
+        );
+      default:
+        return <span>{user.role}</span>;
+    }
+  };
+
+  // Check if user can access certain features
+  const canAccessHQFeatures = user.role === 'ADMIN';
+  const canAccessBranchFeatures = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+  // Cashiers can only access POS if they have an open shift
+  const canAccessPOS = (user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER') ||
+                        (user.role === 'CASHIER' && hasOpenShift);
+  const canAccessInventory = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+  const canAccessUsers = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+  const canAccessShifts = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER' || user.role === 'CASHIER';
+  const canAccessAnalytics = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+  const canAccessDelivery = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+  const canAccessCustomers = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+  const canAccessCosts = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+  const canAccessTransfers = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+  const canAccessSuppliers = user.role === 'ADMIN';
+  const canAccessPurchaseOrders = user.role === 'ADMIN';
+  const canAccessTables = user.role === 'ADMIN';
+  const canAccessAuditLogs = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+  };
+
+  // Navigation items for mobile menu
+  const navigationItems = [
+    { id: 'pos', label: t('dashboard.pos'), icon: ShoppingCart, show: canAccessPOS },
+    { id: 'menu', label: t('dashboard.menu'), icon: Utensils, show: canAccessHQFeatures },
+    { id: 'recipes', label: t('dashboard.recipes'), icon: Package, show: canAccessHQFeatures },
+    { id: 'ingredients', label: t('dashboard.ingredients'), icon: Store, show: canAccessInventory },
+    { id: 'inventory-alerts', label: 'Alerts', icon: AlertTriangle, show: canAccessInventory },
+    { id: 'transfers', label: 'Transfers', icon: ArrowRight, show: canAccessTransfers },
+    { id: 'waste', label: 'Waste', icon: Trash2, show: canAccessInventory },
+    { id: 'loyalty', label: 'Loyalty', icon: Gift, show: canAccessCustomers },
+    { id: 'promo-codes', label: 'Promo Codes', icon: Tag, show: canAccessCustomers },
+    { id: 'suppliers', label: 'Suppliers', icon: Building, show: canAccessSuppliers },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, show: canAccessPurchaseOrders },
+    { id: 'branches', label: t('dashboard.branches'), icon: LayoutDashboard, show: canAccessHQFeatures },
+    { id: 'tables', label: 'Tables', icon: LayoutGrid, show: canAccessTables },
+    { id: 'reports', label: t('dashboard.reports'), icon: BarChart3, show: canAccessBranchFeatures },
+    { id: 'audit-logs', label: 'Audit Logs', icon: FileText, show: canAccessAuditLogs },
+    { id: 'users', label: t('dashboard.users'), icon: Users, show: canAccessUsers },
+    { id: 'shifts', label: 'Shifts', icon: Clock, show: canAccessShifts },
+    { id: 'delivery', label: 'Delivery', icon: MapPin, show: canAccessDelivery },
+    { id: 'customers', label: 'Customers', icon: UserRound, show: canAccessCustomers },
+    { id: 'costs', label: 'Costs', icon: DollarSign, show: canAccessCosts },
+    { id: 'receipt', label: 'Receipt', icon: ReceiptIcon, show: canAccessHQFeatures },
+  ].filter(item => item.show);
+
+  return (
+    <div className="min-h-screen">
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
+
+      {/* Premium Gradient Background */}
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-800">
+          <div className="absolute inset-0 opacity-10">
+            {/* Glass morphism effect */}
+            <svg className="w-full h-full">
+              <defs>
+                <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#065f46" />
+                  <stop offset="100%" stopColor="#064e3b" />
+                </linearGradient>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#gradient1)" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="relative z-10 flex flex-col h-screen overflow-hidden">
+        {/* Glassmorphism Header - Compact */}
+        <header className="flex-shrink-0 sticky top-0 z-50 backdrop-blur-xl backdrop-saturate-150 bg-white/85 backdrop-filter shadow-md">
+        <div className="px-2 sm:px-3 py-1 sm:py-1.5">
+          <div className="flex items-center justify-between gap-2">
+            {/* Mobile Menu Button & Logo */}
+            <div className="flex items-center gap-2 sm:gap-6">
+              {/* Mobile Menu Button */}
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild className="lg:hidden">
+                  <Button variant="ghost" size="icon" className="text-emerald-700">
+                    <Menu className="h-6 w-6" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-80 overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle className="flex items-center gap-2">
+                      <Coffee className="h-6 w-6 text-emerald-600" />
+                      <span className="text-xl font-bold text-emerald-900">Emperor POS</span>
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6 space-y-2">
+                    {navigationItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Button
+                          key={item.id}
+                          variant={activeTab === item.id ? 'default' : 'ghost'}
+                          className={`w-full justify-start gap-3 ${
+                            activeTab === item.id
+                              ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white'
+                              : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-900'
+                          }`}
+                          onClick={() => {
+                            setActiveTab(item.id);
+                            setMobileMenuOpen(false);
+                          }}
+                        >
+                          <Icon className="h-4 w-4" />
+                          <span>{item.label}</span>
+                        </Button>
+                      );
+                    })}
+                    <div className="pt-4 border-t border-slate-200 mt-4">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start gap-3 text-red-600 hover:bg-red-50"
+                        onClick={async () => {
+                          await handleLogout();
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>{t('logout')}</span>
+                      </Button>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+
+              {/* Logo - Compact */}
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-br from-emerald-600 to-emerald-800 text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg sm:rounded-xl shadow-lg">
+                <Coffee className="h-4 w-4 sm:h-6 sm:w-6" />
+                <span className="text-sm sm:text-xl font-bold tracking-tight hidden sm:inline">Emperor</span>
+                <span className="text-sm sm:text-xl font-bold tracking-tight sm:hidden">Em</span>
+              </div>
+
+              {/* Navigation Dropdown - Desktop Only */}
+              <div className="hidden lg:block">
+                <Select value={activeTab} onValueChange={(value) => {
+                  if (value === 'logout') {
+                    handleLogout();
+                  } else {
+                    setActiveTab(value);
+                  }
+                }}>
+                  <SelectTrigger className="h-7 bg-white/60 backdrop-blur-md border-slate-200 rounded-lg shadow text-[10px] sm:text-xs font-bold text-emerald-700 min-w-[120px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {navigationItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <SelectItem key={item.id} value={item.id}>
+                          <div className="flex items-center gap-2">
+                            <Icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                    <div className="border-t border-slate-200 my-1"></div>
+                    <SelectItem value="logout" className="text-red-600 focus:text-red-600">
+                      <div className="flex items-center gap-2">
+                        <LogOut className="h-4 w-4" />
+                        <span>{t('logout')}</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {/* User Info & Actions - Responsive */}
+            <div className="flex items-center gap-1 sm:gap-3">
+              {/* Compact User Info for Desktop */}
+              <div className="hidden sm:block">
+                <div className="flex items-center gap-2">
+                  {getRoleBadge()}
+                </div>
+              </div>
+
+              {/* Offline Status - Hide on mobile */}
+              {user.branchId && (
+                <div className="hidden sm:block">
+                  <OfflineStatusIndicator branchId={user.branchId} />
+                </div>
+              )}
+
+              {/* Sync Button - Only show on larger screens */}
+              {user.branchId && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSyncViewer(true)}
+                    className="border-emerald-600 hover:bg-emerald-50 hover:text-emerald-900 mr-1 h-7 px-2 text-xs"
+                  >
+                    <Clock className="h-3.5 w-3.5 mr-1" />
+                    Queue
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const syncInfo = await offlineManager.getSyncInfo();
+                        await offlineManager.checkActualConnectivity();
+                        const isOnline = offlineManager.isCurrentlyOnline();
+                        if (isOnline) {
+                          const result = await offlineManager.forceSync();
+                          if (result.success) {
+                            showSuccessToast('Sync Complete', `Synced ${result.operationsProcessed} operations`);
+                            setTimeout(() => window.location.reload(), 1500);
+                          } else {
+                            showErrorToast('Sync Failed', result.errors.join(', '));
+                          }
+                        } else {
+                          const lastSync = syncInfo.lastPushTimestamp || syncInfo.lastPullTimestamp;
+                          showWarningToast(
+                            'Offline Mode',
+                            `Pending: ${syncInfo.pendingOperations}. Last sync: ${lastSync ? new Date(lastSync).toLocaleString() : 'Never'}`
+                          );
+                        }
+                      } catch (err) {
+                        console.error('Manual sync error:', err);
+                        showErrorToast('Sync Error', 'Failed to check sync status');
+                      }
+                    }}
+                    className="border-emerald-600 hover:bg-emerald-50 hover:text-emerald-900 hidden sm:flex h-7 px-2 text-xs"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                    Sync
+                  </Button>
+
+                  {/* Conflicts Indicator - Shows when conflicts need resolution */}
+                  {syncConflicts.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConflictDialogOpen(true)}
+                      className="border-orange-600 hover:bg-orange-50 hover:text-orange-900 hidden sm:flex mr-2"
+                    >
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Conflicts
+                      <Badge className="ml-2">{syncConflicts.length}</Badge>
+                    </Button>
+                  )}
+                </>
+              )}
+
+              {/* Language Selector - Compact on mobile */}
+              <Select value={language} onValueChange={(value: Language) => setLanguage(value)}>
+                <SelectTrigger className="w-8 sm:w-36 h-7 sm:h-auto border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500">
+                  <Globe className="h-3.5 w-3.5 text-emerald-600" />
+                  <SelectValue className="hidden sm:block" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="ar">العربية</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Compact Header Info for Mobile */}
+          <div className="sm:hidden mt-1.5 pb-1.5 border-b border-slate-200/50">
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-slate-600 truncate">
+                <span className="font-semibold">{user.name || user.username}</span>
+              </span>
+              {user.branchId && <OfflineStatusIndicator branchId={user.branchId} />}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area - Full Height */}
+      <main className="flex-1 px-2 sm:px-4 py-2 overflow-auto min-h-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <TabsContent value="pos" className="h-full m-0 p-0">
+              {canAccessPOS ? (
+                <POSInterface />
+              ) : (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <Lock className="h-12 w-12 text-slate-400 mb-4" />
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Access Denied</h3>
+                    <p className="text-slate-600 dark:text-slate-400 text-center max-w-md">
+                      Your role (<strong className="capitalize">{user.role.toLowerCase().replace('_', ' ')}</strong>) does not have permission to access the POS terminal.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="menu" className="space-y-4">
+              {canAccessHQFeatures ? (
+                <MenuManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="recipes" className="space-y-4">
+              {canAccessHQFeatures ? (
+                <RecipeManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="ingredients" className="space-y-4">
+              {canAccessInventory ? (
+                <IngredientManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="inventory-alerts" className="space-y-4">
+              {canAccessInventory ? (
+                <InventoryAlerts />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+
+
+            <TabsContent value="transfers" className="space-y-4">
+              {canAccessTransfers ? (
+                <InventoryTransfers />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="waste" className="space-y-4">
+              {canAccessInventory ? (
+                <WasteTracking />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="loyalty" className="space-y-4">
+              {canAccessCustomers ? (
+                <LoyaltyProgram />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="promo-codes" className="space-y-4">
+              {canAccessCustomers ? (
+                <PromoCodesManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="suppliers" className="space-y-4">
+              {canAccessSuppliers ? (
+                <SuppliersManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="purchase-orders" className="space-y-4">
+              {canAccessPurchaseOrders ? (
+                <PurchaseOrdersManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="branches" className="space-y-4">
+              {canAccessHQFeatures ? (
+                <BranchManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="reports" className="space-y-4">
+              {canAccessBranchFeatures ? (
+                <ReportsDashboard />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="audit-logs" className="space-y-4">
+              {canAccessAuditLogs ? (
+                <AuditLogs />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="users" className="space-y-4">
+              {canAccessUsers ? (
+                <UserManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="shifts" className="space-y-4">
+              {canAccessShifts ? (
+                <ShiftManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="delivery" className="space-y-4">
+              {canAccessDelivery ? (
+                <DeliveryManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="customers" className="space-y-4">
+              {canAccessCustomers ? (
+                <CustomerManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="costs" className="space-y-4">
+              {canAccessCosts ? (
+                <CostManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="receipt" className="space-y-4">
+              {canAccessHQFeatures ? (
+                <ReceiptSettings />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="tables" className="space-y-4">
+              {canAccessTables ? (
+                <TableManagement />
+              ) : (
+                <AccessDenied user={user} />
+              )}
+            </TabsContent>
+          </div>
+        </Tabs>
+      </main>
+
+      <SyncOperationsViewer
+        open={showSyncViewer}
+        onOpenChange={setShowSyncViewer}
+      />
+
+      <ConflictResolutionDialog
+        open={conflictDialogOpen}
+        onOpenChange={setConflictDialogOpen}
+        conflicts={syncConflicts.map(c => ({
+          ...c,
+          conflictType: c.conflictType || 'CONCURRENT_UPDATE',
+          resolutionStrategy: c.resolutionStrategy || 'LAST_WRITE_WINS',
+          resolved: c.resolved || false,
+        }))}
+        onResolve={handleResolveConflict}
+        onResolveAll={handleResolveAllConflicts}
+      />
+
+      </div>
+    </div>
+  );
+}
+
+function AccessDenied({ user }: { user: any }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center justify-center py-12">
+        <Lock className="h-12 w-12 text-slate-400 mb-4" />
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Access Denied</h3>
+        <p className="text-slate-600 dark:text-slate-400 text-center max-w-md">
+          Your role (<strong className="capitalize">{user.role.toLowerCase().replace('_', ' ')}</strong>) does not have permission to access this feature.
+          Please contact an <strong>HQ Admin</strong> if you believe this is an error.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
