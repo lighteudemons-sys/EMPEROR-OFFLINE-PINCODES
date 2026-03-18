@@ -2888,8 +2888,40 @@ export default function POSInterface() {
             await indexedDBStorage.init();
 
             // Get user from IndexedDB (only User Code + PIN works offline)
-            const allUsers = await indexedDBStorage.getAll('users');
+            let allUsers = await indexedDBStorage.getAll('users');
             console.log('[Void Item] Total users in IndexedDB:', allUsers.length);
+            
+            // If no users cached, try to fetch them from API (if online)
+            if (allUsers.length === 0 && navigator.onLine) {
+              console.log('[Void Item] No users cached, fetching from API...');
+              try {
+                const usersResponse = await fetch(`/api/users?currentUserRole=${user?.role}&currentUserBranchId=${user?.branchId || ''}`);
+                if (usersResponse.ok) {
+                  const usersData = await usersResponse.json();
+                  if (usersData.users && Array.isArray(usersData.users)) {
+                    for (const u of usersData.users) {
+                      await indexedDBStorage.put('users', {
+                        id: u.id,
+                        username: u.username,
+                        email: u.email,
+                        name: u.name,
+                        fullName: u.fullName,
+                        role: u.role,
+                        branchId: u.branchId,
+                        userCode: u.userCode,
+                        pin: u.pin,
+                        isActive: u.isActive !== false,
+                      });
+                    }
+                    allUsers = await indexedDBStorage.getAll('users');
+                    console.log('[Void Item] Fetched and cached', allUsers.length, 'users');
+                  }
+                }
+              } catch (fetchError) {
+                console.error('[Void Item] Failed to fetch users:', fetchError);
+              }
+            }
+            
             console.log('[Void Item] Looking for userCode:', authUserCode);
             console.log('[Void Item] Available user codes:', allUsers.map((u: any) => u.userCode));
             
@@ -2997,7 +3029,15 @@ export default function POSInterface() {
               await indexedDBStorage.init();
 
               // Get user from IndexedDB
-              const allUsers = await indexedDBStorage.getAll('users');
+              let allUsers = await indexedDBStorage.getAll('users');
+              console.log('[Void Item Fallback] Total users in IndexedDB:', allUsers.length);
+              
+              // If no users cached, can't do offline auth
+              if (allUsers.length === 0) {
+                alert('Network error and no cached users. Please log in online first to cache users for offline use.');
+                return;
+              }
+              
               const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
 
               if (!user) {
@@ -3055,8 +3095,40 @@ export default function POSInterface() {
             await indexedDBStorage.init();
 
             // Get user from IndexedDB
-            const allUsers = await indexedDBStorage.getAll('users');
+            let allUsers = await indexedDBStorage.getAll('users');
             console.log('[Refund Order] Total users in IndexedDB:', allUsers.length);
+            
+            // If no users cached, try to fetch them from API (if online)
+            if (allUsers.length === 0 && navigator.onLine) {
+              console.log('[Refund Order] No users cached, fetching from API...');
+              try {
+                const usersResponse = await fetch(`/api/users?currentUserRole=${user?.role}&currentUserBranchId=${user?.branchId || ''}`);
+                if (usersResponse.ok) {
+                  const usersData = await usersResponse.json();
+                  if (usersData.users && Array.isArray(usersData.users)) {
+                    for (const u of usersData.users) {
+                      await indexedDBStorage.put('users', {
+                        id: u.id,
+                        username: u.username,
+                        email: u.email,
+                        name: u.name,
+                        fullName: u.fullName,
+                        role: u.role,
+                        branchId: u.branchId,
+                        userCode: u.userCode,
+                        pin: u.pin,
+                        isActive: u.isActive !== false,
+                      });
+                    }
+                    allUsers = await indexedDBStorage.getAll('users');
+                    console.log('[Refund Order] Fetched and cached', allUsers.length, 'users');
+                  }
+                }
+              } catch (fetchError) {
+                console.error('[Refund Order] Failed to fetch users:', fetchError);
+              }
+            }
+            
             console.log('[Refund Order] Looking for userCode:', authUserCode);
             console.log('[Refund Order] Available user codes:', allUsers.map((u: any) => u.userCode));
             
@@ -3155,7 +3227,15 @@ export default function POSInterface() {
               await indexedDBStorage.init();
 
               // Get user from IndexedDB
-              const allUsers = await indexedDBStorage.getAll('users');
+              let allUsers = await indexedDBStorage.getAll('users');
+              console.log('[Refund Order Fallback] Total users in IndexedDB:', allUsers.length);
+              
+              // If no users cached, can't do offline auth
+              if (allUsers.length === 0) {
+                alert('Network error and no cached users. Please log in online first to cache users for offline use.');
+                return;
+              }
+              
               const user = allUsers.find((u: any) => u.userCode === authUserCode && u.isActive === true);
 
               if (!user) {
