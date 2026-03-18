@@ -2815,8 +2815,7 @@ export default function POSInterface() {
     setSelectedItemToVoid(item);
     setVoidQuantity(1);
     setVoidReason('');
-    setShowAuthDialog(true);
-    setAuthAction('void-item');
+    setShowVoidItemDialog(true);  // Show Void Item Dialog first
   };
 
   // Start refund order flow
@@ -2834,12 +2833,14 @@ export default function POSInterface() {
     }
 
     setRefundReason('');
-    setShowAuthDialog(true);
-    setAuthAction('refund-order');
+    setShowRefundOrderDialog(true);  // Show Refund Order Dialog first
   };
 
   // Handle authentication
   const handleAuthSubmit = async () => {
+    console.log('[Auth Submit] Starting authentication with action:', authAction);
+    console.log('[Auth Submit] User Code:', authUserCode);
+    
     if (!authUserCode || !authPin) {
       alert('Please enter both User Code and PIN');
       return;
@@ -2874,8 +2875,9 @@ export default function POSInterface() {
           }),
         });
 
+        console.log('[Void Item] Response status:', response.status);
         const data = await response.json();
-        console.log('[Void Item] Response:', data);
+        console.log('[Void Item] Response data:', data);
         
         if (response.ok && data.success) {
           alert(`Successfully voided ${data.remainingQuantity}/${selectedItemToVoid.quantity} items`);
@@ -2885,6 +2887,7 @@ export default function POSInterface() {
           setVoidQuantity(1);
           setAuthUserCode('');
           setAuthPin('');
+          setAuthAction(null);
           // Reload order details
           if (selectedOrder) {
             handleViewOrder(selectedOrder);
@@ -2892,6 +2895,7 @@ export default function POSInterface() {
           // Reload shift orders
           loadShiftOrders();
         } else {
+          console.error('[Void Item] Failed:', data);
           alert(data.error || 'Failed to void item');
         }
       } else if (authAction === 'refund-order' && selectedOrder) {
@@ -2908,8 +2912,9 @@ export default function POSInterface() {
           }),
         });
 
+        console.log('[Refund Order] Response status:', response.status);
         const data = await response.json();
-        console.log('[Refund Order] Response:', data);
+        console.log('[Refund Order] Response data:', data);
         
         if (response.ok && data.success) {
           alert(`Order #${selectedOrder.orderNumber} refunded successfully`);
@@ -2919,14 +2924,18 @@ export default function POSInterface() {
           setRefundReason('');
           setAuthUserCode('');
           setAuthPin('');
+          setAuthAction(null);
           // Reload shift orders
           loadShiftOrders();
         } else {
+          console.error('[Refund Order] Failed:', data);
           alert(data.error || 'Failed to refund order');
         }
+      } else {
+        console.error('[Auth] Unknown action:', authAction);
       }
     } catch (error) {
-      console.error('Authentication failed:', error);
+      console.error('[Auth] Authentication failed:', error);
       alert('Authentication failed. Please try again.');
     } finally {
       setAuthLoading(false);
@@ -5776,6 +5785,7 @@ export default function POSInterface() {
                 setShowAuthDialog(false);
                 setAuthUserCode('');
                 setAuthPin('');
+                setAuthAction(null);
               }}
               variant="outline"
               disabled={authLoading}
@@ -5848,6 +5858,7 @@ export default function POSInterface() {
             <Button
               onClick={() => {
                 setShowVoidItemDialog(false);
+                setAuthAction('void-item');
                 setShowAuthDialog(true);
               }}
               className="bg-red-600 hover:bg-red-700"
@@ -5901,6 +5912,7 @@ export default function POSInterface() {
             <Button
               onClick={() => {
                 setShowRefundOrderDialog(false);
+                setAuthAction('refund-order');
                 setShowAuthDialog(true);
               }}
               className="bg-red-600 hover:bg-red-700"
