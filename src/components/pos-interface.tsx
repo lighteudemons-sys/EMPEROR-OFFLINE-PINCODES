@@ -104,6 +104,50 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
       };
     });
 
+    // Calculate inventory deductions based on recipes (like online workflow)
+    const inventoryDeductions: any[] = [];
+    try {
+      const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+      const indexedDBStorage = getIndexedDBStorage();
+      await indexedDBStorage.init();
+
+      // Load cached recipes
+      const recipes = await indexedDBStorage.getJSON('recipes') || [];
+      console.log('[Order] Loaded recipes for inventory deduction:', recipes.length, 'recipes');
+
+      // Calculate deductions for each cart item
+      for (const cartItem of cartItems) {
+        // Find relevant recipes for this item
+        const relevantRecipes = recipes.filter((recipe: any) =>
+          recipe.menuItemId === cartItem.menuItemId &&
+          recipe.menuItemVariantId === (cartItem.variantId || null)
+        );
+
+        // Calculate inventory deduction for each recipe
+        for (const recipe of relevantRecipes) {
+          // Scale quantity by customVariantValue if provided
+          const customVariantValue = cartItem.customVariantValue || 1;
+          const scaledQuantity = recipe.quantityRequired * customVariantValue;
+          const totalDeduction = scaledQuantity * cartItem.quantity;
+
+          inventoryDeductions.push({
+            ingredientId: recipe.ingredient.id,
+            ingredientName: recipe.ingredient.name,
+            quantityChange: -totalDeduction,
+            unit: recipe.ingredient.unit,
+            menuItemId: cartItem.menuItemId,
+            menuItemName: cartItem.name,
+            quantity: cartItem.quantity,
+          });
+        }
+      }
+
+      console.log('[Order] Calculated inventory deductions:', inventoryDeductions);
+    } catch (error) {
+      console.error('[Order] Error calculating inventory deductions:', error);
+      // Continue even if recipe calculation fails - order should still be created
+    }
+
     // Calculate total amount including tax
     // Apply discounts before calculating tax
     const totalDiscounts = (orderData.promoDiscount || 0) + (orderData.loyaltyDiscount || 0) + (orderData.manualDiscountAmount || 0);
@@ -176,6 +220,7 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
       // Store additional fields that will be synced separately
       _offlineData: {
         items: preparedItems,
+        inventoryDeductions, // Store inventory deductions for syncing
         subtotal: orderData.subtotal,
         taxRate: orderData.taxRate,
         tax: taxAmount,
@@ -794,6 +839,43 @@ export default function POSInterface() {
       setLoading(false);
     }
   }, [menuItemsData, menuItemsLoading]);
+
+  // Fetch and cache recipes for offline inventory deduction
+  useEffect(() => {
+    const fetchRecipes = async () => {
+      if (!user) return;
+
+      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+      if (!branchId) return;
+
+      try {
+        const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+        const indexedDBStorage = getIndexedDBStorage();
+        await indexedDBStorage.init();
+
+        // Check if we're online
+        if (navigator.onLine) {
+          console.log('[POS] Fetching recipes for offline caching...');
+          const response = await fetch(`/api/recipes/offline?branchId=${branchId}`);
+          const data = await response.json();
+
+          if (response.ok && data.success && data.recipes) {
+            // Cache recipes in IndexedDB
+            await indexedDBStorage.setJSON('recipes', data.recipes);
+            console.log(`[POS] Cached ${data.recipes.length} recipes for offline use`);
+          }
+        } else {
+          // Offline: Load recipes from IndexedDB
+          const recipes = await indexedDBStorage.getJSON('recipes');
+          console.log(`[POS] Loaded ${recipes?.length || 0} cached recipes from IndexedDB`);
+        }
+      } catch (error) {
+        console.error('[POS] Error fetching/caching recipes:', error);
+      }
+    };
+
+    fetchRecipes();
+  }, [user, selectedBranch, user?.branchId, user?.role]);
 
   // Update branches from offline data
   useEffect(() => {

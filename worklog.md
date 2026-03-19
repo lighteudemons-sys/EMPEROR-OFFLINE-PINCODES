@@ -746,3 +746,32 @@ Files Modified:
 
 3. src/app/api/sync/batch-push/route.ts
    - Add customVariantValue to order item creation during sync
+
+---
+
+Task ID: fix-shift-closing-decimal-places
+Agent: zai-web-dev
+Task: Fix shift closing report showing 15+ decimal places in item breakdown
+
+Work Log:
+- Identified that shift closing report item breakdown was showing raw multiplier values from database
+- Created formatItemName helper function in shift-closing-receipt.tsx
+- Function uses regex to extract multiplier from item name pattern " - وزن: 0.09615384615384616x"
+- Rounds multiplier to 3 decimal places and calculates weight in grams
+- Updated UI display to use formatItemName() for each item in category breakdown
+- Updated thermal printer HTML output to use formatItemName() for printed receipts
+- Now displays clean format: "توليفة الماركيز فاتح - س - وزن: 0.096x (96g)"
+- Works for both old orders (created before fix) and new orders
+- Works for both screen display and thermal printer output
+
+Stage Summary:
+- Shift closing report item breakdown now shows rounded multipliers (3 decimals)
+- Weight in grams displayed in parentheses
+- Both UI and thermal printer outputs fixed
+- All changes committed and pushed to GitHub
+
+Files Modified:
+1. src/components/shift-closing-receipt.tsx
+   - Added formatItemName helper function
+   - Updated UI item breakdown display
+   - Updated thermal printer HTML output
