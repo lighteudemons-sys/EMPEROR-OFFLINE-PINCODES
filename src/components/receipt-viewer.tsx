@@ -11,6 +11,36 @@ import { useI18n } from '@/lib/i18n-context';
 import { getPrinter, WebUSBPrinter } from '@/lib/webusb-printer';
 import { generateReceiptESCPOS, ReceiptData } from '@/lib/escpos-encoder';
 
+// Helper function to format variant display with weight in grams
+function formatVariantDisplay(item: OrderItem): string {
+  if (!item.variantName || !item.customVariantValue) {
+    return item.variantName || (item.menuItemVariant?.variantOption?.name || '');
+  }
+
+  // If it's a custom variant (has multiplier), format it nicely
+  const multiplier = item.customVariantValue;
+  
+  // Round multiplier to 3 decimal places for display
+  const roundedMultiplier = Math.round(multiplier * 1000) / 1000;
+  
+  // Calculate weight in grams (assuming base is 1kg = 1000g)
+  const weightInGrams = Math.round(multiplier * 1000);
+  
+  // Extract the variant type name (before the colon)
+  const variantTypeName = item.variantName.split(':')[0]?.trim() || '';
+  
+  // Check if it's price mode (contains "EGP") or weight mode (contains "x")
+  const isPriceMode = item.variantName.includes('EGP');
+  
+  if (isPriceMode) {
+    // For price mode, show just the weight
+    return `${weightInGrams}g`;
+  } else {
+    // For weight mode, show rounded multiplier with weight
+    return `${roundedMultiplier}x (${weightInGrams}g)`;
+  }
+}
+
 interface OrderItem {
   id: string;
   menuItemId: string;
@@ -21,6 +51,8 @@ interface OrderItem {
   recipeVersion: number;
   createdAt: string;
   specialInstructions?: string | null;
+  variantName?: string | null;
+  customVariantValue?: number | null;
   menuItemVariant?: {
     id: string;
     variantOption?: {
@@ -179,15 +211,19 @@ export function ReceiptViewer({ open, onClose, order, autoPrint, isDuplicate }: 
         customerPhone: order.customerPhone,
         customerName: order.customerName,
         deliveryAddress: order.deliveryAddress,
-        items: order.items.map(item => ({
-          itemName: item.menuItemVariant?.variantOption?.name
-            ? `${item.itemName} (${item.menuItemVariant.variantOption.name})`
-            : item.itemName,
-          quantity: item.quantity,
-          subtotal: item.subtotal,
-          price: item.unitPrice,
-          note: item.specialInstructions || undefined,
-        })),
+        items: order.items.map(item => {
+          const variantDisplay = formatVariantDisplay(item);
+          const itemName = variantDisplay
+            ? `${item.itemName} (${variantDisplay})`
+            : item.itemName;
+          return {
+            itemName,
+            quantity: item.quantity,
+            subtotal: item.subtotal,
+            price: item.unitPrice,
+            note: item.specialInstructions || undefined,
+          };
+        }),
         subtotal: order.subtotal || 0,
         deliveryFee: order.deliveryFee || 0,
         loyaltyDiscount: order.loyaltyDiscount || 0,
@@ -921,28 +957,31 @@ export function ReceiptViewer({ open, onClose, order, autoPrint, isDuplicate }: 
                   {/* Table Header Divider */}
                   <div className="item-table-divider"></div>
                   {/* Items */}
-                  {order?.items && order.items.map((item) => (
-                    <div key={item.id}>
-                      <div className="item-row">
-                        <span className="col-name">
-                          {item.itemName}
-                          {(item.menuItemVariant?.variantOption?.name || item.variantName) && (
-                            <span className="text-xs font-normal text-slate-600 dark:text-slate-400 ml-1">
-                              ({item.menuItemVariant?.variantOption?.name || item.variantName})
-                            </span>
-                          )}
-                        </span>
-                        <span className="col-qty">{item.quantity}</span>
-                        <span className="col-price">{formatCurrency(item.unitPrice, currency)}</span>
-                        <span className="col-total">{formatCurrency(item.subtotal, currency)}</span>
-                      </div>
-                      {item.specialInstructions && (
-                        <div className="item-note">
-                          {item.specialInstructions}
+                  {order?.items && order.items.map((item) => {
+                    const variantDisplay = formatVariantDisplay(item);
+                    return (
+                      <div key={item.id}>
+                        <div className="item-row">
+                          <span className="col-name">
+                            {item.itemName}
+                            {variantDisplay && (
+                              <span className="text-xs font-normal text-slate-600 dark:text-slate-400 ml-1">
+                                ({variantDisplay})
+                              </span>
+                            )}
+                          </span>
+                          <span className="col-qty">{item.quantity}</span>
+                          <span className="col-price">{formatCurrency(item.unitPrice, currency)}</span>
+                          <span className="col-total">{formatCurrency(item.subtotal, currency)}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {item.specialInstructions && (
+                          <div className="item-note">
+                            {item.specialInstructions}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="totals">

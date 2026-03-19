@@ -37,6 +37,30 @@ import bcrypt from 'bcryptjs';
 // Create IndexedDB storage instance for table cart persistence
 const storage = getIndexedDBStorage();
 
+// Helper function to format variant display with weight in grams
+function formatVariantDisplay(item: CartItem, basePrice?: number): string {
+  if (!item.variantName || !item.customVariantValue) {
+    return item.variantName || '';
+  }
+
+  // If it's a custom variant (has multiplier), format it nicely
+  const multiplier = item.customVariantValue;
+  
+  // Round multiplier to 3 decimal places for display
+  const roundedMultiplier = Math.round(multiplier * 1000) / 1000;
+  
+  // Calculate weight in grams (assuming base is 1kg = 1000g)
+  const weightInGrams = Math.round(multiplier * 1000);
+  
+  // For price mode, show weight in parentheses
+  if (item.customPriceMode === 'price') {
+    return `${item.variantName} (${weightInGrams}g)`;
+  }
+  
+  // For weight mode, show rounded multiplier with weight
+  return `${roundedMultiplier}x (${weightInGrams}g)`;
+}
+
 // Helper function to create order offline
 async function createOrderOffline(orderData: any, shift: any, cartItems: CartItem[], branchInfo?: { id: string; name: string; phone?: string; address?: string }): Promise<any> {
   try {
@@ -453,6 +477,7 @@ interface CartItem {
   variantName?: string;
   variantId?: string;
   customVariantValue?: number;
+  customPriceMode?: 'weight' | 'price'; // Track whether item was added by weight or by price
   note?: string;
   category?: string;
   categoryId?: string | null;
@@ -1430,6 +1455,7 @@ export default function POSInterface() {
           variantName,
           variantId: selectedVariant.id,
           customVariantValue: multiplier,
+          customPriceMode, // Store whether this was added by weight or by price
           category: selectedItemForVariant.category,
           categoryId: selectedItemForVariant.categoryId,
           requiresCaptainReceipt: requiresCaptainReceiptValue,
@@ -4294,7 +4320,7 @@ export default function POSInterface() {
                         </h4>
                         {item.variantName && (
                           <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                            {item.variantName}
+                            {formatVariantDisplay(item)}
                           </div>
                         )}
                         {item.note && (
