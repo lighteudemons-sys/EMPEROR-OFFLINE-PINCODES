@@ -670,3 +670,46 @@ Stage Summary:
 - Small 500ms delay between standard and captain receipt prints
 - Database schema change will be applied when deployed to production
 - Users can now get captain receipts without needing thermal printer hardware
+
+---
+
+Task ID: custom-price-display-fix
+Agent: zai-web-dev
+Task: Fix custom price input display issues in cart and receipt
+
+Work Log:
+- Identified two display issues with custom price input feature:
+  1. Cart showing "وزن: EGP 50.00" instead of actual weight in grams
+  2. Receipt showing multiplier with 15+ decimal places (0.09615384615384616x)
+- Added customPriceMode field to CartItem interface to track weight vs price mode
+- Created formatVariantDisplay helper function in pos-interface.tsx to format variant display with weight
+- Updated handleVariantConfirm to store customPriceMode in cart items
+- Updated cart display to use formatVariantDisplay showing weight in grams
+- Added variantName and customVariantValue fields to OrderItem interface in receipt-viewer.tsx
+- Created formatVariantDisplay helper function in receipt-viewer.tsx
+- Updated standard receipt display to show formatted variant info
+- Updated thermal printer (ESC/POS) receipt generation to show formatted variant info
+- For price mode: displays weight in grams (e.g., "96g")
+- For weight mode: displays rounded multiplier with weight (e.g., "0.096x (96g)")
+- Multiplier rounded to 3 decimal places for clean display
+- Committed and pushed changes to GitHub
+
+Stage Summary:
+- Cart now correctly displays calculated weight for custom price items
+- Receipt now shows clean, rounded multiplier (3 decimals) instead of raw value
+- Both standard and thermal printer receipts show proper weight information
+- Format is consistent across cart and all receipt types
+- All changes work online and offline
+
+Files Modified:
+1. src/components/pos-interface.tsx
+   - Added customPriceMode to CartItem interface
+   - Added formatVariantDisplay helper function
+   - Updated handleVariantConfirm to store customPriceMode
+   - Updated cart display to show weight in grams
+
+2. src/components/receipt-viewer.tsx
+   - Added variantName and customVariantValue to OrderItem interface
+   - Added formatVariantDisplay helper function
+   - Updated standard receipt display
+   - Updated thermal printer receipt generation

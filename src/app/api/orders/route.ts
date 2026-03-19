@@ -413,12 +413,15 @@ export async function POST(request: NextRequest) {
               console.error('[Order] Invalid customVariantValue:', item.customVariantValue, 'for item:', menuItem.name);
               customVariantValue = 1; // Fallback to full portion
             }
+            // Round to 3 decimal places for clean display
+            const roundedValue = Math.round(customVariantValue * 1000) / 1000;
             finalPrice = menuItem.price * customVariantValue;
-            variantName = `${variant.variantType.name}: ${customVariantValue}x`;
+            variantName = `${variant.variantType.name}: ${roundedValue}x`;
             console.log('[Order] Custom variant calculated:', {
               itemName: menuItem.name,
               basePrice: menuItem.price,
               customValue: customVariantValue,
+              roundedValue,
               finalPrice: finalPrice,
               quantity: item.quantity,
               subtotal: finalPrice * item.quantity

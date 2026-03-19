@@ -727,6 +727,7 @@ async function createOrder(data: any, branchId: string): Promise<void> {
           quantity: item.quantity,
           menuItemVariantId: item.menuItemVariantId || null,
           variantName: item.variantName || null,
+          customVariantValue: item.customVariantValue || null,
           unitPrice: item.unitPrice,
           subtotal: item.subtotal || (item.quantity * item.unitPrice),
           recipeVersion: item.recipeVersion || 1,

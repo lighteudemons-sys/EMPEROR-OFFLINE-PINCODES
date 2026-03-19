@@ -165,6 +165,7 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
           recipeVersion: 1,
           menuItemVariantId: item.menuItemVariantId,
           variantName: cartItem?.variantName,
+          customVariantValue: cartItem?.customVariantValue, // Save for receipt formatting
           specialInstructions: item.specialInstructions,
           categoryName: cartItem?.category,
           categoryId: cartItem?.categoryId,
@@ -1429,9 +1430,11 @@ export default function POSInterface() {
             alert('Please enter a valid multiplier (e.g., 0.125 for 1/8)');
             return;
           }
-          
+
+          // Round multiplier to 3 decimal places for clean display
+          const roundedMultiplier = Math.round(multiplier * 1000) / 1000;
           finalPrice = selectedItemForVariant.price * multiplier;
-          variantName = `${selectedVariant.variantType.name}: ${multiplier}x`;
+          variantName = `${selectedVariant.variantType.name}: ${roundedMultiplier}x`;
         }
         
         const requiresCaptainReceiptValue = getMenuItemRequiresCaptainReceipt(selectedItemForVariant);
