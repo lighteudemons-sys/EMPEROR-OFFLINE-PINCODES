@@ -562,6 +562,8 @@ export default function POSInterface() {
   const [selectedItemForVariant, setSelectedItemForVariant] = useState<MenuItem | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<MenuItemVariant | null>(null);
   const [customVariantValue, setCustomVariantValue] = useState<string>('');
+  const [customPriceMode, setCustomPriceMode] = useState<'weight' | 'price'>('weight'); // 'weight' = enter multiplier, 'price' = enter price
+  const [customPriceValue, setCustomPriceValue] = useState<string>('');
 
   // Add New Address dialog state
   const [showAddAddressDialog, setShowAddAddressDialog] = useState(false);
@@ -1164,18 +1166,23 @@ export default function POSInterface() {
     if (variantDialogOpen && selectedVariant?.variantType?.isCustomInput) {
       // Small delay to ensure the dialog is fully rendered
       const timer = setTimeout(() => {
+        const currentValue = customPriceMode === 'weight' ? customVariantValue : customPriceValue;
         openNumberPad(
           (value) => {
             console.log('[Auto-open Numpad] Called with value:', value);
-            setCustomVariantValue(value);
+            if (customPriceMode === 'weight') {
+              setCustomVariantValue(value);
+            } else {
+              setCustomPriceValue(value);
+            }
           },
-          customVariantValue || ''
+          currentValue || ''
         );
       }, 100);
 
       return () => clearTimeout(timer);
     }
-  }, [variantDialogOpen, selectedVariant?.id]);
+  }, [variantDialogOpen, selectedVariant?.id, customPriceMode]);
 
   // Filter menu items by category and search
   const filteredMenuItems = useMemo(() => {
@@ -1374,21 +1381,43 @@ export default function POSInterface() {
   const handleVariantConfirm = async () => {
     if (selectedItemForVariant) {
       if (selectedVariant?.variantType?.isCustomInput) {
-        // For custom input variants, calculate price dynamically
-        const multiplier = parseFloat(customVariantValue);
-        if (isNaN(multiplier) || multiplier <= 0) {
-          alert('Please enter a valid multiplier (e.g., 0.125 for 1/8)');
-          return;
+        // For custom input variants, calculate price based on mode
+        let multiplier: number;
+        let finalPrice: number;
+        let variantName: string;
+        
+        if (customPriceMode === 'price') {
+          // By Price mode: User enters price, calculate multiplier
+          const enteredPrice = parseFloat(customPriceValue);
+          if (isNaN(enteredPrice) || enteredPrice <= 0) {
+            alert('Please enter a valid price (e.g., 50 for EGP 50)');
+            return;
+          }
+          
+          multiplier = enteredPrice / selectedItemForVariant.price;
+          finalPrice = enteredPrice;
+          variantName = `${selectedVariant.variantType.name}: EGP ${enteredPrice.toFixed(2)}`;
+        } else {
+          // By Weight mode: User enters multiplier, calculate price
+          multiplier = parseFloat(customVariantValue);
+          if (isNaN(multiplier) || multiplier <= 0) {
+            alert('Please enter a valid multiplier (e.g., 0.125 for 1/8)');
+            return;
+          }
+          
+          finalPrice = selectedItemForVariant.price * multiplier;
+          variantName = `${selectedVariant.variantType.name}: ${multiplier}x`;
         }
-
-        const finalPrice = selectedItemForVariant.price * multiplier;
-        const variantName = `${selectedVariant.variantType.name}: ${multiplier}x`;
+        
         const requiresCaptainReceiptValue = getMenuItemRequiresCaptainReceipt(selectedItemForVariant);
 
         console.log('[Cart] Creating custom variant cart item:', {
           itemId: selectedItemForVariant.id,
           itemName: selectedItemForVariant.name,
           requiresCaptainReceipt: requiresCaptainReceiptValue,
+          mode: customPriceMode,
+          multiplier,
+          finalPrice,
         });
 
         const uniqueId = `${selectedItemForVariant.id}-${selectedVariant.id}-${multiplier}`;
@@ -1421,6 +1450,8 @@ export default function POSInterface() {
       setSelectedItemForVariant(null);
       setSelectedVariant(null);
       setCustomVariantValue('');
+      setCustomPriceValue('');
+      setCustomPriceMode('weight');
     }
   };
 
@@ -4983,23 +5014,69 @@ export default function POSInterface() {
                     <span className="font-semibold text-blue-900 dark:text-blue-100">
                       {selectedItemForVariant.variants[0].variantType.name}
                     </span>
-                    <Badge variant="default" className="bg-purple-600 hover:bg-purple-700 ml-auto text-[8px]s">
+                    <Badge variant="default" className="bg-purple-600 hover:bg-purple-700 ml-auto text-xs">
                       Custom Input
                     </Badge>
                   </div>
+                  
+                  {/* Mode Toggle: By Weight vs By Price */}
+                  <div className="flex gap-2 mb-4 p-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomPriceMode('weight');
+                        setCustomVariantValue('');
+                        setCustomPriceValue('');
+                      }}
+                      className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                        customPriceMode === 'weight'
+                          ? 'bg-emerald-500 text-white shadow-md'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      By Weight
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomPriceMode('price');
+                        setCustomVariantValue('');
+                        setCustomPriceValue('');
+                      }}
+                      className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                        customPriceMode === 'price'
+                          ? 'bg-emerald-500 text-white shadow-md'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      By Price
+                    </button>
+                  </div>
+                  
                   <div className="space-y-3">
+                    {/* Input field - changes based on mode */}
                     <div>
-                      <Label htmlFor="customVariantValue">Enter Multiplier</Label>
+                      <Label htmlFor="customInput">
+                        {customPriceMode === 'weight' ? 'Enter Multiplier' : 'Enter Price (EGP)'}
+                      </Label>
                       <div className="flex gap-2">
                         <Input
-                          id="customVariantValue"
+                          id="customInput"
                           type="number"
-                          step="0.001"
-                          min="0.001"
-                          max="999"
-                          value={customVariantValue}
-                          onChange={(e) => setCustomVariantValue(e.target.value)}
-                          placeholder="e.g., 0.125 for 1/8, 0.5 for half"
+                          step={customPriceMode === 'weight' ? '0.001' : '0.01'}
+                          min={customPriceMode === 'weight' ? '0.001' : '0.01'}
+                          max={customPriceMode === 'weight' ? '999' : '999999'}
+                          value={customPriceMode === 'weight' ? customVariantValue : customPriceValue}
+                          onChange={(e) => {
+                            if (customPriceMode === 'weight') {
+                              setCustomVariantValue(e.target.value);
+                            } else {
+                              setCustomPriceValue(e.target.value);
+                            }
+                          }}
+                          placeholder={customPriceMode === 'weight' 
+                            ? 'e.g., 0.125 for 1/8, 0.5 for half'
+                            : 'e.g., 50 for EGP 50'}
                           className="h-11 text-lg font-semibold flex-1"
                         />
                         <Button
@@ -5008,13 +5085,18 @@ export default function POSInterface() {
                           size="icon"
                           className="h-11 w-11 shrink-0"
                           onClick={() => {
-                            console.log('[Custom Input Numpad Button] Clicked, current customVariantValue:', customVariantValue);
+                            const currentValue = customPriceMode === 'weight' ? customVariantValue : customPriceValue;
+                            console.log('[Custom Input Numpad Button] Clicked, current value:', currentValue);
                             openNumberPad(
                               (value) => {
                                 console.log('[Custom Input Callback] Called with value:', value);
-                                setCustomVariantValue(value);
+                                if (customPriceMode === 'weight') {
+                                  setCustomVariantValue(value);
+                                } else {
+                                  setCustomPriceValue(value);
+                                }
                               },
-                              customVariantValue || ''
+                              currentValue || ''
                             );
                           }}
                           title="Open Number Pad"
@@ -5023,28 +5105,59 @@ export default function POSInterface() {
                         </Button>
                       </div>
                     </div>
-                    <p className="text-[8px]s text-slate-600 dark:text-slate-400">
-                      Enter a multiplier to calculate the price proportionally. For example, if the base is 500g and you want 62.5g (1/8), enter 0.125.
+                    
+                    {/* Description based on mode */}
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      {customPriceMode === 'weight' 
+                        ? 'Enter a multiplier to calculate the price proportionally. For example, if the base is 500g and you want 62.5g (1/8), enter 0.125.'
+                        : 'Enter a price and the system will automatically calculate the weight. For example, enter 50 for EGP 50 and the system will calculate the equivalent weight.'
+                      }
                     </p>
-                    {customVariantValue && !isNaN(parseFloat(customVariantValue)) && parseFloat(customVariantValue) > 0 && (
+                    
+                    {/* Price Preview */}
+                    {(customVariantValue && !isNaN(parseFloat(customVariantValue)) && parseFloat(customVariantValue) > 0) ||
+                     (customPriceValue && !isNaN(parseFloat(customPriceValue)) && parseFloat(customPriceValue) > 0) ? (
                       <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-slate-600 dark:text-slate-400">Base Price:</span>
                           <span className="font-semibold">{formatCurrency(selectedItemForVariant.price, currency)}</span>
                         </div>
-                        <div className="flex justify-between items-center mt-1">
-                          <span className="text-sm text-slate-600 dark:text-slate-400">Multiplier:</span>
-                          <span className="font-semibold">{customVariantValue}x</span>
-                        </div>
-                        <Separator className="my-2" />
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-slate-900 dark:text-white">Final Price:</span>
-                          <span className="font-black text-lg text-emerald-600 dark:text-emerald-400">
-                            {formatCurrency(selectedItemForVariant.price * parseFloat(customVariantValue), currency)}
-                          </span>
-                        </div>
+                        
+                        {customPriceMode === 'weight' ? (
+                          <>
+                            <div className="flex justify-between items-center mt-1">
+                              <span className="text-sm text-slate-600 dark:text-slate-400">Multiplier:</span>
+                              <span className="font-semibold">{customVariantValue}x</span>
+                            </div>
+                            <Separator className="my-2" />
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-slate-900 dark:text-white">Final Price:</span>
+                              <span className="font-black text-lg text-emerald-600 dark:text-emerald-400">
+                                {formatCurrency(selectedItemForVariant.price * parseFloat(customVariantValue), currency)}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-center mt-1">
+                              <span className="text-sm text-slate-600 dark:text-slate-400">Entered Price:</span>
+                              <span className="font-semibold">{formatCurrency(parseFloat(customPriceValue), currency)}</span>
+                            </div>
+                            <Separator className="my-2" />
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-slate-900 dark:text-white">Calculated Weight:</span>
+                              <span className="font-black text-lg text-emerald-600 dark:text-emerald-400">
+                                {((parseFloat(customPriceValue) / selectedItemForVariant.price) * 100).toFixed(1)}% of base
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center mt-1 text-xs text-slate-500 dark:text-slate-500">
+                              <span>Multiplier:</span>
+                              <span>{(parseFloat(customPriceValue) / selectedItemForVariant.price).toFixed(3)}x</span>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 {/* Select the custom input variant */}
@@ -5137,7 +5250,9 @@ export default function POSInterface() {
               onClick={handleVariantConfirm}
               disabled={
                 !selectedVariant || 
-                (selectedVariant?.variantType?.isCustomInput && !customVariantValue)
+                (selectedVariant?.variantType?.isCustomInput && 
+                 ((customPriceMode === 'weight' && !customVariantValue) || 
+                  (customPriceMode === 'price' && !customPriceValue)))
               }
               className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 rounded-xl h-11 px-6 font-semibold shadow-lg shadow-emerald-500/30"
             >
