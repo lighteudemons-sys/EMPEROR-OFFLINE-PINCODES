@@ -775,3 +775,79 @@ Files Modified:
    - Added formatItemName helper function
    - Updated UI item breakdown display
    - Updated thermal printer HTML output
+
+---
+
+Task ID: offline-inventory-deduction
+Agent: zai-web-dev
+Task: Implement offline inventory deduction based on recipes to match online workflow 100%
+
+Work Log:
+- Analyzed online order workflow to understand recipe-based inventory deduction
+  - Online: Fetches menu items WITH recipes when creating order
+  - Online: Filters recipes by menuItemVariantId (base vs variant-specific)
+  - Online: Scales quantities by customVariantValue for custom input variants
+  - Online: Deducts from inventory using safeInventoryDeduct in transaction
+  - Online: Creates inventoryTransaction records with type 'SALE'
+
+- Analyzed offline order workflow (before fix)
+  - Offline: POS fetches menu items WITHOUT recipes (intentionally for bandwidth)
+  - Offline: createOrderOffline did not calculate inventory deductions
+  - Offline: No inventory operations queued for sync
+  - Offline: Sync mechanism created orders but didn't deduct inventory
+
+- Implementation:
+  1. Created /api/recipes/offline/route.ts endpoint
+     - Fetches all recipes with ingredient details
+     - Filters by branchId if provided
+     - Returns menuItem, ingredient, and variant information
+     - Cached for 5 minutes with stale-while-revalidate
+
+  2. Added recipe caching to POS interface (pos-interface.tsx)
+     - Added useEffect to fetch recipes when POS loads
+     - Caches recipes in IndexedDB for offline use
+     - Loads from IndexedDB when offline
+     - Triggers when branch changes
+
+  3. Updated createOrderOffline function
+     - Loads recipes from IndexedDB
+     - For each cart item:
+       - Finds relevant recipes (filtered by menuItemId AND menuItemVariantId)
+       - Scales quantity by customVariantValue (or 1 if not set)
+       - Calculates total deduction = scaledQuantity * itemQuantity
+     - Stores inventoryDeductions array in _offlineData
+     - Includes all deduction details (ingredientId, ingredientName, quantityChange, unit, etc.)
+
+  4. Updated sync/batch-push/route.ts
+     - Added safeInventoryDeduct function (same logic as online orders)
+     - Changed order creation to use transaction for atomicity
+     - After creating order, applies inventory deductions from _offlineData
+     - Updates branchInventory.currentStock
+     - Creates inventoryTransaction records with type 'SALE'
+     - Logs all inventory deductions
+
+- Testing status:
+  - All linting passed (0 errors, 2 pre-existing warnings)
+  - Code follows same patterns as online workflow
+  - Uses transaction for atomic inventory updates
+  - Handles custom variants with scaled quantities correctly
+
+Stage Summary:
+- Offline workflow now 100% matches online workflow for recipe-based inventory deduction
+- Both workflows: filter recipes by variant, scale by customVariantValue, deduct atomically
+- Inventory transactions are created with type 'SALE' for offline orders
+- All changes committed and pushed to GitHub
+
+Files Modified:
+1. src/app/api/recipes/offline/route.ts (new file)
+   - Endpoint to fetch all recipes for offline caching
+
+2. src/components/pos-interface.tsx
+   - Added recipe fetching and caching useEffect
+   - Updated createOrderOffline to calculate inventory deductions
+   - Stored inventoryDeductions in _offlineData
+
+3. src/app/api/sync/batch-push/route.ts
+   - Added safeInventoryDeduct function
+   - Updated createOrder to use transaction
+   - Apply inventory deductions from _offlineData when syncing

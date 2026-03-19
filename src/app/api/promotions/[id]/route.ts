@@ -24,11 +24,21 @@ const promotionUpdateSchema = z.object({
 // GET /api/promotions/[id] - Get a single promotion
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params in Next.js 15
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Promotion ID is required' },
+        { status: 400 }
+      );
+    }
+
     const promotion = await db.promotion.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         codes: true,
         branchRestrictions: {
@@ -72,15 +82,25 @@ export async function GET(
 // PUT /api/promotions/[id] - Update a promotion
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params in Next.js 15
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Promotion ID is required' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const validatedData = promotionUpdateSchema.parse(body);
 
     // Check if promotion exists
     const existingPromotion = await db.promotion.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingPromotion) {
@@ -120,7 +140,7 @@ export async function PUT(
     const promotion = await db.$transaction(async (tx) => {
       // Update promotion
       const updatedPromotion = await tx.promotion.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           ...(validatedData.name !== undefined && { name: validatedData.name }),
           ...(validatedData.description !== undefined && { description: validatedData.description }),
@@ -142,14 +162,14 @@ export async function PUT(
       if (validatedData.branchIds !== undefined) {
         // Delete existing restrictions
         await tx.promotionBranch.deleteMany({
-          where: { promotionId: params.id },
+          where: { promotionId: id },
         });
 
         // Add new restrictions
         if (validatedData.branchIds.length > 0) {
           await tx.promotionBranch.createMany({
             data: validatedData.branchIds.map((branchId) => ({
-              promotionId: params.id,
+              promotionId: id,
               branchId,
             })),
           });
@@ -160,14 +180,14 @@ export async function PUT(
       if (validatedData.categoryIds !== undefined) {
         // Delete existing restrictions
         await tx.promotionCategory.deleteMany({
-          where: { promotionId: params.id },
+          where: { promotionId: id },
         });
 
         // Add new restrictions
         if (validatedData.categoryIds.length > 0) {
           await tx.promotionCategory.createMany({
             data: validatedData.categoryIds.map((categoryId) => ({
-              promotionId: params.id,
+              promotionId: id,
               categoryId,
             })),
           });
@@ -219,12 +239,22 @@ export async function PUT(
 // DELETE /api/promotions/[id] - Delete a promotion
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params in Next.js 15
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Promotion ID is required' },
+        { status: 400 }
+      );
+    }
+
     // Check if promotion exists
     const existingPromotion = await db.promotion.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         _count: {
           select: {
@@ -254,7 +284,7 @@ export async function DELETE(
 
     // Delete promotion (cascade will handle related records)
     await db.promotion.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({
