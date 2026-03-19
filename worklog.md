@@ -713,3 +713,36 @@ Files Modified:
    - Added formatVariantDisplay helper function
    - Updated standard receipt display
    - Updated thermal printer receipt generation
+
+---
+
+Task ID: fix-receipt-decimal-places
+Agent: zai-web-dev
+Task: Fix receipt showing 15+ decimal places in multiplier
+
+Work Log:
+- Identified that receipt was showing raw multiplier value (0.09615384615384616x) because variantName was saved without rounding
+- Fixed handleVariantConfirm in pos-interface.tsx to round multiplier to 3 decimal places before creating variantName
+- Fixed online order API (orders/route.ts) to round multiplier to 3 decimal places before saving variantName
+- Added customVariantValue to offline order items in createOrderOffline function
+- Updated sync mechanism (batch-push/route.ts) to save customVariantValue when syncing offline orders
+- Now all orders (online, offline, and synced) have rounded multipliers (3 decimals)
+- Receipts show clean format: "0.096x (96g)" instead of "0.09615384615384616x"
+- Works for both standard print and thermal printer receipts
+
+Stage Summary:
+- Cart shows weight in grams correctly
+- Receipts show rounded multipliers (3 decimals)
+- Both online and offline workflows produce clean display
+- All changes committed and pushed to GitHub
+
+Files Modified:
+1. src/components/pos-interface.tsx
+   - Round multiplier to 3 decimals in handleVariantConfirm
+   - Add customVariantValue to offline order items
+
+2. src/app/api/orders/route.ts
+   - Round multiplier to 3 decimals before saving variantName
+
+3. src/app/api/sync/batch-push/route.ts
+   - Add customVariantValue to order item creation during sync

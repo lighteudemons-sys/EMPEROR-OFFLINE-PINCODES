@@ -11,6 +11,25 @@ import { Printer, FileText, Package, DollarSign, Loader2, AlertCircle, X, Refres
 import { formatCurrency } from '@/lib/utils';
 import { type ShiftClosingReportData } from '@/lib/escpos-encoder';
 
+// Helper function to format item name with rounded multipliers
+function formatItemName(itemName: string): string {
+  if (!itemName) return '';
+
+  // Pattern to match: " - وزن: 0.09615384615384616x"
+  const multiplierMatch = itemName.match(/(- وزن: )([0-9.]+)(x)/);
+  if (multiplierMatch) {
+    const prefix = itemName.substring(0, multiplierMatch.index);
+    const multiplier = parseFloat(multiplierMatch[2]);
+    const roundedMultiplier = Math.round(multiplier * 1000) / 1000;
+    // Calculate weight in grams (assuming base is 1kg = 1000g)
+    const weightInGrams = Math.round(multiplier * 1000);
+
+    return `${prefix} - وزن: ${roundedMultiplier}x (${weightInGrams}g)`;
+  }
+
+  return itemName;
+}
+
 interface ShiftClosingReceiptProps {
   shiftId: string;
   shiftData?: any; // Optional shift data for offline mode
@@ -1171,7 +1190,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         itemsHtml += `
           <div style="display: flex; justify-content: space-between; margin: 2px 0;">
             <span style="flex: 0 0 30px; text-align: left; font-weight: bold;">${item.quantity}x</span>
-            <span style="flex: 1; text-align: left;">${item.itemName}</span>
+            <span style="flex: 1; text-align: left;">${formatItemName(item.itemName)}</span>
             <span style="flex: 0 0 80px; text-align: right;">${item.totalPrice.toFixed(2)}</span>
           </div>
         `;
@@ -1710,7 +1729,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
                                 key={itemIdx}
                                 className="flex justify-between items-center p-3 text-sm border-b last:border-b-0 hover:bg-muted/30"
                               >
-                                <span className="flex-1 mr-4 truncate">{item.itemName}</span>
+                                <span className="flex-1 mr-4 truncate">{formatItemName(item.itemName)}</span>
                                 <div className="flex items-center gap-4 flex-shrink-0">
                                   <span className="text-muted-foreground text-xs w-12 text-right">
                                     x{item.quantity}
