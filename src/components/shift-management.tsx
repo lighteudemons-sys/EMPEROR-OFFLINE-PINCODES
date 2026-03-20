@@ -1984,17 +1984,25 @@ export default function ShiftManagement() {
 
       shiftOrders.forEach((order: any) => {
         const paymentMethod = order.paymentMethod?.toLowerCase();
+        const paymentMethodDetail = order.paymentMethodDetail?.toUpperCase();
         // Use subtotal for payment breakdown (excludes delivery fees, matches online behavior)
         const orderAmount = order.subtotal || order.totalAmount || 0;
+
+        // Debug logging for payment method detection
+        console.log('[calculateOfflineShiftCashRevenue] Order:', {
+          orderNumber: order.orderNumber,
+          paymentMethod,
+          paymentMethodDetail,
+          orderAmount,
+        });
 
         if (paymentMethod === 'cash') {
           cash += orderAmount;
         } else if (paymentMethod === 'card') {
           // Break down card payments by detail
-          const detail = order.paymentMethodDetail?.toUpperCase();
-          if (detail === 'INSTAPAY') {
+          if (paymentMethodDetail === 'INSTAPAY') {
             instapay += orderAmount;
-          } else if (detail === 'MOBILE_WALLET') {
+          } else if (paymentMethodDetail === 'MOBILE_WALLET') {
             wallet += orderAmount;
           } else {
             // Default to CARD for regular card payments
