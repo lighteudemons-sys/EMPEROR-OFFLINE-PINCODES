@@ -324,6 +324,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       'delivery': { value: 0, discounts: 0, count: 0, total: 0 }
     };
 
+    // Initialize totalDailyExpenses
+    let totalDailyExpenses = 0;
+
     try {
       const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
       const indexedDBStorage = getIndexedDBStorage();
@@ -455,6 +458,11 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       Object.keys(orderTypeBreakdown).forEach(type => {
         orderTypeBreakdown[type].total = orderTypeBreakdown[type].value - orderTypeBreakdown[type].discounts;
       });
+
+      // Get daily expenses from IndexedDB
+      const allDailyExpenses = await indexedDBStorage.getAllDailyExpenses();
+      const shiftDailyExpenses = allDailyExpenses.filter((exp: any) => exp.shiftId === shift.id);
+      const totalDailyExpenses = shiftDailyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
     } catch (error) {
       console.error('[Shift Closing Receipt] Error building category breakdown:', error);
       console.error('[Shift Closing Receipt] Error details:', error);
@@ -511,11 +519,11 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         instapay,
         wallet,
         cash,
-        dailyExpenses: 0,
+        dailyExpenses: totalDailyExpenses,
         openingCashBalance: shift.openingCash || 0,
-        expectedCash: (shift.openingCash || 0) + cash,
+        expectedCash: (shift.openingCash || 0) + cash - totalDailyExpenses,
         closingCashBalance: shift.closingCash || 0,
-        overShort: shift.closingCash ? (shift.closingCash - ((shift.openingCash || 0) + cash)) : 0
+        overShort: shift.closingCash ? (shift.closingCash - ((shift.openingCash || 0) + cash - totalDailyExpenses)) : 0
       },
       categoryBreakdown,
       voidedItems: [],
@@ -726,8 +734,10 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       }))
       .sort((a, b) => b.totalSales - a.totalSales);
 
-    // Get daily expenses from localStorage
-    const totalDailyExpenses = 0; // Not tracked in localStorage yet
+    // Get daily expenses from IndexedDB
+    const allDailyExpenses = await indexedDBStorage.getAllDailyExpenses();
+    const shiftDailyExpenses = allDailyExpenses.filter((exp: any) => exp.shiftId === shiftId);
+    const totalDailyExpenses = shiftDailyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
 
     // Calculate expected cash
     const expectedCash = (shift.openingCash || 0) + cash - totalDailyExpenses;

@@ -168,18 +168,26 @@ async function safeInventoryDeduct(
     // The stock tracking system will flag low stock alerts
   }
 
-  // Update inventory
+  // Update inventory using upsert to handle missing records
   const stockBefore = currentStock;
   const stockAfter = currentStock - quantityToDeductAbs;
 
-  await tx.branchInventory.update({
+  // Use upsert to create the record if it doesn't exist
+  await tx.branchInventory.upsert({
     where: {
       branchId_ingredientId: {
         branchId,
         ingredientId,
       },
     },
-    data: {
+    create: {
+      branchId,
+      ingredientId,
+      currentStock: stockAfter,
+      reservedStock: 0,
+      lastModifiedAt: new Date(),
+    },
+    update: {
       currentStock: stockAfter,
       lastModifiedAt: new Date(),
     },
@@ -2449,18 +2457,49 @@ async function createTable(data: any, branchId: string): Promise<void> {
 /**
  * Update table
  */
+/**
+ * Safe date parser - validates date string before creating Date object
+ * Returns current timestamp if date string is invalid
+ */
+function safeParseDate(dateString: string | Date | null | undefined): Date {
+  if (!dateString) {
+    return new Date();
+  }
+
+  if (dateString instanceof Date) {
+    // Check if the Date object is valid
+    if (isNaN(dateString.getTime())) {
+      console.warn('[safeParseDate] Invalid Date object provided, using current timestamp');
+      return new Date();
+    }
+    return dateString;
+  }
+
+  // Try to parse the date string
+  const parsedDate = new Date(dateString);
+  if (isNaN(parsedDate.getTime())) {
+    console.warn(`[safeParseDate] Invalid date string provided: "${dateString}", using current timestamp`);
+    return new Date();
+  }
+
+  return parsedDate;
+}
+
+/**
+ * Update table
+ */
 async function updateTable(data: any, branchId: string): Promise<void> {
   await db.table.update({
     where: { id: data.id },
     data: {
       status: data.status,
       customerId: data.customerId || null,
-      openedAt: data.openedAt ? new Date(data.openedAt) : null,
-      closedAt: data.closedAt ? new Date(data.closedAt) : null,
+      openedAt: data.openedAt ? safeParseDate(data.openedAt) : null,
+      closedAt: data.closedAt ? safeParseDate(data.closedAt) : null,
       openedBy: data.openedBy || null,
       closedBy: data.closedBy || null,
       notes: data.notes || null,
-      updatedAt: new Date(data.updatedAt),
+      updatedAt: safeParseDate(data.updatedAt),
     },
   });
 }

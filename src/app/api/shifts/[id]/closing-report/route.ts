@@ -108,8 +108,8 @@ export async function GET(
         totalSales += order.subtotal;
       }
 
-      // Add discounts (both promo and loyalty)
-      const orderDiscount = (order.promoDiscount || 0) + (order.loyaltyDiscount || 0);
+      // Add discounts (both promo, loyalty, and manual)
+      const orderDiscount = (order.promoDiscount || 0) + (order.loyaltyDiscount || 0) + (order.manualDiscountAmount || 0);
       if (orderTypeBreakdown[type]) {
         orderTypeBreakdown[type].discounts += orderDiscount;
       }
