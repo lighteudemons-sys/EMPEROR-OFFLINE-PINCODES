@@ -740,6 +740,7 @@ async function createOrder(data: any, branchId: string): Promise<void> {
     orderType: data.orderType,
     totalAmount: data.totalAmount,
     paymentMethod: data.paymentMethod || null,
+    paymentMethodDetail: data.paymentMethodDetail || null,
     shiftId: shiftId, // Use mapped shiftId (or null if temp ID not mapped yet)
     isRefunded: data.isRefunded || false,
     refundReason: data.refundReason || null,
@@ -878,6 +879,7 @@ async function updateOrder(data: any, branchId: string): Promise<void> {
   // Update order basic info - only include fields that exist in the Order model
   const updateData: any = {
     paymentMethod: data.paymentMethod,
+    paymentMethodDetail: data.paymentMethodDetail || null,
     isRefunded: data.isRefunded || false,
     refundReason: data.refundReason || null,
     updatedAt: new Date(data.updatedAt),
