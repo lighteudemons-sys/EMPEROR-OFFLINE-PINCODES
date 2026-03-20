@@ -871,6 +871,11 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     const closingBalance = fullReportData.totals.closingCashBalance || 0;
     const overShort = fullReportData.totals.overShort || 0;
 
+    console.log('[Shift Closing Receipt] Print data:', {
+      totalDailyExpenses,
+      fullReportDataTotals: fullReportData.totals,
+    });
+
     const content = `<!DOCTYPE html>
 <html>
 <head>
