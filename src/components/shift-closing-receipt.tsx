@@ -324,8 +324,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       'delivery': { value: 0, discounts: 0, count: 0, total: 0 }
     };
 
-    // Initialize totalDailyExpenses
+    // Initialize daily expenses variables
     let totalDailyExpenses = 0;
+    let finalDailyExpenses = 0;
 
     try {
       const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
@@ -475,7 +476,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
       // Use closingDailyExpenses from shift if available (calculated during closeShiftOffline)
       // Otherwise use the calculated value from IndexedDB
-      const finalDailyExpenses = (shift.closingDailyExpenses !== undefined && shift.closingDailyExpenses !== null)
+      finalDailyExpenses = (shift.closingDailyExpenses !== undefined && shift.closingDailyExpenses !== null)
         ? shift.closingDailyExpenses
         : totalDailyExpenses;
 
