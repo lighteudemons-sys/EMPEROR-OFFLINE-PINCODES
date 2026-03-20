@@ -463,6 +463,14 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       const allDailyExpenses = await indexedDBStorage.getAllDailyExpenses();
       const shiftDailyExpenses = allDailyExpenses.filter((exp: any) => exp.shiftId === shift.id);
       const totalDailyExpenses = shiftDailyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+
+      console.log('[Shift Closing Receipt] Daily expenses for shift:', {
+        shiftId: shift.id,
+        totalDailyExpenses: allDailyExpenses.length,
+        shiftDailyExpenses: shiftDailyExpenses.length,
+        expenses: shiftDailyExpenses,
+        totalAmount: totalDailyExpenses,
+      });
     } catch (error) {
       console.error('[Shift Closing Receipt] Error building category breakdown:', error);
       console.error('[Shift Closing Receipt] Error details:', error);

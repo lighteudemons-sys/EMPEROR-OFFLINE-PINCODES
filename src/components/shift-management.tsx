@@ -273,6 +273,14 @@ async function closeShiftOffline(
     const shiftDailyExpenses = allDailyExpenses.filter((exp: any) => exp.shiftId === shift.id);
     const totalDailyExpenses = shiftDailyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
 
+    console.log('[closeShiftOffline] Daily expenses:', {
+      shiftId: shift.id,
+      totalExpensesInDB: allDailyExpenses.length,
+      shiftExpensesCount: shiftDailyExpenses.length,
+      shiftExpenses: shiftDailyExpenses,
+      totalDailyExpenses,
+    });
+
     console.log('[Shift] Calculated closing revenue:', {
       orderCount: shiftOrders.length,
       subtotal,
@@ -1985,8 +1993,8 @@ export default function ShiftManagement() {
       shiftOrders.forEach((order: any) => {
         const paymentMethod = order.paymentMethod?.toLowerCase();
         const paymentMethodDetail = order.paymentMethodDetail?.toUpperCase();
-        // Use subtotal for payment breakdown (excludes delivery fees, matches online behavior)
-        const orderAmount = order.subtotal || order.totalAmount || 0;
+        // Use totalAmount for payment breakdown (what customer actually paid after discounts)
+        const orderAmount = order.totalAmount || 0;
 
         // Debug logging for payment method detection
         console.log('[calculateOfflineShiftCashRevenue] Order:', {
@@ -1994,6 +2002,7 @@ export default function ShiftManagement() {
           paymentMethod,
           paymentMethodDetail,
           orderAmount,
+          subtotal: order.subtotal,
         });
 
         if (paymentMethod === 'cash') {
