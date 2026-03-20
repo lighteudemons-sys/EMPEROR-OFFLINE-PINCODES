@@ -2111,7 +2111,10 @@ export default function ShiftManagement() {
   };
 
   const getFilteredShifts = () => {
-    return shifts;
+    // Sort shifts by start time (newest first) and return only the latest 5
+    return [...shifts]
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+      .slice(0, 5);
   };
 
   // Update payment breakdown total
