@@ -470,7 +470,16 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         shiftDailyExpenses: shiftDailyExpenses.length,
         expenses: shiftDailyExpenses,
         totalAmount: totalDailyExpenses,
+        shiftClosingDailyExpenses: shift.closingDailyExpenses,
       });
+
+      // Use closingDailyExpenses from shift if available (calculated during closeShiftOffline)
+      // Otherwise use the calculated value from IndexedDB
+      const finalDailyExpenses = (shift.closingDailyExpenses !== undefined && shift.closingDailyExpenses !== null)
+        ? shift.closingDailyExpenses
+        : totalDailyExpenses;
+
+      console.log('[Shift Closing Receipt] Final daily expenses to use:', finalDailyExpenses);
     } catch (error) {
       console.error('[Shift Closing Receipt] Error building category breakdown:', error);
       console.error('[Shift Closing Receipt] Error details:', error);
@@ -527,16 +536,22 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         instapay,
         wallet,
         cash,
-        dailyExpenses: totalDailyExpenses,
+        dailyExpenses: finalDailyExpenses,
         openingCashBalance: shift.openingCash || 0,
-        expectedCash: (shift.openingCash || 0) + cash - totalDailyExpenses,
+        expectedCash: (shift.openingCash || 0) + cash - finalDailyExpenses,
         closingCashBalance: shift.closingCash || 0,
-        overShort: shift.closingCash ? (shift.closingCash - ((shift.openingCash || 0) + cash - totalDailyExpenses)) : 0
+        overShort: shift.closingCash ? (shift.closingCash - ((shift.openingCash || 0) + cash - finalDailyExpenses)) : 0
       },
       categoryBreakdown,
       voidedItems: [],
       refundedOrders: []
     };
+
+    console.log('[Shift Closing Receipt] Setting fullReportData in loadReceiptFromShiftData with dailyExpenses:', {
+      dailyExpenses: finalDailyExpenses,
+      closingDailyExpenses: shift.closingDailyExpenses,
+      fullTotals: report.totals,
+    });
 
     setFullReportData(report);
 
