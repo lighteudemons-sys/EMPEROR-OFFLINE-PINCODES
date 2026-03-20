@@ -268,6 +268,11 @@ async function closeShiftOffline(
     const totalManualDiscounts = shiftOrders.reduce((sum: number, order: any) => sum + (order.manualDiscountAmount || 0), 0);
     const totalDiscounts = totalLoyaltyDiscounts + totalPromoDiscounts + totalManualDiscounts;
 
+    // Calculate daily expenses for this shift
+    const allDailyExpenses = await indexedDBStorage.getAllDailyExpenses();
+    const shiftDailyExpenses = allDailyExpenses.filter((exp: any) => exp.shiftId === shift.id);
+    const totalDailyExpenses = shiftDailyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+
     console.log('[Shift] Calculated closing revenue:', {
       orderCount: shiftOrders.length,
       subtotal,
@@ -277,6 +282,7 @@ async function closeShiftOffline(
       totalPromoDiscounts,
       totalManualDiscounts,
       totalDiscounts,
+      totalDailyExpenses,
       openingCash: shift.openingCash || 0,
     });
 
@@ -289,7 +295,7 @@ async function closeShiftOffline(
       closingRevenue: cashierRevenue, // Use calculated revenue (subtotal only, no delivery fees)
       closingLoyaltyDiscounts: totalLoyaltyDiscounts,
       closingPromoDiscounts: totalPromoDiscounts,
-      closingDailyExpenses: 0, // Calculate if needed
+      closingDailyExpenses: totalDailyExpenses, // Use calculated daily expenses
       closingVoidedItems: 0, // Would need to track voided items
       closingRefunds: 0, // Would need to track refunds
       isClosed: true,
@@ -1978,14 +1984,26 @@ export default function ShiftManagement() {
 
       shiftOrders.forEach((order: any) => {
         const paymentMethod = order.paymentMethod?.toLowerCase();
+        // Use subtotal for payment breakdown (excludes delivery fees, matches online behavior)
+        const orderAmount = order.subtotal || order.totalAmount || 0;
+
         if (paymentMethod === 'cash') {
-          cash += order.totalAmount || 0;
+          cash += orderAmount;
         } else if (paymentMethod === 'card') {
-          card += order.totalAmount || 0;
+          // Break down card payments by detail
+          const detail = order.paymentMethodDetail?.toUpperCase();
+          if (detail === 'INSTAPAY') {
+            instapay += orderAmount;
+          } else if (detail === 'MOBILE_WALLET') {
+            wallet += orderAmount;
+          } else {
+            // Default to CARD for regular card payments
+            card += orderAmount;
+          }
         } else if (paymentMethod === 'instapay') {
-          instapay += order.totalAmount || 0;
+          instapay += orderAmount;
         } else if (paymentMethod === 'mobile_wallet' || paymentMethod === 'wallet') {
-          wallet += order.totalAmount || 0;
+          wallet += orderAmount;
         }
 
         // Check for voided items
