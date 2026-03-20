@@ -157,28 +157,43 @@ async function closeShift(id: string, body: any) {
   const dailyExpenses = dailyExpensesStats._sum.amount || 0;
   const cashierRevenue = (orderStats._sum.subtotal || 0) - loyaltyDiscounts - dailyExpenses;
 
-  // Get payment method breakdown (excludes delivery fees)
-  const paymentStats = await db.order.groupBy({
-    by: ['paymentMethod'],
+  // Get payment method breakdown with card details (excludes delivery fees)
+  const orders = await db.order.findMany({
     where: { shiftId: id },
-    _sum: { subtotal: true },
-    _count: true,
+    select: {
+      paymentMethod: true,
+      paymentMethodDetail: true,
+      subtotal: true,
+    },
   });
 
   const paymentBreakdown = {
     cash: 0,
     card: 0,
+    instapay: 0,
+    wallet: 0,
     other: 0,
   };
 
-  paymentStats.forEach(stat => {
-    const method = stat.paymentMethod.toLowerCase();
+  orders.forEach(order => {
+    const method = order.paymentMethod.toLowerCase();
     if (method === 'cash') {
-      paymentBreakdown.cash = stat._sum.subtotal || 0;
+      paymentBreakdown.cash += order.subtotal || 0;
     } else if (method === 'card') {
-      paymentBreakdown.card = stat._sum.subtotal || 0;
+      // Break down card payments by detail
+      const detail = order.paymentMethodDetail?.toUpperCase();
+      if (detail === 'INSTAPAY') {
+        paymentBreakdown.instapay += order.subtotal || 0;
+      } else if (detail === 'MOBILE_WALLET') {
+        paymentBreakdown.wallet += order.subtotal || 0;
+      } else {
+        // Default to CARD for regular card payments
+        paymentBreakdown.card += order.subtotal || 0;
+      }
+    } else if (method.includes('visa') || method.includes('credit')) {
+      paymentBreakdown.card += order.subtotal || 0;
     } else {
-      paymentBreakdown.other = (paymentBreakdown.other || 0) + (stat._sum.subtotal || 0);
+      paymentBreakdown.other += order.subtotal || 0;
     }
   });
 
@@ -189,7 +204,13 @@ async function closeShift(id: string, body: any) {
     loyaltyDiscounts,
     dailyExpenses,
     cashierRevenue, // What cashier actually has (subtotal - discounts - expenses, no delivery)
-    paymentBreakdown,
+    paymentBreakdown: {
+      cash: paymentBreakdown.cash,
+      card: paymentBreakdown.card,
+      instapay: paymentBreakdown.instapay,
+      wallet: paymentBreakdown.wallet,
+      other: paymentBreakdown.other,
+    },
   });
 
   // Update shift with calculated closing data
