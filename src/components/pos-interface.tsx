@@ -659,15 +659,15 @@ export default function POSInterface() {
 
   // Track unsent items for preparation receipt printing
   const [unsentTableItems, setUnsentTableItems] = useState<CartItem[]>([]);
-  // Track items that have been sent to kitchen (printed) - use Set for O(1) lookups
-  const [printedItems, setPrintedItems] = useState<Set<string>>(new Set());
+  // Track quantities that have been sent to kitchen (printed) - Map<itemId, printedQuantity>
+  const [printedQuantities, setPrintedQuantities] = useState<Map<string, number>>(new Map());
 
   // Refs to always have access to current state (for synchronous access)
   const tableCartRef = useRef<CartItem[]>([]);
   tableCartRef.current = tableCart;
 
-  const printedItemsRef = useRef<Set<string>>(new Set());
-  printedItemsRef.current = printedItems;
+  const printedQuantitiesRef = useRef<Map<string, number>>(new Map());
+  printedQuantitiesRef.current = printedQuantities;
 
   // Restore selected table on mount (for dine-in)
   useEffect(() => {
@@ -1597,9 +1597,10 @@ export default function POSInterface() {
     if (newQuantity < 1) return;
 
     if (orderType === 'dine-in' && selectedTable) {
-      // Check if item has been sent to kitchen (printed) - use ref for latest state
-      if (printedItemsRef.current.has(itemId)) {
-        alert('This item has already been sent to the kitchen and cannot be modified.');
+      // Check if new quantity would go below printed quantity - use ref for latest state
+      const printedQty = printedQuantitiesRef.current.get(itemId) || 0;
+      if (newQuantity < printedQty) {
+        alert(`Cannot decrease quantity below ${printedQty} as that many have already been sent to the kitchen.`);
         return;
       }
 
@@ -1613,14 +1614,20 @@ export default function POSInterface() {
         // Save to IndexedDB
         storage.setJSON(`table-cart-${selectedTable.id}`, updated);
 
-        // Update unsent items to match
-        setUnsentTableItems((prevUnsent) =>
-          prevUnsent
+        // Update unsent items to match (only if above printed quantity)
+        setUnsentTableItems((prevUnsent) => {
+          const unsentDelta = newQuantity - printedQty;
+          if (unsentDelta <= 0) {
+            // If quantity equals printed, remove from unsent
+            return prevUnsent.filter((item) => item.id !== itemId);
+          }
+          // Otherwise update unsent quantity
+          return prevUnsent
             .map((item) =>
-              item.id === itemId ? { ...item, quantity: newQuantity } : item
+              item.id === itemId ? { ...item, quantity: unsentDelta } : item
             )
-            .filter((item) => item.quantity > 0)
-        );
+            .filter((item) => item.quantity > 0);
+        });
 
         return updated;
       });
@@ -1675,8 +1682,9 @@ export default function POSInterface() {
 
     if (orderType === 'dine-in' && selectedTable) {
       // Check if item has been sent to kitchen (printed) - use ref for latest state
-      if (printedItemsRef.current.has(editingItem.id)) {
-        alert('This item has already been sent to the kitchen and cannot be modified.');
+      const printedQty = printedQuantitiesRef.current.get(editingItem.id) || 0;
+      if (printedQty > 0 && (editingQuantity === 0 || editingQuantity < printedQty)) {
+        alert(`This item has ${printedQty}x already sent to the kitchen. Quantity cannot be reduced below ${printedQty}.`);
         return;
       }
 
@@ -1686,6 +1694,12 @@ export default function POSInterface() {
 
         // If quantity is 0 or note was cleared and no variant, don't add back
         if (editingQuantity === 0 || (!editingNote.trim() && !editingItem.variantId)) {
+          // Check if item has been printed
+          if (printedQty > 0) {
+            alert(`Cannot delete this item as ${printedQty}x have been sent to the kitchen.`);
+            return prevCart; // Don't make changes
+          }
+
           storage.setJSON(`table-cart-${selectedTable.id}`, filtered);
 
           // Also remove from unsent items when deleting via note dialog
@@ -1743,8 +1757,10 @@ export default function POSInterface() {
   const removeFromCart = (itemId: string) => {
     if (orderType === 'dine-in' && selectedTable) {
       // Check if item has been sent to kitchen (printed) - use ref for latest state
-      if (printedItemsRef.current.has(itemId)) {
-        alert('This item has already been sent to the kitchen and cannot be removed.');
+      const printedQty = printedQuantitiesRef.current.get(itemId) || 0;
+      if (printedQty > 0) {
+        const item = tableCart.find(i => i.id === itemId);
+        alert(`This item has ${printedQty}x already sent to the kitchen and cannot be removed. You can only decrease the quantity to ${printedQty}.`);
         return;
       }
 
@@ -1809,9 +1825,9 @@ export default function POSInterface() {
     setShowTableGrid(true);
     setTableCart([]);
 
-    // Clear unsent and printed items when deselecting table
+    // Clear unsent and printed quantities when deselecting table
     setUnsentTableItems([]);
-    setPrintedItems(new Set());
+    setPrintedQuantities(new Map());
 
     // Refresh tables to show updated status
     setTableRefreshTrigger(prev => prev + 1);
@@ -1930,10 +1946,10 @@ export default function POSInterface() {
       await storage.setJSON(`table-cart-${selectedTable.id}`, sourceCart);
       await storage.setJSON(targetCartKey, targetCart);
 
-      // Update unsent and printed items
+      // Update unsent and printed quantities
       setUnsentTableItems((prevUnsent) => prevUnsent.filter((item) => !itemIdsToRemove.includes(item.id)));
-      setPrintedItems((prev) => {
-        const newPrinted = new Set(prev);
+      setPrintedQuantities((prev) => {
+        const newPrinted = new Map(prev);
         itemIdsToRemove.forEach((id) => newPrinted.delete(id));
         return newPrinted;
       });
@@ -1970,18 +1986,18 @@ export default function POSInterface() {
 
     if (tableCart.length === 0) {
       if (confirm(`Table ${selectedTable.tableNumber} has no items. Close it anyway?`)) {
-        // Clear unsent items and printed items when closing empty table
+        // Clear unsent items and printed quantities when closing empty table
         setUnsentTableItems([]);
-        setPrintedItems(new Set());
+        setPrintedQuantities(new Map());
         // Just close the table without creating an order
         await closeTableInDB();
       }
       return;
     }
 
-    // Clear unsent items and printed items when showing payment dialog
+    // Clear unsent items and printed quantities when showing payment dialog
     setUnsentTableItems([]);
-    setPrintedItems(new Set());
+    setPrintedQuantities(new Map());
     // Show payment dialog
     setShowPaymentDialog(true);
   };
@@ -2260,10 +2276,13 @@ export default function POSInterface() {
         printWindow.print();
       }, 250);
 
-      // Mark items as printed (sent to kitchen) to prevent deletion
-      setPrintedItems((prev) => {
-        const newPrinted = new Set(prev);
-        validUnsentItems.forEach((item) => newPrinted.add(item.id));
+      // Update printed quantities (increment by the quantity being printed)
+      setPrintedQuantities((prev) => {
+        const newPrinted = new Map(prev);
+        validUnsentItems.forEach((item) => {
+          const currentPrinted = newPrinted.get(item.id) || 0;
+          newPrinted.set(item.id, currentPrinted + item.quantity);
+        });
         return newPrinted;
       });
 
