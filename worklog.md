@@ -957,3 +957,132 @@ Stage Summary:
 - Remote repository updated successfully
 - System ready for deployment/testing
 
+
+---
+
+## Task ID: preparation-receipt-implementation
+### Work Task
+Implement complete Preparation Receipt printing feature for Dine In orders with smart printing behavior.
+
+### Work Summary
+
+#### Issue Identified
+The previous session only added `unsentTableItems` state tracking but did NOT implement:
+- The `printPreparationReceipt` function
+- The "PRINT PREP ORDER" button in UI
+- The logic to clear unsent items after printing
+
+#### Complete Implementation
+
+**1. Created `printPreparationReceipt` Function** (lines 2018-2124)
+- Generates HTML receipt with all required fields:
+  - Branch name (from branches array)
+  - Date and time (formatted for Egypt)
+  - Table number (from selectedTable)
+  - Menu item names with quantities
+- Uses standard browser printing (window.open() → print())
+- Clears `unsentTableItems` after printing for smart behavior
+- Shows alert if no items to print
+
+**2. Updated Desktop Checkout Buttons** (lines 4701-4755)
+```typescript
+{orderType === 'dine-in' && selectedTable ? (
+  // Show PRINT PREP ORDER button (orange gradient)
+  <Button onClick={printPreparationReceipt} ...>
+    <Printer /> PRINT PREP ORDER
+  </Button>
+) : (
+  // Show Cash and Card buttons (normal flow)
+  <>
+    <Button onClick={handleCheckout('cash')}>CASH</Button>
+    <div>
+      <Button onClick={handleCardPaymentClick}>CARD</Button>
+      <Button onClick={handleHoldOrder}>HOLD</Button>
+    </div>
+  </>
+)}
+```
+
+**3. Updated Mobile Checkout Buttons** (lines 5213-5252)
+- Same logic as desktop for consistency
+- Single "PRINT PREP ORDER" button for Dine In with table
+- Cash/Card grid for other order types
+
+**4. Updated `handleCloseTable`** (lines 1907-1924)
+- Clears `unsentTableItems` when table is closed (both empty and with items)
+- Prevents stale unsent items from remaining after table closure
+
+#### Smart Printing Behavior
+
+The implementation correctly handles the user's requirement:
+
+**Scenario 1: Adding 1 Coffee**
+1. User opens Table 1
+2. User adds 1 Coffee to cart
+3. `unsentTableItems` = [Coffee x1]
+4. User clicks "PRINT PREP ORDER"
+5. Receipt prints: "Coffee x1"
+6. `unsentTableItems` is cleared
+
+**Scenario 2: Adding 2 Coffees separately**
+1. User opens Table 1
+2. User adds 1 Coffee
+3. `unsentTableItems` = [Coffee x1]
+4. User clicks "PRINT PREP ORDER"
+5. Receipt prints: "Coffee x1"
+6. `unsentTableItems` is cleared
+7. User adds 1 more Coffee
+8. `unsentTableItems` = [Coffee x1]
+9. User clicks "PRINT PREP ORDER"
+10. Receipt prints: "Coffee x1" (NOT Coffee x2!)
+11. `unsentTableItems` is cleared
+
+**This is the smart printing behavior the user requested!**
+
+#### Receipt Format
+```
+[Branch Name]
+Date: DD/MM/YYYY
+Time: HH:MM
+
+[ Table X ]
+
+Coffee - Medium    x1
+Croissant         x1
+
+*** PREPARATION ORDER ***
+```
+
+#### Files Modified
+1. `src/components/pos-interface.tsx`
+   - Added `printPreparationReceipt` function
+   - Updated desktop checkout buttons
+   - Updated mobile checkout buttons
+   - Updated `handleCloseTable`
+
+#### Testing
+- Lint passes with 0 errors (2 pre-existing warnings in unrelated file)
+- Code follows existing patterns and conventions
+- Uses `window.print()` for standard browser printing (not thermal)
+- Works in both online and offline mode (no API calls required)
+
+#### Offline Workflow Verification ✅
+
+The Preparation Receipt feature works 100% offline because:
+- Uses only client-side data (branches array, selectedTable, unsentTableItems)
+- Uses standard browser printing API (window.print())
+- No external API calls or network requests
+- Receipt generation is purely HTML/JavaScript
+
+#### Repository Status
+- Branch: main
+- Commit: d8ebd80
+- Pushed to: https://github.com/lighteudemons-sys/EMPEROR-OFFLINE-PINCODES.git
+
+Stage Summary:
+- Preparation Receipt feature is now fully implemented
+- Smart printing works as requested (prints only newly added items)
+- Works in both online and offline mode
+- All changes committed and pushed to main branch
+- Ready for testing and deployment
+
