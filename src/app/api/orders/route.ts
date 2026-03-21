@@ -163,24 +163,29 @@ async function safeInventoryDeduct(
 
   const currentStock = inventory?.currentStock || 0;
 
-  if (currentStock < quantityToDeductAbs) {
-    throw new Error(
-      `Insufficient inventory for ${ingredientName}. Current stock: ${currentStock}, Required: ${quantityToDeductAbs}`
-    );
-  }
+  // Allow negative stock - just deduct the quantity
+  // This allows orders to proceed even when stock is insufficient
 
-  // Update inventory
+  // Update inventory (or create if doesn't exist)
   const stockBefore = currentStock;
   const stockAfter = currentStock - quantityToDeductAbs;
 
-  await tx.branchInventory.update({
+  // Use upsert to handle case where inventory record doesn't exist yet
+  await tx.branchInventory.upsert({
     where: {
       branchId_ingredientId: {
         branchId,
         ingredientId,
       },
     },
-    data: {
+    create: {
+      branchId,
+      ingredientId,
+      currentStock: stockAfter,
+      reservedStock: 0,
+      lastModifiedAt: new Date(),
+    },
+    update: {
       currentStock: stockAfter,
       lastModifiedAt: new Date(),
     },
