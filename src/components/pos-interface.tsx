@@ -1909,12 +1909,16 @@ export default function POSInterface() {
 
     if (tableCart.length === 0) {
       if (confirm(`Table ${selectedTable.tableNumber} has no items. Close it anyway?`)) {
+        // Clear unsent items when closing empty table
+        setUnsentTableItems([]);
         // Just close the table without creating an order
         await closeTableInDB();
       }
       return;
     }
 
+    // Clear unsent items when showing payment dialog
+    setUnsentTableItems([]);
     // Show payment dialog
     setShowPaymentDialog(true);
   };
@@ -2012,6 +2016,114 @@ export default function POSInterface() {
     } catch (error) {
       console.error('Failed to close table:', error);
       alert('Failed to close table');
+    }
+  };
+
+  const printPreparationReceipt = () => {
+    if (unsentTableItems.length === 0) {
+      alert('No items to print');
+      return;
+    }
+
+    const branchInfo = branches.find(b => b.id === currentBranchId) || branches[0];
+    const now = new Date();
+    const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+    // Generate HTML receipt
+    const receiptHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Preparation Receipt</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            max-width: 300px;
+            margin: 0 auto;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+          }
+          .branch-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0;
+          }
+          .info-line {
+            margin: 5px 0;
+            font-size: 14px;
+          }
+          .table-number {
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            margin: 15px 0;
+            border: 2px solid #000;
+            padding: 10px;
+          }
+          .items {
+            margin: 15px 0;
+          }
+          .item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 14px;
+          }
+          .item-name {
+            flex: 1;
+          }
+          .item-qty {
+            font-weight: bold;
+            margin-left: 10px;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="branch-name">${branchInfo?.name || 'Emperor Coffee'}</h1>
+        </div>
+        <div class="info-line">Date: ${date}</div>
+        <div class="info-line">Time: ${time}</div>
+        <div class="table-number">Table ${selectedTable?.tableNumber}</div>
+        <div class="items">
+          ${unsentTableItems.map(item => `
+            <div class="item">
+              <span class="item-name">${item.name}${item.variantName ? ` - ${item.variantName}` : ''}</span>
+              <span class="item-qty">x${item.quantity}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="footer">
+          *** PREPARATION ORDER ***
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(receiptHtml);
+      printWindow.document.close();
+      printWindow.print();
+      printWindow.close();
+
+      // Clear unsent items after printing
+      setUnsentTableItems([]);
     }
   };
 
@@ -4588,34 +4700,59 @@ export default function POSInterface() {
 
             {/* Checkout Buttons - BIGGER FOR TOUCH */}
             <div className="space-y-2">
-              <Button
-                onClick={() => handleCheckout('cash')}
-                disabled={processing || currentCart.length === 0}
-                className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/20 font-bold text-lg rounded-xl"
-              >
-                <DollarSign className="h-5 w-5 mr-2" />
-                CASH
-              </Button>
-              <div className="flex gap-2">
+              {/* For Dine In with table: Show Print Prep Order button */}
+              {orderType === 'dine-in' && selectedTable ? (
                 <Button
-                  onClick={handleCardPaymentClick}
-                  disabled={processing || currentCart.length === 0}
-                  variant="outline"
-                  className="flex-1 h-10 border-2 border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-bold text-sm rounded-xl"
+                  onClick={printPreparationReceipt}
+                  disabled={processing || unsentTableItems.length === 0}
+                  className="w-full h-12 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-lg shadow-orange-500/20 font-bold text-lg rounded-xl"
                 >
-                  <CreditCard className="h-4 w-4 mr-1" />
-                  CARD
+                  <Printer className="h-5 w-5 mr-2" />
+                  PRINT PREP ORDER
                 </Button>
+              ) : (
+                <>
+                  <Button
+                    onClick={() => handleCheckout('cash')}
+                    disabled={processing || currentCart.length === 0}
+                    className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/20 font-bold text-lg rounded-xl"
+                  >
+                    <DollarSign className="h-5 w-5 mr-2" />
+                    CASH
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleCardPaymentClick}
+                      disabled={processing || currentCart.length === 0}
+                      variant="outline"
+                      className="flex-1 h-10 border-2 border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-bold text-sm rounded-xl"
+                    >
+                      <CreditCard className="h-4 w-4 mr-1" />
+                      CARD
+                    </Button>
+                    <Button
+                      onClick={handleHoldOrder}
+                      disabled={processing || currentCart.length === 0}
+                      variant="outline"
+                      className="flex-1 h-10 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-sm rounded-xl"
+                    >
+                      <Pause className="h-4 w-4 mr-1" />
+                      HOLD
+                    </Button>
+                  </div>
+                </>
+              )}
+              {!selectedTable && (
                 <Button
                   onClick={handleHoldOrder}
                   disabled={processing || currentCart.length === 0}
                   variant="outline"
-                  className="flex-1 h-10 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-sm rounded-xl"
+                  className="w-full h-10 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-sm rounded-xl"
                 >
                   <Pause className="h-4 w-4 mr-1" />
                   HOLD
                 </Button>
-              </div>
+              )}
               <Button
                 onClick={() => setShowDiscountDialog(true)}
                 disabled={processing || currentCart.length === 0}
@@ -5087,31 +5224,46 @@ export default function POSInterface() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                {/* For Dine In with table: Show Print Prep Order button */}
+                {orderType === 'dine-in' && selectedTable ? (
                   <Button
                     onClick={() => {
                       setMobileCartOpen(false);
-                      handleCheckout('cash');
+                      printPreparationReceipt();
                     }}
-                    disabled={processing || cart.length === 0}
-                    className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-xl shadow-emerald-500/30 font-bold h-12 text-sm rounded-xl transition-all"
+                    disabled={processing || unsentTableItems.length === 0}
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-xl shadow-orange-500/30 font-bold h-12 text-sm rounded-xl transition-all"
                   >
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    Cash
+                    <Printer className="h-4 w-4 mr-2" />
+                    PRINT PREP ORDER
                   </Button>
-                  <Button
-                    onClick={() => {
-                      setMobileCartOpen(false);
-                      handleCardPaymentClick();
-                    }}
-                    disabled={processing || cart.length === 0}
-                    variant="outline"
-                    className="border-2 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold h-12 text-sm rounded-xl transition-all"
-                  >
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    Card
-                  </Button>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      onClick={() => {
+                        setMobileCartOpen(false);
+                        handleCheckout('cash');
+                      }}
+                      disabled={processing || cart.length === 0}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-xl shadow-emerald-500/30 font-bold h-12 text-sm rounded-xl transition-all"
+                    >
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      Cash
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setMobileCartOpen(false);
+                        handleCardPaymentClick();
+                      }}
+                      disabled={processing || cart.length === 0}
+                      variant="outline"
+                      className="border-2 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold h-12 text-sm rounded-xl transition-all"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Card
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
