@@ -657,6 +657,9 @@ export default function POSInterface() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [tableRefreshTrigger, setTableRefreshTrigger] = useState(0); // Force table refresh
 
+  // Track unsent items for preparation receipt printing
+  const [unsentTableItems, setUnsentTableItems] = useState<CartItem[]>([]);
+
   // Restore selected table on mount (for dine-in)
   useEffect(() => {
     const restoreSelectedTable = async () => {
@@ -1466,6 +1469,17 @@ export default function POSInterface() {
         return [...prevCart, cartItem];
       });
 
+      // Track unsent items for preparation receipt
+      setUnsentTableItems((prevUnsent) => {
+        const existingUnsent = prevUnsent.find((i) => i.id === uniqueId);
+        if (existingUnsent) {
+          return prevUnsent.map((i) =>
+            i.id === uniqueId ? { ...i, quantity: i.quantity + 1 } : i
+          );
+        }
+        return [...prevUnsent, cartItem];
+      });
+
       // Save to IndexedDB for persistence
       const updatedCart = tableCart.some(i => i.id === uniqueId)
         ? tableCart.map((i) => i.id === uniqueId ? { ...i, quantity: i.quantity + 1 } : i)
@@ -1548,6 +1562,10 @@ export default function POSInterface() {
 
         if (orderType === 'dine-in' && selectedTable) {
           setTableCart((prevCart) => [...prevCart, cartItem]);
+          
+          // Track unsent items for preparation receipt
+          setUnsentTableItems((prevUnsent) => [...prevUnsent, cartItem]);
+          
           await storage.setJSON(`table-cart-${selectedTable.id}`, [...tableCart, cartItem]);
         } else {
           setCart((prevCart) => [...prevCart, cartItem]);
