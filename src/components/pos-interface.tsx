@@ -2474,7 +2474,7 @@ export default function POSInterface() {
           setSelectedTable(null);
           setShowTableGrid(true);
         } else {
-          // Check if it's a network error - try offline fallback
+          // Check if it's a network or server error - try offline fallback
           const isNetworkError = !response.ok && (
             response.status === 0 ||
             response.type === 'error' ||
@@ -2483,8 +2483,11 @@ export default function POSInterface() {
             data.error?.includes('network')
           );
 
-          if (isNetworkError) {
-            console.log('[Table Order] Network error detected, trying offline mode');
+          // Also treat server errors (5xx) as network errors for offline fallback
+          const isServerError = response.status >= 500 && response.status < 600;
+
+          if (isNetworkError || isServerError) {
+            console.log('[Table Order] Network/Server error detected, trying offline mode. Status:', response.status);
             try {
               await createTableOrderOffline(orderData, tableCart, paymentMethod);
             } catch (offlineError) {
@@ -2622,7 +2625,7 @@ export default function POSInterface() {
           setSelectedTable(null);
           setShowTableGrid(true);
         } else {
-          // Check if it's a network error - try offline fallback
+          // Check if it's a network or server error - try offline fallback
           const isNetworkError = !response.ok && (
             response.status === 0 ||
             response.type === 'error' ||
@@ -2631,8 +2634,11 @@ export default function POSInterface() {
             data.error?.includes('network')
           );
 
-          if (isNetworkError) {
-            console.log('[Table Order With Card] Network error detected, trying offline mode');
+          // Also treat server errors (5xx) as network errors for offline fallback
+          const isServerError = response.status >= 500 && response.status < 600;
+
+          if (isNetworkError || isServerError) {
+            console.log('[Table Order With Card] Network/Server error detected, trying offline mode. Status:', response.status);
             try {
               await createTableOrderOffline(orderData, tableCart, 'card');
             } catch (offlineError) {
