@@ -2019,108 +2019,177 @@ export default function POSInterface() {
     }
   };
 
-  const printPreparationReceipt = () => {
+  const printPreparationReceipt = async () => {
     if (unsentTableItems.length === 0) {
       alert('No items to print');
       return;
     }
 
+    // Fetch receipt settings for store/branch name
+    let receiptSettings: any = null;
+    try {
+      const response = await fetch('/api/receipt-settings');
+      const data = await response.json();
+      if (response.ok && data.success && data.settings) {
+        receiptSettings = data.settings;
+      }
+    } catch (error) {
+      console.log('[Preparation Receipt] Could not fetch settings, using defaults');
+    }
+
     const branchInfo = branches.find(b => b.id === currentBranchId) || branches[0];
     const now = new Date();
-    const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = now.toLocaleDateString('en-US', {
+      month: 'numeric',
+      day: 'numeric',
+      year: '2-digit'
+    });
+    const timeStr = now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
 
-    // Generate HTML receipt
+    // Generate items HTML
+    let itemsHtml = '';
+    unsentTableItems.forEach((item) => {
+      const displayName = item.variantName
+        ? `${item.name} - ${item.variantName}`
+        : item.name;
+
+      itemsHtml += `
+        <div style="margin-bottom: 8px;">
+          <div style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">${item.quantity}x ${displayName}</div>
+        </div>
+      `;
+    });
+
+    // Generate HTML receipt matching Captain Receipt format
     const receiptHtml = `
       <!DOCTYPE html>
       <html>
       <head>
-        <meta charset="utf-8">
         <title>Preparation Receipt</title>
         <style>
-          body {
-            font-family: Arial, sans-serif;
+          @page {
+            size: 80mm auto;
             margin: 0;
-            padding: 20px;
-            max-width: 300px;
+            padding: 0;
+          }
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            color: #000 !important;
+          }
+          @media print {
+            @page {
+              margin: 0;
+              padding: 0;
+              size: 80mm auto;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            html, body {
+              height: auto;
+              overflow: visible;
+            }
+          }
+          html, body {
+            margin: 0;
+            padding: 0;
+            height: auto;
+            width: 80mm;
+          }
+          body {
+            font-family: 'Courier New', monospace;
+            max-width: 80mm;
             margin: 0 auto;
+            padding: 10px;
+            font-size: 12px;
+            line-height: 1.4;
+            background: white;
+            color: #000;
           }
           .header {
             text-align: center;
-            border-bottom: 2px solid #000;
-            padding-bottom: 10px;
             margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px dashed #000;
           }
-          .branch-name {
+          .header h1 {
+            margin: 0;
             font-size: 18px;
             font-weight: bold;
-            margin: 0;
+            padding: 0;
+            color: #000;
           }
-          .info-line {
-            margin: 5px 0;
-            font-size: 14px;
+          .header div {
+            margin: 2px 0;
+            padding: 0;
+            color: #000;
           }
-          .table-number {
-            font-size: 20px;
+          .info {
+            margin-bottom: 10px;
+            font-size: 12px;
+            padding: 0;
+          }
+          .info div {
+            margin: 2px 0;
+            padding: 0;
+            color: #000;
+          }
+          .section-title {
             font-weight: bold;
-            text-align: center;
-            margin: 15px 0;
-            border: 2px solid #000;
-            padding: 10px;
-          }
-          .items {
-            margin: 15px 0;
-          }
-          .item {
-            display: flex;
-            justify-content: space-between;
-            margin: 8px 0;
-            font-size: 14px;
-          }
-          .item-name {
-            flex: 1;
-          }
-          .item-qty {
-            font-weight: bold;
-            margin-left: 10px;
+            margin: 10px 0 5px 0;
+            padding: 0;
+            text-decoration: underline;
           }
           .footer {
             text-align: center;
-            margin-top: 20px;
-            font-size: 12px;
-            color: #666;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 2px dashed #000;
+            font-size: 10px;
+            padding-bottom: 0;
+            color: #000;
           }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1 class="branch-name">${branchInfo?.name || 'Emperor Coffee'}</h1>
+          <h1>${receiptSettings?.storeName || 'Emperor Coffee'}</h1>
+          ${branchInfo?.name ? `<div>${branchInfo.name}</div>` : ''}
         </div>
-        <div class="info-line">Date: ${date}</div>
-        <div class="info-line">Time: ${time}</div>
-        <div class="table-number">Table ${selectedTable?.tableNumber}</div>
-        <div class="items">
-          ${unsentTableItems.map(item => `
-            <div class="item">
-              <span class="item-name">${item.name}${item.variantName ? ` - ${item.variantName}` : ''}</span>
-              <span class="item-qty">x${item.quantity}</span>
-            </div>
-          `).join('')}
+        <div class="info">
+          <div>Date: ${dateStr}</div>
+          <div>Time: ${timeStr}</div>
         </div>
+        <div style="border-top: 2px dashed #000; margin: 10px 0;"></div>
+        <div>Table ${selectedTable?.tableNumber}</div>
+        <div style="font-weight: bold; margin: 10px 0 5px 0; text-decoration: underline;">PREPARATION ORDER</div>
+        ${itemsHtml}
         <div class="footer">
-          *** PREPARATION ORDER ***
+          <div>*** PREPARATION ORDER ***</div>
         </div>
       </body>
       </html>
     `;
 
     // Create a new window for printing
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (printWindow) {
       printWindow.document.write(receiptHtml);
       printWindow.document.close();
-      printWindow.print();
-      printWindow.close();
+
+      // Wait a moment for styles to apply, then print
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
 
       // Clear unsent items after printing
       setUnsentTableItems([]);
