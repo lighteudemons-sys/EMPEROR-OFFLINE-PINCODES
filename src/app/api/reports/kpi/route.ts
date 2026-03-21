@@ -122,6 +122,9 @@ export async function GET(request: NextRequest) {
     let totalProductCost = 0;
     mainOrders.forEach(order => {
       order.items.forEach(item => {
+        // Skip items without valid menu item references
+        if (!item.menuItemId) return;
+
         // Get the appropriate recipe map
         const variantMap = recipeMap.get(item.menuItemId);
         if (!variantMap) return;
@@ -133,15 +136,33 @@ export async function GET(request: NextRequest) {
         }
         if (!ingredientMap) return;
 
-        // Calculate cost for this item
+        // Calculate cost for ONE unit of this item
         let itemCost = 0;
         ingredientMap.forEach((quantity, ingredientId) => {
           const costPerUnit = ingredientCostMap.get(ingredientId) || 0;
           itemCost += quantity * costPerUnit;
         });
 
+        // Multiply by the order quantity (how many units were sold)
         totalProductCost += itemCost * item.quantity;
       });
+    });
+
+    console.log('[KPI API] Product Cost Debug:', {
+      totalOrders: mainOrders.length,
+      totalProductCost,
+      totalRevenue: mainOrders.reduce((sum, order) => sum + order.subtotal, 0),
+      sampleOrder: mainOrders[0] ? {
+        orderId: mainOrders[0].id,
+        orderNumber: mainOrders[0].orderNumber,
+        itemCount: mainOrders[0].items.length,
+        sampleItem: mainOrders[0].items[0] ? {
+          menuItemId: mainOrders[0].items[0].menuItemId,
+          quantity: mainOrders[0].items[0].quantity,
+          unitPrice: mainOrders[0].items[0].unitPrice,
+          subtotal: mainOrders[0].items[0].subtotal,
+        } : null
+      } : null,
     });
 
     // Calculate main period metrics
