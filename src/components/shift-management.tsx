@@ -1094,8 +1094,7 @@ export default function ShiftManagement() {
       }
 
       // If it's a temporary business day, close it offline (it needs to sync first)
-          await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
-          alert(t('alert.business.day.closed.offline'));
+      if (isTempBusinessDay) {
         console.log('[Day Closing] Temporary business day detected, closing offline');
         try {
           await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
