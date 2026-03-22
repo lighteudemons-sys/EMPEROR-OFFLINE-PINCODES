@@ -91,7 +91,7 @@ const translations = {
 
     // Inventory
     'inventory.waste': 'Record Waste',
-    'inventory.restock': 'Restock Inventory',
+    'inventory.restock': 'Branch Purchase Order',
 
     // Branch
     'branch.select': 'View Reports for Branch:',
@@ -143,7 +143,7 @@ const translations = {
     'access.denied': 'Access Denied - You do not have permission to access this feature',
 
     // Shifts
-    'shifts.title': 'Shift Management',
+    'shifts.title': 'Shifts',
     'shifts.description': 'Track and manage cashier shifts with sales tracking',
     'shifts.open': 'Open Shift',
     'shifts.close': 'Close Shift',
@@ -447,7 +447,7 @@ const translations = {
     'branches.last.sync': 'Last Sync',
 
     // Customer Management
-    'customers.title': 'Customer Management',
+    'customers.title': 'Customers',
     'customers.description': 'Manage customer information',
     'customers.add.customer': 'Add Customer',
     'customers.edit.customer': 'Edit Customer',
@@ -489,7 +489,7 @@ const translations = {
     'costs.description': 'Manage business costs and expenses',
 
     // Delivery Management
-    'delivery.title': 'Delivery Management',
+    'delivery.title': 'Delivery Zones',
     'delivery.description': 'Manage delivery areas and couriers',
     'delivery.add.area': 'Add Delivery Area',
     'delivery.edit.area': 'Edit Delivery Area',
@@ -658,7 +658,7 @@ const translations = {
     'access.denied': 'تم رفض الوصول - ليس لديك الإذن للوصول إلى هذه الميزة',
 
     // Shifts
-    'shifts.title': 'إدارة الورديات',
+    'shifts.title': 'الورديات',
     'shifts.description': 'تتبع وإدارة ورديات الكاشير مع تتبع المبيعات',
     'shifts.open': 'فتح الوردية',
     'shifts.close': 'إغلاق الوردية',
@@ -1004,7 +1004,7 @@ const translations = {
     'costs.description': 'إدارة تكاليف ونفقات الأعمال',
 
     // Delivery Management
-    'delivery.title': 'إدارة التوصيل',
+    'delivery.title': 'مناطق التوصيل',
     'delivery.description': 'إدارة مناطق التوصيل والمندوبين',
     'delivery.add.area': 'إضافة منطقة توصيل',
     'delivery.edit.area': 'تعديل منطقة التوصيل',
