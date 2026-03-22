@@ -1372,7 +1372,7 @@ export default function POSInterface() {
 
   const allCategories = useMemo(() => {
     const cats = [
-      { id: 'all', name: 'All Products', color: 'from-slate-600 to-slate-700' },
+      { id: 'all', name: t('pos.all.products'), color: 'from-slate-600 to-slate-700' },
       ...categories.map(cat => ({
         id: cat.id,
         name: cat.name,
@@ -4445,9 +4445,9 @@ export default function POSInterface() {
             <div className="flex items-center gap-1.5">
               {(['take-away', 'dine-in', 'delivery'] as const).map((type) => {
                 const configs = {
-                  'dine-in': { icon: <Utensils className="h-4 w-4" />, label: 'Dine In', gradient: 'from-purple-500 to-violet-600' },
-                  'take-away': { icon: <Package className="h-4 w-4" />, label: 'Take Away', gradient: 'from-amber-500 to-orange-600' },
-                  'delivery': { icon: <Truck className="h-4 w-4" />, label: 'Delivery', gradient: 'from-blue-500 to-cyan-600' },
+                  'dine-in': { icon: <Utensils className="h-4 w-4" />, label: t('pos.dine.in'), gradient: 'from-purple-500 to-violet-600' },
+                  'take-away': { icon: <Package className="h-4 w-4" />, label: t('pos.take.away'), gradient: 'from-amber-500 to-orange-600' },
+                  'delivery': { icon: <Truck className="h-4 w-4" />, label: t('pos.delivery'), gradient: 'from-blue-500 to-cyan-600' },
                 };
                 const config = configs[type];
                 const isActive = orderType === type;
@@ -4616,7 +4616,7 @@ export default function POSInterface() {
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               <span className="text-base font-bold text-slate-900 dark:text-white">
-                {orderType === 'dine-in' && selectedTable ? `Table ${selectedTable.tableNumber}` : 'Order'}
+                {orderType === 'dine-in' && selectedTable ? `Table ${selectedTable.tableNumber}` : t('pos.order')}
               </span>
               <Badge variant="secondary" className="h-6 text-xs px-2">
                 {totalItems}
@@ -4630,7 +4630,7 @@ export default function POSInterface() {
                 className="h-8 px-2 border-amber-500 dark:border-amber-500 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/50 text-xs font-bold rounded-md gap-0.5 shadow-sm"
               >
                 <Wallet className="h-3 w-3" />
-                <span className="font-black">Exp</span>
+                <span className="font-black">{t('pos.exp')}</span>
               </Button>
               {/* Alerts Button - Behind Held Orders */}
               {lowStockAlerts.length > 0 && (
@@ -4684,7 +4684,7 @@ export default function POSInterface() {
               {currentCart.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                   <ShoppingCart className="h-12 w-12 opacity-30 mb-3" />
-                  <p className="text-sm font-medium">Add items to start</p>
+                  <p className="text-sm font-medium">{t('pos.add.items.to.start')}</p>
                 </div>
               ) : (
                 currentCart.map((item) => (
@@ -4839,23 +4839,23 @@ export default function POSInterface() {
           <div className="flex-shrink-0 px-3 py-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky bottom-0 z-10 shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
             <div className="space-y-1.5 mb-3">
               <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
-                <span className="font-medium">Subtotal</span>
+                <span className="font-medium">{t('pos.subtotal')}</span>
                 <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(subtotal, currency)}</span>
               </div>
               {deliveryFee > 0 && (
                 <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
-                  <span className="font-medium">Delivery</span>
+                  <span className="font-medium">{t('pos.delivery')}</span>
                   <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(deliveryFee, currency)}</span>
                 </div>
               )}
               {(promoDiscount > 0 || loyaltyDiscount > 0 || manualDiscountAmount > 0) && (
                 <div className="flex justify-between text-sm text-orange-600 dark:text-orange-400">
-                  <span className="font-medium">Discount</span>
+                  <span className="font-medium">{t('pos.discount')}</span>
                   <span className="font-bold">-{formatCurrency(promoDiscount + loyaltyDiscount + manualDiscountAmount, currency)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                <span className="text-lg font-bold text-slate-900 dark:text-white">Total</span>
+                <span className="text-lg font-bold text-slate-900 dark:text-white">{t('pos.total')}</span>
                 <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
                   {formatCurrency(total, currency)}
                 </span>
@@ -4872,7 +4872,7 @@ export default function POSInterface() {
                   className="w-full h-12 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-lg shadow-orange-500/20 font-bold text-lg rounded-xl"
                 >
                   <Printer className="h-5 w-5 mr-2" />
-                  PRINT PREP ORDER
+                  {t('pos.print.prep.order')}
                 </Button>
               ) : (
                 <>
@@ -4882,7 +4882,7 @@ export default function POSInterface() {
                     className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/20 font-bold text-lg rounded-xl"
                   >
                     <DollarSign className="h-5 w-5 mr-2" />
-                    CASH
+                    {t('pos.cash.upper')}
                   </Button>
                   <div className="flex gap-2">
                     <Button
@@ -4892,7 +4892,7 @@ export default function POSInterface() {
                       className="flex-1 h-10 border-2 border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-bold text-sm rounded-xl"
                     >
                       <CreditCard className="h-4 w-4 mr-1" />
-                      CARD
+                      {t('pos.card.upper')}
                     </Button>
                     <Button
                       onClick={handleHoldOrder}
@@ -4901,7 +4901,7 @@ export default function POSInterface() {
                       className="flex-1 h-10 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-sm rounded-xl"
                     >
                       <Pause className="h-4 w-4 mr-1" />
-                      HOLD
+                      {t('pos.hold.upper')}
                     </Button>
                   </div>
                 </>
@@ -4914,7 +4914,7 @@ export default function POSInterface() {
                   className="w-full h-10 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-sm rounded-xl"
                 >
                   <Pause className="h-4 w-4 mr-1" />
-                  HOLD
+                  {t('pos.hold.upper')}
                 </Button>
               )}
               <Button
@@ -4924,7 +4924,7 @@ export default function POSInterface() {
                 className="w-full h-10 border-2 border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 font-bold text-sm rounded-xl"
               >
                 <Tag className="h-4 w-4 mr-1" />
-                DISCOUNT
+                {t('pos.discount.upper')}
                 {(loyaltyDiscount > 0 || promoDiscount > 0 || manualDiscountAmount > 0) && (
                   <span className="ml-auto text-purple-700 font-bold text-sm">
                     -{formatCurrency(loyaltyDiscount + promoDiscount + manualDiscountAmount, currency)}
@@ -4996,7 +4996,7 @@ export default function POSInterface() {
                     <ShoppingCart className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Current Order</h2>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('pos.current.order')}</h2>
                     <p className="text-[8px]s text-slate-500 dark:text-slate-400">
                       {totalItems} {totalItems === 1 ? t('pos.item') : t('pos.items')}
                     </p>
@@ -5341,7 +5341,7 @@ export default function POSInterface() {
               <div className="px-4 py-4 border-t border-slate-200/50 dark:border-slate-800/50 bg-gradient-to-t from-slate-50/80 to-white dark:from-slate-800/80 dark:to-slate-900">
                 <div className="space-y-2.5 mb-4">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600 dark:text-slate-400 font-medium">Subtotal</span>
+                    <span className="text-slate-600 dark:text-slate-400 font-medium">{t('pos.subtotal')}</span>
                     <span className="font-bold text-slate-900 dark:text-white">
                       {formatCurrency(subtotal, currency)}
                     </span>
@@ -5349,7 +5349,7 @@ export default function POSInterface() {
 
                   {deliveryFee > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-600 dark:text-slate-400 font-medium">Delivery</span>
+                      <span className="text-slate-600 dark:text-slate-400 font-medium">{t('pos.delivery')}</span>
                       <span className="font-bold text-slate-900 dark:text-white">
                         {formatCurrency(deliveryFee, currency)}
                       </span>
@@ -5381,7 +5381,7 @@ export default function POSInterface() {
                   )}
                   <Separator className="bg-slate-200 dark:bg-slate-700" />
                   <div className="flex justify-between items-center">
-                    <span className="text-base font-bold text-slate-900 dark:text-white">Total</span>
+                    <span className="text-base font-bold text-slate-900 dark:text-white">{t('pos.total')}</span>
                     <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
                       {formatCurrency(total, currency)}
                     </span>
@@ -6737,12 +6737,12 @@ export default function POSInterface() {
                   <CardContent className="pt-6">
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Subtotal</span>
+                        <span className="text-slate-600">{t('pos.subtotal')}</span>
                         <span className="font-medium">{formatCurrency(selectedOrder.subtotal || 0, currency)}</span>
                       </div>
                       {selectedOrder.deliveryFee && selectedOrder.deliveryFee > 0 && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Delivery Fee</span>
+                          <span className="text-slate-600">{t('pos.delivery.fee')}</span>
                           <span className="font-medium">{formatCurrency(selectedOrder.deliveryFee, currency)}</span>
                         </div>
                       )}
@@ -6760,7 +6760,7 @@ export default function POSInterface() {
                       )}
                       <Separator />
                       <div className="flex justify-between text-base font-bold">
-                        <span>Total</span>
+                        <span>{t('pos.total')}</span>
                         <span>{formatCurrency(selectedOrder.totalAmount, currency)}</span>
                       </div>
                     </div>
