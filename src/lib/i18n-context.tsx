@@ -675,6 +675,8 @@ const translations = {
     'discount.done': 'Done',
     'discount.apply.percent': 'Apply %',
     'discount.reason': 'Reason for discount (optional)',
+    'discount.percentage': 'Percentage',
+    'discount.fixed.amount': 'Fixed Amount',
 
     // Low Stock Dialog
     'lowstock.running': 'items running low',
@@ -687,6 +689,23 @@ const translations = {
     'held.order': 'order',
     'held.resume': 'Resume',
     'held.delete': 'Delete',
+
+    // Shift Orders Dialog
+    'shift.orders': 'Shift Orders',
+    'shift.orders.current': 'orders in current shift',
+    'shift.no.active': 'No active shift',
+    'shift.open.to.view': 'Please open a shift to view orders',
+    'shift.order': 'order',
+    'shift.orders.open': 'No active shift. Please open a shift first.',
+
+    // Expense Dialog additional
+    'expense.enter.quantity': 'Enter quantity...',
+    'expense.unit.price.label': 'Unit Price',
+    'expense.stock.info': 'Stock:',
+    'expense.inventory.note': 'Inventory expenses will directly update stock and calculate weighted average price. They won\'t be added to the Costs tab.',
+    'expense.current.stock': 'Current Stock:',
+    'expense.preview': 'Preview',
+    'expense.weighted.average.preview': 'Weighted Average Price Preview:',
 
     // Settings Dialog
     'settings.account.info': 'Account and system information',
@@ -1471,6 +1490,8 @@ const translations = {
     'discount.done': 'تم',
     'discount.apply.percent': 'تطبيق %',
     'discount.reason': 'سبب الخصم (اختياري)',
+    'discount.percentage': 'نسبة مئوية',
+    'discount.fixed.amount': 'مبلغ ثابت',
 
     // Low Stock Dialog
     'lowstock.running': 'عناصر منخفضة المخزون',
@@ -1483,6 +1504,23 @@ const translations = {
     'held.order': 'طلب',
     'held.resume': 'استئناف',
     'held.delete': 'حذف',
+
+    // Shift Orders Dialog
+    'shift.orders': 'طلبات الوردية',
+    'shift.orders.current': 'طلبات في الوردية الحالية',
+    'shift.no.active': 'لا توجد وردية نشطة',
+    'shift.open.to.view': 'يرجى فتح وردية لعرض الطلبات',
+    'shift.order': 'طلب',
+    'shift.orders.open': 'لا توجد وردية نشطة. يرجى فتح وردية أولاً.',
+
+    // Expense Dialog additional
+    'expense.enter.quantity': 'أدخل الكمية...',
+    'expense.unit.price.label': 'سعر الوحدة',
+    'expense.stock.info': 'المخزون:',
+    'expense.inventory.note': 'مصروفات المخزون ستحدث المخزون مباشرة وتحسب السعر المتوسط المرجح. لن يتم إضافتها إلى تبويب التكاليف.',
+    'expense.current.stock': 'المخزون الحالي:',
+    'expense.preview': 'معاينة',
+    'expense.weighted.average.preview': 'معاينة السعر المتوسط المرجح:',
 
     // Settings Dialog
     'settings.account.info': 'معلومات الحساب والنظام',

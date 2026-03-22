@@ -2916,7 +2916,7 @@ export default function POSInterface() {
     }
 
     if (!currentShift) {
-      alert('No active shift. Please open a shift first.');
+      alert(t('shift.orders.open'));
       return;
     }
 
@@ -3175,7 +3175,7 @@ export default function POSInterface() {
   // Load orders for the current shift
   const loadShiftOrders = async () => {
     if (!currentShift) {
-      alert('No active shift. Please open a shift to view orders.');
+      alert(t('shift.orders.open'));
       return;
     }
 
@@ -4117,7 +4117,7 @@ export default function POSInterface() {
 
     // For cashiers and branch managers, check if they have an active shift
     if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && !currentShift) {
-      alert('Please open a shift in the Shifts tab before processing sales.');
+      alert(t('shift.orders.open'));
       setProcessing(false);
       return;
     }
@@ -4662,7 +4662,7 @@ export default function POSInterface() {
                 size="icon"
                 variant="ghost"
                 className="h-8 w-8 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-                title="Shift Orders"
+                title={t('shift.orders')}
               >
                 <ListOrdered className="h-4 w-4" />
               </Button>
@@ -4884,38 +4884,25 @@ export default function POSInterface() {
                     <DollarSign className="h-5 w-5 mr-2" />
                     {t('pos.cash.upper')}
                   </Button>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleCardPaymentClick}
-                      disabled={processing || currentCart.length === 0}
-                      variant="outline"
-                      className="flex-1 h-10 border-2 border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-bold text-sm rounded-xl"
-                    >
-                      <CreditCard className="h-4 w-4 mr-1" />
-                      {t('pos.card.upper')}
-                    </Button>
-                    <Button
-                      onClick={handleHoldOrder}
-                      disabled={processing || currentCart.length === 0}
-                      variant="outline"
-                      className="flex-1 h-10 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-sm rounded-xl"
-                    >
-                      <Pause className="h-4 w-4 mr-1" />
-                      {t('pos.hold.upper')}
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={handleCardPaymentClick}
+                    disabled={processing || currentCart.length === 0}
+                    variant="outline"
+                    className="w-full h-12 border-2 border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-bold text-lg rounded-xl"
+                  >
+                    <CreditCard className="h-5 w-5 mr-2" />
+                    {t('pos.card.upper')}
+                  </Button>
+                  <Button
+                    onClick={handleHoldOrder}
+                    disabled={processing || currentCart.length === 0}
+                    variant="outline"
+                    className="w-full h-10 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-sm rounded-xl"
+                  >
+                    <Pause className="h-4 w-4 mr-1" />
+                    {t('pos.hold.upper')}
+                  </Button>
                 </>
-              )}
-              {!selectedTable && (
-                <Button
-                  onClick={handleHoldOrder}
-                  disabled={processing || currentCart.length === 0}
-                  variant="outline"
-                  className="w-full h-10 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-sm rounded-xl"
-                >
-                  <Pause className="h-4 w-4 mr-1" />
-                  {t('pos.hold.upper')}
-                </Button>
               )}
               <Button
                 onClick={() => setShowDiscountDialog(true)}
@@ -6057,7 +6044,7 @@ export default function POSInterface() {
                           <div className="flex flex-col">
                             <span className="font-medium">{ingredient.name}</span>
                             <span className="text-xs text-slate-500">
-                              Stock: {ingredient.currentStock || 0} {ingredient.unit} @ {formatCurrency(ingredient.costPerUnit, currency)}/{ingredient.unit}
+                              {t('expense.stock.info')} {ingredient.currentStock || 0} {ingredient.unit} @ {formatCurrency(ingredient.costPerUnit, currency)}/{ingredient.unit}
                             </span>
                           </div>
                         </SelectItem>
@@ -6085,7 +6072,7 @@ export default function POSInterface() {
                         setExpenseAmount((qty * price).toString());
                       }
                     }}
-                    placeholder="Enter quantity..."
+                    placeholder={t('expense.enter.quantity')}
                     className="mt-1.5 text-sm h-11 rounded-xl"
                     disabled={!expenseQuantityUnit}
                   />
@@ -6093,7 +6080,7 @@ export default function POSInterface() {
 
                 <div>
                   <Label htmlFor="expenseUnitPrice" className="text-sm font-semibold">
-                    Unit Price ({currency}/{expenseQuantityUnit || 'unit'}) *
+                    {t('expense.unit.price.label')} ({currency}/{expenseQuantityUnit || 'unit'}) *
                   </Label>
                   <Input
                     id="expenseUnitPrice"
@@ -6123,7 +6110,7 @@ export default function POSInterface() {
                       <Package className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
                         <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-1">
-                          Weighted Average Price Preview:
+                          {t('expense.weighted.average.preview')}
                         </p>
                         {(() => {
                           const ingredient = ingredients.find(ing => ing.id === expenseIngredientId);
@@ -6137,7 +6124,7 @@ export default function POSInterface() {
                           return (
                             <>
                               <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                                Current Stock: {oldStock} {ingredient.unit} @ {formatCurrency(oldPrice, currency)}
+                                {t('expense.current.stock')} {oldStock} {ingredient.unit} @ {formatCurrency(oldPrice, currency)}
                               </p>
                               <p className="text-xs text-emerald-600 dark:text-emerald-400">
                                 Adding: {newQty} {ingredient.unit} @ {formatCurrency(newPrice, currency)}
@@ -6160,7 +6147,7 @@ export default function POSInterface() {
                   <div className="flex items-start gap-2">
                     <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                     <p className="text-[8px]s text-blue-700 dark:text-blue-300">
-                      Inventory expenses will directly update stock and calculate weighted average price. They won't be added to the Costs tab.
+                      {t('expense.inventory.note')}
                     </p>
                   </div>
                 </div>
@@ -6471,9 +6458,9 @@ export default function POSInterface() {
                 <ListOrdered className="h-5 w-5 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-[8px]l font-bold">Shift Orders</DialogTitle>
+                <DialogTitle className="text-[8px]l font-bold">{t('shift.orders')}</DialogTitle>
                 <DialogDescription>
-                  {currentShift ? `${shiftOrders.length} ${shiftOrders.length === 1 ? 'order' : 'orders'} in current shift` : 'No active shift'}
+                  {currentShift ? `${shiftOrders.length} ${shiftOrders.length === 1 ? t('shift.order') : shiftOrders.length + ' ' + t('shift.orders.current')}` : t('shift.no.active')}
                 </DialogDescription>
               </div>
             </div>
@@ -6488,8 +6475,8 @@ export default function POSInterface() {
                 <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3">
                   <Clock className="h-8 w-8 opacity-40" />
                 </div>
-                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">No active shift</p>
-                <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Please open a shift to view orders</p>
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">{t('shift.no.active')}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">{t('shift.open.to.view')}</p>
               </div>
             ) : shiftOrders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400">
@@ -7525,7 +7512,7 @@ export default function POSInterface() {
                       size="sm"
                     >
                       <Percent className="h-4 w-4 mr-1" />
-                      Percentage
+                      {t('discount.percentage')}
                     </Button>
                     <Button
                       type="button"
@@ -7538,7 +7525,7 @@ export default function POSInterface() {
                       size="sm"
                     >
                       <DollarSign className="h-4 w-4 mr-1" />
-                      Fixed Amount
+                      {t('discount.fixed.amount')}
                     </Button>
                   </div>
 
@@ -7557,7 +7544,7 @@ export default function POSInterface() {
                       <span className="text-2xl font-bold text-slate-600">%</span>
                       {tempManualDiscountPercent && parseFloat(tempManualDiscountPercent) > 0 && (
                         <span className="text-sm font-bold text-green-600 ml-auto flex items-center gap-1">
-                          <span>Preview:</span>
+                          <span>{t('expense.preview')}:</span>
                           <span className="text-lg">-{formatCurrency((parseFloat(tempManualDiscountPercent) / 100) * (subtotal + deliveryFee), currency)}</span>
                         </span>
                       )}
