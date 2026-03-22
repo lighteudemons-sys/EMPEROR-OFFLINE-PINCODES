@@ -906,12 +906,12 @@ export default function ShiftManagement() {
   // Business Day handlers
   const handleOpenBusinessDay = async () => {
     if (!selectedBranch) {
-      alert('Please select a branch first');
+      alert(t('alert.select.branch'));
       return;
     }
 
     if (!user?.id) {
-      alert('User not authenticated');
+      alert(t('alert.user.not.authenticated'));
       return;
     }
 
@@ -955,7 +955,7 @@ export default function ShiftManagement() {
         const data = await response.json();
 
         if (response.ok && data.success) {
-          alert('Business day opened successfully!');
+          alert(t('alert.business.day.opened'));
           setOpenDayDialogOpen(false);
           setDayOpeningNotes('');
           setBusinessDayStatus({
@@ -996,7 +996,7 @@ export default function ShiftManagement() {
       console.log('[Business Day] Offline mode detected, creating business day locally');
       const offlineBusinessDay = await openBusinessDayOffline(businessDayData, user);
       console.log('[Business Day] Offline business day created:', offlineBusinessDay);
-      alert('Business day opened (offline mode - will sync when online)');
+      alert(t('alert.business.day.opened.offline'));
       setOpenDayDialogOpen(false);
       setDayOpeningNotes('');
       setBusinessDayStatus({
@@ -1026,7 +1026,7 @@ export default function ShiftManagement() {
         try {
           const offlineBusinessDay = await openBusinessDayOffline(businessDayData, user);
           console.log('[Business Day] Offline business day created (network error fallback):', offlineBusinessDay);
-          alert('Business day opened (offline mode - will sync when online)');
+          alert(t('alert.business.day.opened.offline'));
           setOpenDayDialogOpen(false);
           setDayOpeningNotes('');
           setBusinessDayStatus({
@@ -1042,7 +1042,7 @@ export default function ShiftManagement() {
           }, 100);
         } catch (offlineError) {
           console.error('[Business Day] Offline business day creation also failed:', offlineError);
-          alert(`Failed to open business day offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+          alert(t('alert.failed.open.shift') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
         }
       }
 
@@ -1052,19 +1052,19 @@ export default function ShiftManagement() {
 
   const handleCloseBusinessDay = async () => {
     if (!businessDayStatus.businessDayId) {
-      alert('No business day to close');
+      alert(t('alert.business.day.not.found'));
       return;
     }
 
     if (!user?.id) {
-      alert('User not authenticated');
+      alert(t('alert.user.not.authenticated'));
       return;
     }
 
     // Check if all shifts are closed
     const hasOpenShifts = shifts.some(s => !s.isClosed);
     if (hasOpenShifts) {
-      alert('Please close all shifts before closing the business day');
+      alert(t('alert.close.shifts.first'));
       return;
     }
 
@@ -1094,11 +1094,12 @@ export default function ShiftManagement() {
       }
 
       // If it's a temporary business day, close it offline (it needs to sync first)
-      if (isTempBusinessDay) {
+          await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
+          alert(t('alert.business.day.closed.offline'));
         console.log('[Day Closing] Temporary business day detected, closing offline');
         try {
           await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
-          alert('Business day closed (offline mode - will sync when online)');
+          alert(t('alert.business.day.closed.offline'));
           setCloseDayDialogOpen(false);
           setDayClosingNotes('');
           setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
@@ -1142,14 +1143,14 @@ export default function ShiftManagement() {
               setClosingReportOpen(true);
             } else {
               console.error('[Day Closing] Report fetch failed:', reportData.error);
-              alert('Business day closed but failed to fetch closing report');
+              alert(t('alert.business.day.closed') + ' - ' + t('msg.error'));
             }
           } catch (reportError) {
             console.error('[Shift Management] Failed to fetch closing report:', reportError);
-            alert('Business day closed but failed to fetch closing report');
+            alert(t('alert.business.day.closed') + ' - ' + t('msg.error'));
           }
 
-          alert('Business day closed successfully!');
+          alert(t('alert.business.day.closed'));
           setCloseDayDialogOpen(false);
           setDayClosingNotes('');
           // Preserve businessDayId for the closing receipt dialog
@@ -1176,14 +1177,14 @@ export default function ShiftManagement() {
             console.log('[Day Closing] Network/Not found error detected, trying offline mode');
             try {
               await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
-              alert('Business day closed (offline mode - will sync when online)');
+              alert(t('alert.business.day.closed.offline'));
               setCloseDayDialogOpen(false);
               setDayClosingNotes('');
               setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
               refetchShifts();
             } catch (offlineError) {
               console.error('[Day Closing] Offline business day closing failed:', offlineError);
-              alert(`Failed to close business day offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+              alert(t('alert.failed.close.day.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
             }
           } else {
             alert(data.error || 'Failed to close business day');
@@ -1194,14 +1195,14 @@ export default function ShiftManagement() {
         console.log('[Day Closing] Offline mode detected, closing business day locally');
         try {
           await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
-          alert('Business day closed (offline mode - will sync when online)');
+          alert(t('alert.business.day.closed.offline'));
           setCloseDayDialogOpen(false);
           setDayClosingNotes('');
           setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
           refetchShifts();
         } catch (offlineError) {
           console.error('[Day Closing] Offline business day closing failed:', offlineError);
-          alert(`Failed to close business day offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+          alert(t('alert.failed.close.day.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
         }
       }
     } catch (error) {
@@ -1219,7 +1220,7 @@ export default function ShiftManagement() {
         console.log('[Day Closing] Network error detected, trying to close business day locally');
         try {
           await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
-          alert('Business day closed (offline mode - will sync when online)');
+          alert(t('alert.business.day.closed.offline'));
           setCloseDayDialogOpen(false);
           setDayClosingNotes('');
           setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
@@ -1227,7 +1228,7 @@ export default function ShiftManagement() {
           return;
         } catch (offlineError) {
           console.error('[Day Closing] Offline business day closing also failed:', offlineError);
-          alert(`Failed to close business day offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+          alert(t('alert.failed.close.day.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
         }
       }
 
@@ -1388,7 +1389,7 @@ export default function ShiftManagement() {
     // Check if business day is open
     if (!businessDayStatus.isOpen) {
       console.log('[Shift Management] Business day is not open, preventing shift opening');
-      alert('You must open the business day before opening a shift');
+      alert(t('alert.must.open.day.first'));
       return;
     }
 
@@ -1397,7 +1398,7 @@ export default function ShiftManagement() {
 
     if (user?.role === 'CASHIER') {
       if (!user?.branchId) {
-        alert('Your account is not assigned to a branch. Please contact your manager.');
+        alert(t('alert.account.not.assigned.branch'));
         return;
       }
 
@@ -1447,7 +1448,7 @@ export default function ShiftManagement() {
           const data = await response.json();
 
           if (response.ok && data.success) {
-            alert('Shift opened successfully!');
+            alert(t('alert.shift.opened'));
             setOpenDialogOpen(false);
             setOpeningCash('0');
             setShiftNotes('');
@@ -1477,7 +1478,7 @@ export default function ShiftManagement() {
               console.log('[Shift] Network error detected (API), trying offline mode');
               try {
                 await createShiftOffline(shiftData, user);
-                alert('Shift opened (offline mode - will sync when online)');
+                alert(t('alert.shift.opened.offline'));
                 setOpenDialogOpen(false);
                 setOpeningCash('0');
                 setShiftNotes('');
@@ -1489,7 +1490,7 @@ export default function ShiftManagement() {
                 }, 100);
               } catch (offlineError) {
                 console.error('[Shift] Offline shift creation failed:', offlineError);
-                alert(`Failed to create shift offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+                alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
               }
             } else {
               alert(data.error || 'Failed to open shift');
@@ -1500,7 +1501,7 @@ export default function ShiftManagement() {
           console.log('[Shift] Offline mode detected, creating shift locally');
           try {
             await createShiftOffline(shiftData, user);
-            alert('Shift opened (offline mode - will sync when online)');
+            alert(t('alert.shift.opened.offline'));
             setOpenDialogOpen(false);
             setOpeningCash('0');
             setShiftNotes('');
@@ -1512,7 +1513,7 @@ export default function ShiftManagement() {
             }, 100);
           } catch (offlineError) {
             console.error('[Shift] Offline shift creation failed:', offlineError);
-            alert(`Failed to create shift offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+            alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
           }
         }
       } catch (error) {
@@ -1544,7 +1545,7 @@ export default function ShiftManagement() {
           console.log('[Shift] Network error detected, trying to create shift locally');
           try {
             await createShiftOffline(shiftData, user);
-            alert('Shift opened (offline mode - will sync when online)');
+            alert(t('alert.shift.opened.offline'));
             setOpenDialogOpen(false);
             setOpeningCash('0');
             setShiftNotes('');
@@ -1557,17 +1558,17 @@ export default function ShiftManagement() {
             return;
           } catch (offlineError) {
             console.error('[Shift] Offline shift creation also failed:', offlineError);
-            alert(`Failed to create shift offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+            alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
           }
         }
         
-        alert(`Failed to open shift: ${error instanceof Error ? error.message : String(error)}`);
+        alert(t('alert.failed.open.shift') + ' - ' + (error instanceof Error ? error.message : String(error)));
       }
       return;
     }
 
     if (!selectedBranch) {
-      alert('Please select a branch');
+      alert(t('alert.select.branch.view'));
       return;
     }
 
@@ -1583,7 +1584,7 @@ export default function ShiftManagement() {
 
     // Validate cashierId is set and not "all"
     if (!cashierId || cashierId === 'all' || cashierId === '') {
-      alert('Please select a valid cashier');
+      alert(t('alert.select.cashier.valid'));
       return;
     }
 
@@ -1628,7 +1629,7 @@ export default function ShiftManagement() {
         const data = await response.json();
 
         if (response.ok && data.success) {
-          alert('Shift opened successfully!');
+          alert(t('alert.shift.opened'));
           setOpenDialogOpen(false);
           setOpeningCash('0');
           setShiftNotes('');
@@ -1638,7 +1639,7 @@ export default function ShiftManagement() {
           if (!navigator.onLine || !response.ok) {
             console.log('[Shift - Manager] Offline mode, creating shift locally');
             await createShiftOffline(shiftData, user);
-            alert('Shift opened (offline mode - will sync when online)');
+            alert(t('alert.shift.opened.offline'));
             setOpenDialogOpen(false);
             setOpeningCash('0');
             setShiftNotes('');
@@ -1652,14 +1653,14 @@ export default function ShiftManagement() {
         console.log('[Shift - Manager] Offline mode detected, creating shift locally');
         try {
           await createShiftOffline(shiftData, user);
-          alert('Shift opened (offline mode - will sync when online)');
+          alert(t('alert.shift.opened.offline'));
           setOpenDialogOpen(false);
           setOpeningCash('0');
           setShiftNotes('');
           refetchShifts();
         } catch (offlineError) {
           console.error('[Shift - Manager] Offline shift creation failed:', offlineError);
-          alert(`Failed to create shift offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+          alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
         }
       }
     } catch (error) {
@@ -1678,7 +1679,7 @@ export default function ShiftManagement() {
         console.log('[Shift - Manager] Offline mode, trying to create shift locally');
         try {
           await createShiftOffline(shiftData, user);
-          alert('Shift opened (offline mode - will sync when online)');
+          alert(t('alert.shift.opened.offline'));
           setOpenDialogOpen(false);
           setOpeningCash('0');
           setShiftNotes('');
@@ -1686,22 +1687,22 @@ export default function ShiftManagement() {
           return;
         } catch (offlineError) {
           console.error('[Shift - Manager] Offline shift creation also failed:', offlineError);
-          alert(`Failed to create shift offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+          alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
         }
       }
 
-      alert(`Failed to open shift: ${error instanceof Error ? error.message : String(error)}`);
+      alert(t('alert.failed.open.shift') + ' - ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
   const handleCloseShift = async () => {
     if (!selectedShift) {
-      alert('Please select a shift to close');
+      alert(t('alert.select.shift.close'));
       return;
     }
 
     if (!selectedBranch) {
-      alert('Please select a branch to view shifts');
+      alert(t('alert.select.branch.view'));
       return;
     }
 
@@ -1752,7 +1753,7 @@ export default function ShiftManagement() {
           setShiftForReceipt(closedShift);
           setShiftClosingReceiptOpen(true);
 
-          alert('Shift closed successfully!');
+          alert(t('alert.shift.closed'));
           setCloseDialogOpen(false);
           setClosingCash('');
           setShiftNotes('');
@@ -1792,7 +1793,7 @@ export default function ShiftManagement() {
               setShiftForReceipt(closedShift);
               setShiftClosingReceiptOpen(true);
 
-              alert('Shift closed (offline mode - will sync when online)');
+              alert(t('alert.shift.closed.offline'));
               setCloseDialogOpen(false);
               setClosingCash('');
               setShiftNotes('');
@@ -1806,7 +1807,7 @@ export default function ShiftManagement() {
               window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
             } catch (offlineError) {
               console.error('[Shift] Offline shift closing failed:', offlineError);
-              alert(`Failed to close shift offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+              alert(t('alert.failed.close.shift') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
             }
           } else {
             const errorMsg = data.error || data.details || 'Failed to close shift';
@@ -1827,7 +1828,7 @@ export default function ShiftManagement() {
           setShiftForReceipt(closedShift);
           setShiftClosingReceiptOpen(true);
 
-          alert('Shift closed (offline mode - will sync when online)');
+          alert(t('alert.shift.closed.offline'));
           setCloseDialogOpen(false);
           setClosingCash('');
           setShiftNotes('');
@@ -1841,7 +1842,7 @@ export default function ShiftManagement() {
           window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
         } catch (offlineError) {
           console.error('[Shift] Offline shift closing failed:', offlineError);
-          alert(`Failed to close shift offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+          alert(t('alert.failed.close.shift') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
         }
       }
     } catch (error) {
@@ -1876,7 +1877,7 @@ export default function ShiftManagement() {
           setShiftForReceipt(closedShift);
           setShiftClosingReceiptOpen(true);
 
-          alert('Shift closed (offline mode - will sync when online)');
+          alert(t('alert.shift.closed.offline'));
           setCloseDialogOpen(false);
           setClosingCash('');
           setShiftNotes('');
@@ -1889,11 +1890,11 @@ export default function ShiftManagement() {
           return;
         } catch (offlineError) {
           console.error('[Shift] Offline shift closing also failed:', offlineError);
-          alert(`Failed to close shift offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+          alert(t('alert.failed.close.shift') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
         }
       }
 
-      alert(`Failed to close shift: ${error instanceof Error ? error.message : String(error)}`);
+      alert(t('alert.failed.close.shift') + ' - ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -2174,12 +2175,12 @@ export default function ShiftManagement() {
                 </div>
                 <div>
                   <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                    Business Day Status
+                    {t('shift.business.day.status')}
                   </div>
                   <div className={`text-xl md:text-2xl font-bold ${
                     businessDayStatus.isOpen ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {businessDayStatus.isOpen ? 'OPEN' : 'CLOSED'}
+                    {businessDayStatus.isOpen ? t('shift.open.status') : t('shift.closed.status')}
                   </div>
                 </div>
               </div>
@@ -2192,7 +2193,7 @@ export default function ShiftManagement() {
                   disabled={!businessDayStatus.isOpen || shifts.some(s => !s.isClosed)}
                 >
                   <Square className="h-4 w-4 mr-2" />
-                  Close Day
+                  {t('shift.close.day')}
                 </Button>
               ) : (
                 <Button
@@ -2200,7 +2201,7 @@ export default function ShiftManagement() {
                   className="bg-green-600 hover:bg-green-700 h-11 min-h-[44px]"
                 >
                   <Play className="h-4 w-4 mr-2" />
-                  Open Day
+                  {t('shift.open.day')}
                 </Button>
               )}
             </div>
@@ -2213,37 +2214,37 @@ export default function ShiftManagement() {
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
             <Clock className="h-5 w-5 text-primary" />
-            Shift Management
+            {t('shift.management')}
           </CardTitle>
           <CardDescription className="text-sm md:text-base">
-            Track and manage cashier shifts with sales tracking
+            {t('shift.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-3 md:flex-row md:gap-4">
             <div className="flex-1 w-full">
-              <Label className="text-sm font-medium mb-2 block">Status</Label>
+              <Label className="text-sm font-medium mb-2 block">{t('status')}</Label>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                 <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Shifts</SelectItem>
-                  <SelectItem value="open">Open Shifts</SelectItem>
-                  <SelectItem value="closed">Closed Shifts</SelectItem>
+                  <SelectItem value="all">{t('shifts.history')}</SelectItem>
+                  <SelectItem value="open">{t('shift.open.shifts.detected')}</SelectItem>
+                  <SelectItem value="closed">{t('shifts.status.closed')} {t('shifts.open')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {user?.role === 'ADMIN' && (
               <div className="flex-1 w-full">
-                <Label className="text-sm font-medium mb-2 block">Cashier</Label>
+                <Label className="text-sm font-medium mb-2 block">{t('shift.cashier')}</Label>
                 <Select value={selectedCashier} onValueChange={setSelectedCashier}>
                   <SelectTrigger className="h-11">
-                    <SelectValue placeholder="All cashiers..." />
+                    <SelectValue placeholder={t('shifts.select.cashier')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Cashiers</SelectItem>
+                    <SelectItem value="all">{t('shifts.cashier')}</SelectItem>
                     {cashiers.map((cashier) => (
                       <SelectItem key={cashier.id} value={cashier.id}>
                         {cashier.name || cashier.username}
@@ -2261,8 +2262,8 @@ export default function ShiftManagement() {
                   onClick={() => setOpenDialogOpen(true)}
                 >
                   <Play className="h-4 w-4 mr-2" />
-                  <span className="hidden md:inline">Open Shift</span>
-                  <span className="md:hidden">Open</span>
+                  <span className="hidden md:inline">{t('shift.open')}</span>
+                  <span className="md:hidden">{t('shift.open')}</span>
                 </Button>
               )}
 
@@ -2273,7 +2274,7 @@ export default function ShiftManagement() {
                 className="h-11 min-h-[44px]"
               >
                 <Clock className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">Refresh</span>
+                <span className="hidden md:inline">{t('btn.refresh')}</span>
               </Button>
             </div>
           </div>
@@ -2297,12 +2298,12 @@ export default function ShiftManagement() {
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
               <Clock className={`h-5 w-5 ${selectedShift ? 'text-green-600 animate-pulse' : ''}`} />
-              My {selectedShift ? 'Active' : 'Shift'}
+              {selectedShift ? t('shift.active') : t('shift.my.shift')}
             </CardTitle>
             <CardDescription className="text-sm">
               {selectedShift
-                ? 'Your shift is currently in progress'
-                : 'Start a new shift to process sales'}
+                ? t('shift.in.progress')
+                : t('shift.start.new')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 md:space-y-6">
@@ -2314,7 +2315,7 @@ export default function ShiftManagement() {
                     <CardContent className="pt-4 md:pt-6">
                       <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
                         <Clock className="h-4 w-4 text-blue-600" />
-                        <span className="text-xs md:text-sm font-medium text-blue-600">Duration</span>
+                        <span className="text-xs md:text-sm font-medium text-blue-600">{t('shift.duration')}</span>
                       </div>
                       <p className="text-xl md:text-2xl font-bold text-blue-900 dark:text-blue-100">
                         {formatDuration(selectedShift.startTime)}
@@ -2329,7 +2330,7 @@ export default function ShiftManagement() {
                     <CardContent className="pt-4 md:pt-6">
                       <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
                         <DollarSign className="h-4 w-4 text-green-600" />
-                        <span className="text-xs md:text-sm font-medium text-green-600">Current Revenue</span>
+                        <span className="text-xs md:text-sm font-medium text-green-600">{t('shift.current.revenue')}</span>
                       </div>
                       <p className="text-xl md:text-2xl font-bold text-green-900 dark:text-green-100">
                         {formatCurrency(
@@ -2339,7 +2340,7 @@ export default function ShiftManagement() {
                           currency
                         )}
                       </p>
-                      <p className="text-xs text-slate-500 mt-0.5 md:mt-1">Live total</p>
+                      <p className="text-xs text-slate-500 mt-0.5 md:mt-1">{t('shift.live.total')}</p>
                     </CardContent>
                   </Card>
 
@@ -2347,12 +2348,12 @@ export default function ShiftManagement() {
                     <CardContent className="pt-4 md:pt-6">
                       <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
                         <ShoppingCart className="h-4 w-4 text-purple-600" />
-                        <span className="text-xs md:text-sm font-medium text-purple-600">Orders</span>
+                        <span className="text-xs md:text-sm font-medium text-purple-600">{t('shift.orders.count')}</span>
                       </div>
                       <p className="text-xl md:text-2xl font-bold text-purple-900 dark:text-purple-100">
                         {selectedShift.orderCount}
                       </p>
-                      <p className="text-xs text-slate-500 mt-0.5 md:mt-1">Processed</p>
+                      <p className="text-xs text-slate-500 mt-0.5 md:mt-1">{t('shift.processed')}</p>
                     </CardContent>
                   </Card>
 
@@ -2360,12 +2361,12 @@ export default function ShiftManagement() {
                     <CardContent className="pt-4 md:pt-6">
                       <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
                         <Wallet className="h-4 w-4 text-amber-600" />
-                        <span className="text-xs md:text-sm font-medium text-amber-600">Opening Cash</span>
+                        <span className="text-xs md:text-sm font-medium text-amber-600">{t('shift.opening.balance')}</span>
                       </div>
                       <p className="text-xl md:text-2xl font-bold text-amber-900 dark:text-amber-100">
                         {formatCurrency(selectedShift.openingCash, currency)}
                       </p>
-                      <p className="text-xs text-slate-500 mt-0.5 md:mt-1">Starting balance</p>
+                      <p className="text-xs text-slate-500 mt-0.5 md:mt-1">{t('shift.starting.balance')}</p>
                     </CardContent>
                   </Card>
                 </div>
@@ -2377,7 +2378,7 @@ export default function ShiftManagement() {
                       <Wallet className="h-5 w-5 text-green-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Cash Sales</p>
+                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{t('shift.cash.sales')}</p>
                       <p className="text-base md:text-lg font-bold truncate">
                         {selectedShift.paymentBreakdown?.cash
                           ? formatCurrency(selectedShift.paymentBreakdown.cash, currency)
@@ -2391,7 +2392,7 @@ export default function ShiftManagement() {
                       <CreditCard className="h-5 w-5 text-blue-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Card Sales</p>
+                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{t('shift.card.sales')}</p>
                       <p className="text-base md:text-lg font-bold truncate">
                         {selectedShift.paymentBreakdown?.card
                           ? formatCurrency(selectedShift.paymentBreakdown.card, currency)
@@ -2405,7 +2406,7 @@ export default function ShiftManagement() {
                       <CircleDollarSign className="h-5 w-5 text-purple-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">InstaPay</p>
+                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{t('card.method.instapay')}</p>
                       <p className="text-base md:text-lg font-bold truncate">
                         {selectedShift.paymentBreakdown?.instapay !== undefined
                           ? formatCurrency(selectedShift.paymentBreakdown.instapay, currency)
@@ -2419,7 +2420,7 @@ export default function ShiftManagement() {
                       <Smartphone className="h-5 w-5 text-orange-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Mobile Wallet</p>
+                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{t('card.method.wallet')}</p>
                       <p className="text-base md:text-lg font-bold truncate">
                         {selectedShift.paymentBreakdown?.wallet !== undefined
                           ? formatCurrency(selectedShift.paymentBreakdown.wallet, currency)
@@ -2434,9 +2435,9 @@ export default function ShiftManagement() {
                       <DollarSign className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Daily Expenses</p>
+                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{t('pos.daily.expenses')}</p>
                       <p className={`text-base md:text-lg font-bold truncate ${currentDailyExpenses > 0 ? 'text-red-600 dark:text-red-400' : ''}`}>
-                        {loadingExpenses ? 'Loading...' : currentDailyExpenses > 0 ? `-${formatCurrency(currentDailyExpenses, currency)}` : '—'}
+                        {loadingExpenses ? t('loading') : currentDailyExpenses > 0 ? `-${formatCurrency(currentDailyExpenses, currency)}` : '—'}
                       </p>
                     </div>
                   </div>
@@ -2446,25 +2447,25 @@ export default function ShiftManagement() {
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="closingCash">Closing Cash ({currency})</Label>
+                    <Label htmlFor="closingCash">{t('shift.closing.balance')} ({currency})</Label>
                     <Input
                       id="closingCash"
                       type="number"
                       step="0.01"
                       value={closingCash}
                       onChange={(e) => setClosingCash(e.target.value)}
-                      placeholder="Enter closing cash amount..."
+                      placeholder={t('shift.enter.closing.amount')}
                       className="h-11"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="notes">Notes (Optional)</Label>
+                    <Label htmlFor="notes">{t('form.notes')} ({t('form.optional')})</Label>
                     <Textarea
                       id="notes"
                       value={shiftNotes}
                       onChange={(e) => setShiftNotes(e.target.value)}
-                      placeholder="Any notes about this shift..."
+                      placeholder={t('shift.notes.placeholder')}
                       rows={3}
                       className="min-h-[88px]"
                     />
@@ -2476,7 +2477,7 @@ export default function ShiftManagement() {
                     className="w-full bg-amber-600 hover:bg-amber-700 h-11 min-h-[44px]"
                   >
                     <Square className="h-4 w-4 mr-2" />
-                    Close My Shift
+                    {t('shift.close')}
                   </Button>
                 </div>
               </>
@@ -2484,7 +2485,7 @@ export default function ShiftManagement() {
               <div className="flex flex-col items-center justify-center py-8 md:py-12 space-y-4">
                 <Clock className="h-16 w-16 md:h-20 md:w-20 text-slate-300 dark:text-slate-600" />
                 <p className="text-base md:text-lg text-slate-600 dark:text-slate-400 font-medium text-center px-4">
-                  You don't have an active shift
+                  {t('shift.no.active')}
                 </p>
                 <Button
                   onClick={() => setOpenDialogOpen(true)}
@@ -2492,11 +2493,11 @@ export default function ShiftManagement() {
                   disabled={!user.branchId}
                 >
                   <Play className="h-5 w-5 mr-2" />
-                  Open New Shift
+                  {t('shift.open.new.shift')}
                 </Button>
                 {!user.branchId && (
                   <p className="text-sm text-red-600 text-center px-4">
-                    Your account is not assigned to a branch. Please contact your manager.
+                    {t('shift.account.not.assigned')}
                   </p>
                 )}
               </div>
@@ -2508,21 +2509,21 @@ export default function ShiftManagement() {
       {/* Shift History Table */}
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg md:text-xl">Shift History</CardTitle>
+          <CardTitle className="text-lg md:text-xl">{t('shifts.history')}</CardTitle>
           <CardDescription className="text-sm">
-            Track sales, cash, and performance per shift
+            {t('shifts.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-              <span className="ml-3 text-slate-600">Loading shifts...</span>
+              <span className="ml-3 text-slate-600">{t('loading')}...</span>
             </div>
           ) : shifts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <Clock className="h-12 w-12 mb-2" />
-              <p>No shifts found for selected criteria</p>
+              <p>{t('empty.no.items')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
@@ -2530,20 +2531,20 @@ export default function ShiftManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="whitespace-nowrap">Cashier</TableHead>
-                        <TableHead className="whitespace-nowrap">Date</TableHead>
-                        <TableHead className="whitespace-nowrap">Time</TableHead>
-                        <TableHead className="whitespace-nowrap">Duration</TableHead>
-                        <TableHead className="whitespace-nowrap">Status</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Opening Cash</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Closing Cash</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Orders</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Revenue</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Cash</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Card</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">InstaPay</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Mobile Wallet</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
+                      <TableHead className="whitespace-nowrap">{t('shift.cashier')}</TableHead>
+                        <TableHead className="whitespace-nowrap">{t('shifts.date')}</TableHead>
+                        <TableHead className="whitespace-nowrap">{t('shifts.time')}</TableHead>
+                        <TableHead className="whitespace-nowrap">{t('shift.duration')}</TableHead>
+                        <TableHead className="whitespace-nowrap">{t('status')}</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">{t('shift.opening.balance')}</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">{t('shift.closing.balance')}</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">{t('shift.orders.count')}</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">{t('shift.revenue')}</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">{t('pos.cash')}</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">{t('pos.card')}</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">{t('card.method.instapay')}</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">{t('card.method.wallet')}</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">{t('shift.actions.label')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2587,12 +2588,12 @@ export default function ShiftManagement() {
                                       : ''
                                   }
                                 >
-                                  {shift.isClosed ? 'Closed' : 'Open'}
+                                  {shift.isClosed ? t('shifts.status.closed') : t('shifts.status.open')}
                                 </Badge>
                                 {/* Show offline indicator for shifts that haven't synced yet */}
                                 {shift.id.startsWith('temp-') && (
                                   <Badge variant="outline" className="text-amber-600 border-amber-600">
-                                    Offline
+                                    {t('shift.offline')}
                                   </Badge>
                                 )}
                               </div>
@@ -2672,7 +2673,7 @@ export default function ShiftManagement() {
                                   className="h-9 min-h-[36px]"
                                 >
                                   <Square className="h-3 w-3 mr-1" />
-                                  Close
+                                  {t('shift.close')}
                                 </Button>
                               )}
                               {shift.isClosed && (
@@ -2685,7 +2686,7 @@ export default function ShiftManagement() {
                                   }}
                                   className="h-9 min-h-[36px]"
                                 >
-                                  Receipt
+                                  {t('receipt.print')}
                                 </Button>
                               )}
                             </TableCell>
@@ -2704,14 +2705,14 @@ export default function ShiftManagement() {
       <Dialog open={openDayDialogOpen} onOpenChange={setOpenDayDialogOpen}>
         <DialogContent className="z-[100] w-[95vw] max-w-md max-h-[90vh] overflow-y-auto pb-safe-bottom">
           <DialogHeader>
-            <DialogTitle className="text-lg md:text-xl">Open Business Day</DialogTitle>
+            <DialogTitle className="text-lg md:text-xl">{t('shift.open.day')}</DialogTitle>
             <DialogDescription>
-              Start a new business day. Cash is handled per shift.
+              {t('shift.open.shifts.message')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-              <Label className="text-sm font-medium mb-2 block">Date</Label>
+              <Label className="text-sm font-medium mb-2 block">{t('form.date')}</Label>
               <p className="text-lg font-semibold">{new Date().toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
@@ -2721,12 +2722,12 @@ export default function ShiftManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="dayOpeningNotes">Opening Notes (Optional)</Label>
+              <Label htmlFor="dayOpeningNotes">{t('shifts.opening.notes')} ({t('form.optional')})</Label>
               <Textarea
                 id="dayOpeningNotes"
                 value={dayOpeningNotes}
                 onChange={(e) => setDayOpeningNotes(e.target.value)}
-                placeholder="Any notes about opening the day..."
+                placeholder={t('shift.opening.day.notes.placeholder')}
                 rows={3}
                 className="min-h-[88px]"
               />
@@ -2738,14 +2739,14 @@ export default function ShiftManagement() {
               onClick={() => setOpenDayDialogOpen(false)}
               className="w-full sm:w-auto h-11 min-h-[44px]"
             >
-              Cancel
+              {t('cancel')}
             </Button>
             <Button
               onClick={handleOpenBusinessDay}
               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 h-11 min-h-[44px]"
             >
               <Play className="h-4 w-4 mr-2" />
-              Open Business Day
+              {t('shift.open.day')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2755,9 +2756,9 @@ export default function ShiftManagement() {
       <Dialog open={closeDayDialogOpen} onOpenChange={setCloseDayDialogOpen}>
         <DialogContent className="z-[100] w-[95vw] max-w-md max-h-[90vh] overflow-y-auto pb-safe-bottom">
           <DialogHeader>
-            <DialogTitle className="text-lg md:text-xl">Close Business Day</DialogTitle>
+            <DialogTitle className="text-lg md:text-xl">{t('shift.close.day')}</DialogTitle>
             <DialogDescription>
-              Close the business day and generate detailed report. Cash is handled per shift.
+              {t('shift.open.shifts.message')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -2767,10 +2768,10 @@ export default function ShiftManagement() {
                   <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
                   <div>
                     <div className="font-medium text-amber-800 dark:text-amber-200">
-                      Open Shifts Detected
+                      {t('shift.open.shifts.detected')}
                     </div>
                     <div className="text-sm text-amber-700 dark:text-amber-300">
-                      Please close all shifts before closing the business day.
+                      {t('shift.open.shifts.message')}
                     </div>
                   </div>
                 </div>
@@ -2778,12 +2779,12 @@ export default function ShiftManagement() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="dayClosingNotes">Closing Notes (Optional)</Label>
+              <Label htmlFor="dayClosingNotes">{t('shifts.closing.notes')}</Label>
               <Textarea
                 id="dayClosingNotes"
                 value={dayClosingNotes}
                 onChange={(e) => setDayClosingNotes(e.target.value)}
-                placeholder="Any notes about closing the day..."
+                placeholder={t('shift.closing.day.notes.placeholder')}
                 rows={3}
                 className="min-h-[88px]"
               />
@@ -2795,7 +2796,7 @@ export default function ShiftManagement() {
               onClick={() => setCloseDayDialogOpen(false)}
               className="w-full sm:w-auto h-11 min-h-[44px]"
             >
-              Cancel
+              {t('cancel')}
             </Button>
             <Button
               onClick={handleCloseBusinessDay}
@@ -2803,7 +2804,7 @@ export default function ShiftManagement() {
               className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 h-11 min-h-[44px]"
             >
               <Square className="h-4 w-4 mr-2" />
-              Close & Print Report
+              {t('shift.close.day')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2813,15 +2814,15 @@ export default function ShiftManagement() {
       <Dialog open={openDialogOpen} onOpenChange={setOpenDialogOpen}>
         <DialogContent className="z-[100] w-[95vw] max-w-md max-h-[90vh] overflow-y-auto pb-safe-bottom">
           <DialogHeader>
-            <DialogTitle className="text-lg md:text-xl">Open New Shift</DialogTitle>
+            <DialogTitle className="text-lg md:text-xl">{t('shift.open.new.shift')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {user?.role === 'ADMIN' && (
               <div className="space-y-2">
-                <Label htmlFor="cashier">Cashier</Label>
+                <Label htmlFor="cashier">{t('shift.cashier')}</Label>
                 <Select value={selectedCashier} onValueChange={setSelectedCashier}>
                   <SelectTrigger id="cashier" className="h-11">
-                    <SelectValue placeholder="Select cashier..." />
+                    <SelectValue placeholder={t('shifts.select.cashier')} />
                   </SelectTrigger>
                   <SelectContent className="z-[110] max-h-60 overflow-y-auto">
                     {cashiers.map((cashier) => (
@@ -2835,7 +2836,7 @@ export default function ShiftManagement() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="openingCash">Opening Cash ({currency})</Label>
+              <Label htmlFor="openingCash">{t('shift.opening.balance')} ({currency})</Label>
               <Input
                 id="openingCash"
                 type="number"
@@ -2849,12 +2850,12 @@ export default function ShiftManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Label htmlFor="notes">{t('form.notes')} ({t('form.optional')})</Label>
               <Textarea
                 id="notes"
                 value={shiftNotes}
                 onChange={(e) => setShiftNotes(e.target.value)}
-                placeholder="Any special notes for this shift..."
+                placeholder={t('shift.notes.special.placeholder')}
                 rows={3}
                 className="min-h-[88px] text-base"
               />
@@ -2866,7 +2867,7 @@ export default function ShiftManagement() {
               onClick={() => setOpenDialogOpen(false)}
               className="w-full sm:w-auto h-11 min-h-[44px]"
             >
-              Cancel
+              {t('cancel')}
             </Button>
             <Button
               onClick={handleOpenShift}
@@ -2874,7 +2875,7 @@ export default function ShiftManagement() {
               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 h-11 min-h-[44px]"
             >
               <Play className="h-4 w-4 mr-2" />
-              Open Shift
+              {t('shift.open')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2884,7 +2885,7 @@ export default function ShiftManagement() {
       <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
         <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto pb-safe-bottom">
           <DialogHeader>
-            <DialogTitle className="text-lg md:text-xl">Close Shift - {selectedShift?.cashier?.name || selectedShift?.cashier?.username}</DialogTitle>
+            <DialogTitle className="text-lg md:text-xl">{t('shift.close.shift.dialog')} - {selectedShift?.cashier?.name || selectedShift?.cashier?.username}</DialogTitle>
           </DialogHeader>
           {selectedShift && (
             <>
@@ -2892,23 +2893,23 @@ export default function ShiftManagement() {
                 {/* Shift Summary */}
                 <div className="grid grid-cols-2 gap-3 md:gap-4 p-3 md:p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
                   <div>
-                    <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mb-1">Opening Cash</div>
+                    <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mb-1">{t('shift.opening.balance')}</div>
                     <div className="text-base md:text-lg font-bold">
                       {formatCurrency(selectedShift.openingCash, currency)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mb-1">Revenue</div>
+                    <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mb-1">{t('shift.revenue')}</div>
                     <div className="text-base md:text-lg font-bold text-green-600">
                       {formatCurrency(getShiftStats(selectedShift).revenueDuringShift, currency)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mb-1">Orders</div>
+                    <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mb-1">{t('shift.orders.count')}</div>
                     <div className="text-base md:text-lg font-bold">{selectedShift.orderCount}</div>
                   </div>
                   <div>
-                    <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mb-1">Duration</div>
+                    <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mb-1">{t('shift.duration')}</div>
                     <div className="text-base md:text-lg font-bold font-mono">
                       {formatDuration(selectedShift.startTime)}
                     </div>
@@ -2917,10 +2918,10 @@ export default function ShiftManagement() {
 
                 {/* Payment Breakdown */}
                 <div className="p-3 md:p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                  <Label className="text-sm font-medium mb-3 block">Payment Breakdown</Label>
+                  <Label className="text-sm font-medium mb-3 block">{t('pos.payment')}</Label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="cashPayments" className="text-xs">Cash</Label>
+                      <Label htmlFor="cashPayments" className="text-xs">{t('shift.payment.cash')}</Label>
                       <Input
                         id="cashPayments"
                         type="number"
@@ -2932,7 +2933,7 @@ export default function ShiftManagement() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="cardPayments" className="text-xs">Card</Label>
+                      <Label htmlFor="cardPayments" className="text-xs">{t('shift.payment.card')}</Label>
                       <Input
                         id="cardPayments"
                         type="number"
@@ -2944,7 +2945,7 @@ export default function ShiftManagement() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="instapayPayments" className="text-xs">InstaPay</Label>
+                      <Label htmlFor="instapayPayments" className="text-xs">{t('card.method.instapay')}</Label>
                       <Input
                         id="instapayPayments"
                         type="number"
@@ -2956,7 +2957,7 @@ export default function ShiftManagement() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="walletPayments" className="text-xs">Mobile Wallet</Label>
+                      <Label htmlFor="walletPayments" className="text-xs">{t('card.method.wallet')}</Label>
                       <Input
                         id="walletPayments"
                         type="number"
@@ -2970,7 +2971,7 @@ export default function ShiftManagement() {
                   </div>
                   <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-slate-600 dark:text-slate-400">Total Payments</span>
+                      <span className="text-sm text-slate-600 dark:text-slate-400">Total {t('pos.payment')}</span>
                       <span className="font-bold text-blue-700 dark:text-blue-300">
                         {formatCurrency(paymentBreakdown.cash + paymentBreakdown.card + paymentBreakdown.instapay + paymentBreakdown.wallet, currency)}
                       </span>
@@ -2983,7 +2984,7 @@ export default function ShiftManagement() {
                       <span className="text-sm text-red-600 dark:text-red-400">
                         <span className="inline-flex items-center gap-1">
                           <X className="h-4 w-4" />
-                          Voided Items
+                          {t('shift.voided.items')}
                         </span>
                       </span>
                       <span className="font-bold text-red-700 dark:text-red-300">
@@ -2994,7 +2995,7 @@ export default function ShiftManagement() {
                       <span className="text-sm text-red-600 dark:text-red-400">
                         <span className="inline-flex items-center gap-1">
                           <RefreshCw className="h-4 w-4" />
-                          Refunds
+                          {t('shift.refunds')}
                         </span>
                       </span>
                       <span className="font-bold text-red-700 dark:text-red-300">
@@ -3008,9 +3009,9 @@ export default function ShiftManagement() {
                 <div className="p-3 md:p-4 bg-amber-50 dark:bg-amber-950 rounded-lg">
                   <div className="flex justify-between items-start md:items-center">
                     <div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400">Expected Cash</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">{t('shift.expected.cash')}</div>
                       <div className="text-xs text-slate-500">
-                        Opening + Cash Revenue - Expenses - Voids - Refunds
+                        {t('shift.formula')}
                       </div>
                     </div>
                     <div className="text-right">
@@ -3026,14 +3027,14 @@ export default function ShiftManagement() {
 
                 {/* Closing Cash Input */}
                 <div className="space-y-2">
-                  <Label htmlFor="closingCash">Closing Cash ({currency})</Label>
+                  <Label htmlFor="closingCash">{t('shift.closing.balance')} ({currency})</Label>
                   <Input
                     id="closingCash"
                     type="number"
                     step="0.01"
                     value={closingCash}
                     onChange={(e) => setClosingCash(e.target.value)}
-                    placeholder="Enter closing cash amount..."
+                    placeholder={t('shift.enter.closing.amount')}
                     autoFocus
                     className="h-11 text-base"
                   />
@@ -3060,8 +3061,8 @@ export default function ShiftManagement() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                           <span className="font-semibold text-sm md:text-base">
                             {calculateDiscrepancy().hasDiscrepancy
-                              ? 'Discrepancy Detected'
-                              : 'Cash Matches'}
+                              ? t('shift.discrepancy.warning')
+                              : t('shift.cash.matches')}
                           </span>
                           <Badge
                             variant={calculateDiscrepancy().hasDiscrepancy ? 'destructive' : 'default'}
@@ -3076,13 +3077,13 @@ export default function ShiftManagement() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                           <div>
-                            <span className="text-slate-600 dark:text-slate-400">Expected:</span>
+                            <span className="text-slate-600 dark:text-slate-400">{t('shift.expected.label')}</span>
                             <span className="ml-2 font-medium">
                               {formatCurrency(calculateDiscrepancy().expectedCash, currency)}
                             </span>
                           </div>
                           <div>
-                            <span className="text-slate-600 dark:text-slate-400">Actual:</span>
+                            <span className="text-slate-600 dark:text-slate-400">{t('shift.actual.label')}</span>
                             <span className="ml-2 font-medium">
                               {formatCurrency(calculateDiscrepancy().actualCash, currency)}
                             </span>
@@ -3095,12 +3096,12 @@ export default function ShiftManagement() {
 
                 {/* Notes */}
                 <div className="space-y-2">
-                  <Label htmlFor="closeNotes">Notes (Optional)</Label>
+                  <Label htmlFor="closeNotes">{t('form.notes')} ({t('form.optional')})</Label>
                   <Textarea
                     id="closeNotes"
                     value={shiftNotes}
                     onChange={(e) => setShiftNotes(e.target.value)}
-                    placeholder="Any notes about this shift..."
+                    placeholder={t('shift.notes.placeholder')}
                     rows={3}
                     className="min-h-[88px] text-base"
                   />
@@ -3109,7 +3110,7 @@ export default function ShiftManagement() {
                 {/* Opening Notes */}
                 {selectedShift.notes && (
                   <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                    <Label className="text-sm font-medium">Opening Notes:</Label>
+                    <Label className="text-sm font-medium">{t('shifts.opening.notes')}:</Label>
                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                       {selectedShift.notes}
                     </p>
@@ -3128,7 +3129,7 @@ export default function ShiftManagement() {
                   }}
                   className="w-full sm:w-auto h-11 min-h-[44px]"
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
                 <Button
                   onClick={handleCloseShift}
@@ -3136,7 +3137,7 @@ export default function ShiftManagement() {
                   className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 h-11 min-h-[44px]"
                 >
                   <Square className="h-4 w-4 mr-2" />
-                  Close Shift
+                  {t('shift.close')}
                 </Button>
               </DialogFooter>
             </>

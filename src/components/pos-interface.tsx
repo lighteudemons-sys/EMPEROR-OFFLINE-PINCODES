@@ -5789,7 +5789,7 @@ export default function POSInterface() {
               <DialogTitle className="text-[8px]l font-bold">{t('pos.card.payment')}</DialogTitle>
             </div>
             <DialogDescription>
-              Enter the card transaction reference number after successful payment
+              {t('card.payment.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -5798,10 +5798,10 @@ export default function POSInterface() {
                 <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">
-                    Process payment on terminal first
+                    {t('card.process.first')}
                   </p>
                   <p className="text-[8px]s text-blue-700 dark:text-blue-400">
-                    Complete the card transaction on your payment terminal, then select the payment type and enter the reference number below.
+                    {t('card.process.description')}
                   </p>
                 </div>
               </div>
@@ -5809,15 +5809,15 @@ export default function POSInterface() {
 
             {/* Payment Method Selection */}
             <div>
-              <Label className="text-sm font-semibold mb-3 block">Payment Method Type</Label>
+              <Label className="text-sm font-semibold mb-3 block">{t('card.payment.type')}</Label>
               <RadioGroup value={paymentMethodDetail} onValueChange={(value: 'CARD' | 'INSTAPAY' | 'MOBILE_WALLET') => setPaymentMethodDetail(value)} className="grid grid-cols-1 gap-3">
                 <div className="flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-white dark:bg-slate-800">
                   <RadioGroupItem value="CARD" id="card" className="border-slate-300" />
                   <label htmlFor="card" className="flex items-center gap-3 flex-1 cursor-pointer">
                     <CreditCard className="h-5 w-5 text-blue-600" />
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Card</p>
-                      <p className="text-[8px]s text-slate-500 dark:text-slate-400">Credit/Debit Card</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{t('card.method.card')}</p>
+                      <p className="text-[8px]s text-slate-500 dark:text-slate-400">{t('card.credit.debit')}</p>
                     </div>
                   </label>
                 </div>
@@ -5826,8 +5826,8 @@ export default function POSInterface() {
                   <label htmlFor="instapay" className="flex items-center gap-3 flex-1 cursor-pointer">
                     <Smartphone className="h-5 w-5 text-emerald-600" />
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Instapay</p>
-                      <p className="text-[8px]s text-slate-500 dark:text-slate-400">Instant Payment</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{t('card.method.instapay')}</p>
+                      <p className="text-[8px]s text-slate-500 dark:text-slate-400">{t('card.instapay.desc')}</p>
                     </div>
                   </label>
                 </div>
@@ -5836,8 +5836,8 @@ export default function POSInterface() {
                   <label htmlFor="mobile-wallet" className="flex items-center gap-3 flex-1 cursor-pointer">
                     <Smartphone className="h-5 w-5 text-[8px]urple-600" />
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Mobile Wallet</p>
-                      <p className="text-[8px]s text-slate-500 dark:text-slate-400">Vodafone Cash, Etisalat, Orange</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{t('card.method.wallet')}</p>
+                      <p className="text-[8px]s text-slate-500 dark:text-slate-400">{t('card.mobile.wallet.desc')}</p>
                     </div>
                   </label>
                 </div>
@@ -5846,19 +5846,19 @@ export default function POSInterface() {
 
             <div>
               <Label htmlFor="cardRefNumber" className="text-sm font-semibold">
-                Reference Number *
+                {t('card.reference.label')}
               </Label>
               <Input
                 id="cardRefNumber"
                 value={cardReferenceNumber}
                 onChange={(e) => setCardReferenceNumber(e.target.value)}
-                placeholder="Enter transaction reference number..."
+                placeholder={t('card.reference.placeholder')}
                 className="mt-2 text-sm h-11 rounded-xl"
                 autoFocus
                 onKeyPress={(e) => e.key === 'Enter' && handleCardPaymentSubmit()}
               />
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5">
-                This reference will be saved with the order for tracking purposes
+                {t('card.reference.note')}
               </p>
             </div>
 
@@ -5866,7 +5866,7 @@ export default function POSInterface() {
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                 <p className="text-[8px]s text-amber-800 dark:text-amber-300">
-                  If the card transaction fails, click Cancel and pay with Cash instead
+                  {t('card.fail.warning')}
                 </p>
               </div>
             </div>
@@ -5878,7 +5878,7 @@ export default function POSInterface() {
               disabled={processing}
               className="flex-1 rounded-xl h-11 font-semibold"
             >
-              Cancel
+              {t('button.cancel')}
             </Button>
             <Button
               onClick={handleCardPaymentSubmit}
@@ -5888,12 +5888,12 @@ export default function POSInterface() {
               {processing ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
+                  {t('card.processing')}
                 </>
               ) : (
                 <>
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Submit & Process Order
+                  {t('card.submit.process')}
                 </>
               )}
             </Button>
