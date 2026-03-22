@@ -436,7 +436,7 @@ export default function POSDashboard() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading...</p>
+          <p className="text-slate-600">{t('loading')}</p>
         </div>
       </div>
     );
@@ -498,23 +498,23 @@ export default function POSDashboard() {
     { id: 'menu', label: t('dashboard.menu'), icon: Utensils, show: canAccessHQFeatures },
     { id: 'recipes', label: t('dashboard.recipes'), icon: Package, show: canAccessHQFeatures },
     { id: 'ingredients', label: t('dashboard.ingredients'), icon: Store, show: canAccessInventory },
-    { id: 'inventory-alerts', label: 'Alerts', icon: AlertTriangle, show: canAccessInventory },
-    { id: 'transfers', label: 'Transfers', icon: ArrowRight, show: canAccessTransfers },
-    { id: 'waste', label: 'Waste', icon: Trash2, show: canAccessInventory },
-    { id: 'loyalty', label: 'Loyalty', icon: Gift, show: canAccessCustomers },
-    { id: 'promo-codes', label: 'Promo Codes', icon: Tag, show: canAccessCustomers },
-    { id: 'suppliers', label: 'Suppliers', icon: Building, show: canAccessSuppliers },
-    { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, show: canAccessPurchaseOrders },
+    { id: 'inventory-alerts', label: t('alerts.low.stock'), icon: AlertTriangle, show: canAccessInventory },
+    { id: 'transfers', label: t('inventory.restock'), icon: ArrowRight, show: canAccessTransfers },
+    { id: 'waste', label: t('inventory.waste'), icon: Trash2, show: canAccessInventory },
+    { id: 'loyalty', label: t('loyalty.title'), icon: Gift, show: canAccessCustomers },
+    { id: 'promo-codes', label: t('promo.codes.title'), icon: Tag, show: canAccessCustomers },
+    { id: 'suppliers', label: t('suppliers.title'), icon: Building, show: canAccessSuppliers },
+    { id: 'purchase-orders', label: t('purchase.orders.title'), icon: ShoppingCart, show: canAccessPurchaseOrders },
     { id: 'branches', label: t('dashboard.branches'), icon: LayoutDashboard, show: canAccessHQFeatures },
-    { id: 'tables', label: 'Tables', icon: LayoutGrid, show: canAccessTables },
+    { id: 'tables', label: t('tables.title'), icon: LayoutGrid, show: canAccessTables },
     { id: 'reports', label: t('dashboard.reports'), icon: BarChart3, show: canAccessBranchFeatures },
-    { id: 'audit-logs', label: 'Audit Logs', icon: FileText, show: canAccessAuditLogs },
+    { id: 'audit-logs', label: t('audit.logs'), icon: FileText, show: canAccessAuditLogs },
     { id: 'users', label: t('dashboard.users'), icon: Users, show: canAccessUsers },
-    { id: 'shifts', label: 'Shifts', icon: Clock, show: canAccessShifts },
-    { id: 'delivery', label: 'Delivery', icon: MapPin, show: canAccessDelivery },
-    { id: 'customers', label: 'Customers', icon: UserRound, show: canAccessCustomers },
-    { id: 'costs', label: 'Costs', icon: DollarSign, show: canAccessCosts },
-    { id: 'receipt', label: 'Receipt', icon: ReceiptIcon, show: canAccessHQFeatures },
+    { id: 'shifts', label: t('shifts.title'), icon: Clock, show: canAccessShifts },
+    { id: 'delivery', label: t('delivery.title'), icon: MapPin, show: canAccessDelivery },
+    { id: 'customers', label: t('customers.title'), icon: UserRound, show: canAccessCustomers },
+    { id: 'costs', label: t('costs.title'), icon: DollarSign, show: canAccessCosts },
+    { id: 'receipt', label: t('receipt.title'), icon: ReceiptIcon, show: canAccessHQFeatures },
   ].filter(item => item.show);
 
   return (
@@ -669,7 +669,7 @@ export default function POSDashboard() {
                     className="border-emerald-600 hover:bg-emerald-50 hover:text-emerald-900 mr-1 h-7 px-2 text-xs"
                   >
                     <Clock className="h-3.5 w-3.5 mr-1" />
-                    Queue
+                    {t('btn.sync')}
                   </Button>
                   <Button
                     variant="outline"
@@ -702,7 +702,7 @@ export default function POSDashboard() {
                     className="border-emerald-600 hover:bg-emerald-50 hover:text-emerald-900 hidden sm:flex h-7 px-2 text-xs"
                   >
                     <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                    Sync
+                    {t('btn.sync')}
                   </Button>
 
                   {/* Conflicts Indicator - Shows when conflicts need resolution */}
@@ -714,7 +714,7 @@ export default function POSDashboard() {
                       className="border-orange-600 hover:bg-orange-50 hover:text-orange-900 hidden sm:flex mr-2"
                     >
                       <AlertTriangle className="h-4 w-4 mr-2" />
-                      Conflicts
+                      {t('msg.warning')}
                       <Badge className="ml-2">{syncConflicts.length}</Badge>
                     </Button>
                   )}
@@ -758,9 +758,9 @@ export default function POSDashboard() {
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <Lock className="h-12 w-12 text-slate-400 mb-4" />
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Access Denied</h3>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{t('access.denied')}</h3>
                     <p className="text-slate-600 dark:text-slate-400 text-center max-w-md">
-                      Your role (<strong className="capitalize">{user.role.toLowerCase().replace('_', ' ')}</strong>) does not have permission to access the POS terminal.
+                      {t('access.denied')}
                     </p>
                   </CardContent>
                 </Card>
@@ -771,7 +771,7 @@ export default function POSDashboard() {
               {canAccessHQFeatures ? (
                 <MenuManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -779,7 +779,7 @@ export default function POSDashboard() {
               {canAccessHQFeatures ? (
                 <RecipeManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -787,7 +787,7 @@ export default function POSDashboard() {
               {canAccessInventory ? (
                 <IngredientManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -795,7 +795,7 @@ export default function POSDashboard() {
               {canAccessInventory ? (
                 <InventoryAlerts />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -805,7 +805,7 @@ export default function POSDashboard() {
               {canAccessTransfers ? (
                 <InventoryTransfers />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -813,7 +813,7 @@ export default function POSDashboard() {
               {canAccessInventory ? (
                 <WasteTracking />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -821,7 +821,7 @@ export default function POSDashboard() {
               {canAccessCustomers ? (
                 <LoyaltyProgram />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -829,7 +829,7 @@ export default function POSDashboard() {
               {canAccessCustomers ? (
                 <PromoCodesManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -837,7 +837,7 @@ export default function POSDashboard() {
               {canAccessSuppliers ? (
                 <SuppliersManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -845,7 +845,7 @@ export default function POSDashboard() {
               {canAccessPurchaseOrders ? (
                 <PurchaseOrdersManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -853,7 +853,7 @@ export default function POSDashboard() {
               {canAccessHQFeatures ? (
                 <BranchManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -861,7 +861,7 @@ export default function POSDashboard() {
               {canAccessBranchFeatures ? (
                 <ReportsDashboard />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -869,7 +869,7 @@ export default function POSDashboard() {
               {canAccessAuditLogs ? (
                 <AuditLogs />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -877,7 +877,7 @@ export default function POSDashboard() {
               {canAccessUsers ? (
                 <UserManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -885,7 +885,7 @@ export default function POSDashboard() {
               {canAccessShifts ? (
                 <ShiftManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -893,7 +893,7 @@ export default function POSDashboard() {
               {canAccessDelivery ? (
                 <DeliveryManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -901,7 +901,7 @@ export default function POSDashboard() {
               {canAccessCustomers ? (
                 <CustomerManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -909,7 +909,7 @@ export default function POSDashboard() {
               {canAccessCosts ? (
                 <CostManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -917,7 +917,7 @@ export default function POSDashboard() {
               {canAccessHQFeatures ? (
                 <ReceiptSettings />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
 
@@ -925,7 +925,7 @@ export default function POSDashboard() {
               {canAccessTables ? (
                 <TableManagement />
               ) : (
-                <AccessDenied user={user} />
+                <AccessDenied />
               )}
             </TabsContent>
           </div>
@@ -955,15 +955,15 @@ export default function POSDashboard() {
   );
 }
 
-function AccessDenied({ user }: { user: any }) {
+function AccessDenied() {
+  const { t } = useI18n();
   return (
     <Card>
       <CardContent className="flex flex-col items-center justify-center py-12">
         <Lock className="h-12 w-12 text-slate-400 mb-4" />
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Access Denied</h3>
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{t('access.denied')}</h3>
         <p className="text-slate-600 dark:text-slate-400 text-center max-w-md">
-          Your role (<strong className="capitalize">{user.role.toLowerCase().replace('_', ' ')}</strong>) does not have permission to access this feature.
-          Please contact an <strong>HQ Admin</strong> if you believe this is an error.
+          {t('access.denied')}
         </p>
       </CardContent>
     </Card>
