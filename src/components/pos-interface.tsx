@@ -5442,10 +5442,10 @@ export default function POSInterface() {
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Layers className="h-5 w-5 text-white" />
               </div>
-              <DialogTitle className="text-[8px]l font-bold">Select Variant</DialogTitle>
+              <DialogTitle className="text-[8px]l font-bold">{t('variant.select')}</DialogTitle>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 pl-13">
-              Choose an option for <span className="font-semibold text-slate-900 dark:text-white">{selectedItemForVariant?.name}</span>
+              {t('variant.choose.option')} <span className="font-semibold text-slate-900 dark:text-white">{selectedItemForVariant?.name}</span>
             </p>
           </DialogHeader>
           <div className="space-y-3 py-4">
@@ -5460,7 +5460,7 @@ export default function POSInterface() {
                       {selectedItemForVariant.variants[0].variantType.name}
                     </span>
                     <Badge variant="default" className="bg-purple-600 hover:bg-purple-700 ml-auto text-xs">
-                      Custom Input
+                      {t('variant.custom.input')}
                     </Badge>
                   </div>
                   
@@ -5479,7 +5479,7 @@ export default function POSInterface() {
                           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
-                      By Weight
+                      {t('variant.by.weight')}
                     </button>
                     <button
                       type="button"
@@ -5494,7 +5494,7 @@ export default function POSInterface() {
                           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
-                      By Price
+                      {t('variant.by.price')}
                     </button>
                   </div>
                   
@@ -5502,7 +5502,7 @@ export default function POSInterface() {
                     {/* Input field - changes based on mode */}
                     <div>
                       <Label htmlFor="customInput">
-                        {customPriceMode === 'weight' ? 'Enter Multiplier' : 'Enter Price (EGP)'}
+                        {customPriceMode === 'weight' ? t('variant.enter.multiplier') : t('variant.enter.price.egp')}
                       </Label>
                       <div className="flex gap-2">
                         <Input
@@ -5520,8 +5520,8 @@ export default function POSInterface() {
                             }
                           }}
                           placeholder={customPriceMode === 'weight' 
-                            ? 'e.g., 0.125 for 1/8, 0.5 for half'
-                            : 'e.g., 50 for EGP 50'}
+                            ? t('expense.placeholder.multiplier')
+                            : t('expense.placeholder.price')}
                           className="h-11 text-lg font-semibold flex-1"
                         />
                         <Button
@@ -5553,10 +5553,9 @@ export default function POSInterface() {
                     
                     {/* Description based on mode */}
                     <p className="text-xs text-slate-600 dark:text-slate-400">
-                      {customPriceMode === 'weight' 
-                        ? 'Enter a multiplier to calculate the price proportionally. For example, if the base is 500g and you want 62.5g (1/8), enter 0.125.'
-                        : 'Enter a price and the system will automatically calculate the weight. For example, enter 50 for EGP 50 and the system will calculate the equivalent weight.'
-                      }
+                      {customPriceMode === 'weight'
+                        ? t('expense.multiplier.desc')
+                        : t('expense.price.desc')}
                     </p>
                     
                     {/* Price Preview */}
@@ -5564,19 +5563,19 @@ export default function POSInterface() {
                      (customPriceValue && !isNaN(parseFloat(customPriceValue)) && parseFloat(customPriceValue) > 0) ? (
                       <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-slate-600 dark:text-slate-400">Base Price:</span>
+                          <span className="text-sm text-slate-600 dark:text-slate-400">{t('expense.base.price')}</span>
                           <span className="font-semibold">{formatCurrency(selectedItemForVariant.price, currency)}</span>
                         </div>
                         
                         {customPriceMode === 'weight' ? (
                           <>
                             <div className="flex justify-between items-center mt-1">
-                              <span className="text-sm text-slate-600 dark:text-slate-400">Multiplier:</span>
+                              <span className="text-sm text-slate-600 dark:text-slate-400">{t('expense.multiplier')}</span>
                               <span className="font-semibold">{customVariantValue}x</span>
                             </div>
                             <Separator className="my-2" />
                             <div className="flex justify-between items-center">
-                              <span className="font-bold text-slate-900 dark:text-white">Final Price:</span>
+                              <span className="font-bold text-slate-900 dark:text-white">{t('expense.final.price')}</span>
                               <span className="font-black text-lg text-emerald-600 dark:text-emerald-400">
                                 {formatCurrency(selectedItemForVariant.price * parseFloat(customVariantValue), currency)}
                               </span>
@@ -5585,18 +5584,18 @@ export default function POSInterface() {
                         ) : (
                           <>
                             <div className="flex justify-between items-center mt-1">
-                              <span className="text-sm text-slate-600 dark:text-slate-400">Entered Price:</span>
+                              <span className="text-sm text-slate-600 dark:text-slate-400">{t('expense.entered.price')}</span>
                               <span className="font-semibold">{formatCurrency(parseFloat(customPriceValue), currency)}</span>
                             </div>
                             <Separator className="my-2" />
                             <div className="flex justify-between items-center">
-                              <span className="font-bold text-slate-900 dark:text-white">Calculated Weight:</span>
+                              <span className="font-bold text-slate-900 dark:text-white">{t('expense.calculated.weight')}</span>
                               <span className="font-black text-lg text-emerald-600 dark:text-emerald-400">
                                 {((parseFloat(customPriceValue) / selectedItemForVariant.price) * 100).toFixed(1)}% of base
                               </span>
                             </div>
                             <div className="flex justify-between items-center mt-1 text-xs text-slate-500 dark:text-slate-500">
-                              <span>Multiplier:</span>
+                              <span>{t('expense.multiplier')}</span>
                               <span>{(parseFloat(customPriceValue) / selectedItemForVariant.price).toFixed(3)}x</span>
                             </div>
                           </>
@@ -5619,7 +5618,7 @@ export default function POSInterface() {
                     <div className="flex items-center gap-2">
                       <Package className="h-5 w-5 text-[8px]urple-600 dark:text-[8px]urple-400" />
                       <span className="font-bold text-slate-900 dark:text-white">
-                        Use Custom Input
+                        {t('expense.use.custom.input')}
                       </span>
                     </div>
                     {selectedVariant?.id === selectedItemForVariant.variants[0].id && (
@@ -5702,7 +5701,7 @@ export default function POSInterface() {
               className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 rounded-xl h-11 px-6 font-semibold shadow-lg shadow-emerald-500/30"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add to Order
+              {t('expense.add.to.order')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -5986,14 +5985,14 @@ export default function POSInterface() {
               <DialogTitle className="text-[8px]l font-bold">{t('pos.add.expense')}</DialogTitle>
             </div>
             <DialogDescription>
-              Record a daily expense for the current shift
+              {t('expense.record.daily')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {/* Category Selection */}
             <div>
               <Label htmlFor="expenseCategory" className="text-sm font-semibold">
-                Category *
+                {t('expense.category')} *
               </Label>
               <Select
                 value={expenseCategory}
@@ -6009,22 +6008,22 @@ export default function POSInterface() {
                 }}
               >
                 <SelectTrigger className="mt-1.5 h-11 rounded-xl">
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder={t('expense.select.category')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="INVENTORY">📦 Inventory (Restock)</SelectItem>
-                  <SelectItem value="EQUIPMENT">🔧 Equipment</SelectItem>
-                  <SelectItem value="REPAIRS">🔨 Repairs</SelectItem>
-                  <SelectItem value="UTILITIES">💡 Utilities</SelectItem>
-                  <SelectItem value="RENT">🏠 Rent</SelectItem>
-                  <SelectItem value="MARKETING">📣 Marketing</SelectItem>
-                  <SelectItem value="SALARIES">💰 Salaries</SelectItem>
-                  <SelectItem value="TRANSPORTATION">🚗 Transportation</SelectItem>
-                  <SelectItem value="SUPPLIES">📝 Supplies</SelectItem>
-                  <SelectItem value="MAINTENANCE">🛠️ Maintenance</SelectItem>
-                  <SelectItem value="INSURANCE">🛡️ Insurance</SelectItem>
-                  <SelectItem value="TAXES">📋 Taxes</SelectItem>
-                  <SelectItem value="OTHER">📌 Other</SelectItem>
+                  <SelectItem value="INVENTORY">📦 {t('expense.inventory')}</SelectItem>
+                  <SelectItem value="EQUIPMENT">🔧 {t('expense.equipment')}</SelectItem>
+                  <SelectItem value="REPAIRS">🔨 {t('expense.repairs')}</SelectItem>
+                  <SelectItem value="UTILITIES">💡 {t('expense.utilities')}</SelectItem>
+                  <SelectItem value="RENT">🏠 {t('expense.rent')}</SelectItem>
+                  <SelectItem value="MARKETING">📣 {t('expense.marketing')}</SelectItem>
+                  <SelectItem value="SALARIES">💰 {t('expense.salaries')}</SelectItem>
+                  <SelectItem value="TRANSPORTATION">🚗 {t('expense.transportation')}</SelectItem>
+                  <SelectItem value="SUPPLIES">📝 {t('expense.supplies')}</SelectItem>
+                  <SelectItem value="MAINTENANCE">🛠️ {t('expense.maintenance')}</SelectItem>
+                  <SelectItem value="INSURANCE">🛡️ {t('expense.insurance')}</SelectItem>
+                  <SelectItem value="TAXES">📋 {t('expense.taxes')}</SelectItem>
+                  <SelectItem value="OTHER">📌 {t('expense.other')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -6034,7 +6033,7 @@ export default function POSInterface() {
               <>
                 <div>
                   <Label htmlFor="expenseIngredient" className="text-sm font-semibold">
-                    Ingredient *
+                    {t('expense.ingredient')} *
                   </Label>
                   <Select
                     value={expenseIngredientId}
@@ -6050,7 +6049,7 @@ export default function POSInterface() {
                     }}
                   >
                     <SelectTrigger className="mt-1.5 h-11 rounded-xl">
-                      <SelectValue placeholder={loadingIngredients ? "Loading..." : "Select ingredient"} />
+                      <SelectValue placeholder={loadingIngredients ? t('expense.loading') : t('expense.select.ingredient')} />
                     </SelectTrigger>
                     <SelectContent>
                       {ingredients.map((ingredient) => (
@@ -6069,7 +6068,7 @@ export default function POSInterface() {
 
                 <div>
                   <Label htmlFor="expenseQuantity" className="text-sm font-semibold">
-                    Quantity ({expenseQuantityUnit || 'unit'}) *
+                    {t('expense.quantity')} ({expenseQuantityUnit || 'unit'}) *
                   </Label>
                   <Input
                     id="expenseQuantity"
@@ -6170,7 +6169,7 @@ export default function POSInterface() {
 
             <div>
               <Label htmlFor="expenseAmount" className="text-sm font-semibold">
-                Total Amount ({currency}) *
+                {t('expense.total.amount')} ({currency}) *
               </Label>
               <Input
                 id="expenseAmount"
@@ -6184,33 +6183,33 @@ export default function POSInterface() {
                     setExpenseAmount(e.target.value);
                   }
                 }}
-                placeholder="Enter amount..."
+                placeholder={t('expense.enter.amount')}
                 className="mt-1.5 text-sm h-11 rounded-xl"
                 autoFocus={expenseCategory !== 'INVENTORY'}
                 readOnly={expenseCategory === 'INVENTORY'}
               />
               {expenseCategory === 'INVENTORY' && (
                 <p className="text-[8px]s text-slate-500 mt-1">
-                  Auto-calculated from quantity × unit price
+                  {t('expense.auto.calculated')}
                 </p>
               )}
             </div>
 
             <div>
               <Label htmlFor="expenseReason" className="text-sm font-semibold">
-                Reason / Notes *
+                {t('expense.reason.notes')} *
               </Label>
               <Textarea
                 id="expenseReason"
                 value={expenseReason}
                 onChange={(e) => setExpenseReason(e.target.value)}
-                placeholder={expenseCategory === 'INVENTORY' ? "e.g., Restocked from ABC Market..." : "e.g., Electricity Company, Supplies, etc..."}
+                placeholder={expenseCategory === 'INVENTORY' ? t('expense.placeholder.restock') : t('expense.placeholder.other')}
                 rows={3}
                 className="mt-1.5 resize-none rounded-xl"
                 maxLength={200}
               />
               <p className="text-[8px]s text-slate-500 mt-1">
-                {expenseReason.length}/200 characters
+                {expenseReason.length}/200 {t('expense.characters')}
               </p>
             </div>
 
@@ -6219,7 +6218,7 @@ export default function POSInterface() {
                 <div className="flex items-start gap-2">
                   <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                   <p className="text-[8px]s text-blue-700 dark:text-blue-300">
-                    This expense will be automatically added to the Costs tab for tracking and reporting.
+                    {t('expense.costs.tab')}
                   </p>
                 </div>
               </div>
@@ -6240,7 +6239,7 @@ export default function POSInterface() {
               }}
               className="flex-1 rounded-xl h-11 font-semibold"
             >
-              Cancel
+              {t('button.cancel')}
             </Button>
             <Button
               onClick={handleDailyExpenseSubmit}
@@ -6255,12 +6254,12 @@ export default function POSInterface() {
               {submittingExpense ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  {expenseCategory === 'INVENTORY' ? 'Restocking...' : 'Recording...'}
+                  {expenseCategory === 'INVENTORY' ? t('expense.restocking') : t('expense.recording')}
                 </>
               ) : (
                 <>
                   <DollarSign className="h-4 w-4 mr-2" />
-                  {expenseCategory === 'INVENTORY' ? 'Restock Inventory' : 'Record Expense'}
+                  {expenseCategory === 'INVENTORY' ? t('expense.restock.inventory') : t('pos.submit.expense')}
                 </>
               )}
             </Button>
@@ -6348,9 +6347,9 @@ export default function POSInterface() {
                 <Clock className="h-5 w-5 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-[8px]l font-bold">Held Orders</DialogTitle>
+                <DialogTitle className="text-[8px]l font-bold">{t('held.orders')}</DialogTitle>
                 <DialogDescription>
-                  {heldOrders.length} {heldOrders.length === 1 ? 'order' : 'orders'} on hold
+                  {heldOrders.length} {heldOrders.length === 1 ? t('held.order') : heldOrders.length + ' ' + t('held.orders.count')}
                 </DialogDescription>
               </div>
             </div>
@@ -6361,7 +6360,7 @@ export default function POSInterface() {
                 <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3">
                   <Clock className="h-8 w-8 opacity-40" />
                 </div>
-                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">No held orders</p>
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">{t('held.no.orders')}</p>
               </div>
             ) : (
               <div className="space-y-3 pr-2">
@@ -7185,7 +7184,7 @@ export default function POSInterface() {
               <div>
                 <DialogTitle className="text-[8px]l font-bold">{t('pos.low.stock')}</DialogTitle>
                 <DialogDescription>
-                  {lowStockAlerts.length} item{lowStockAlerts.length !== 1 ? 's' : ''} running low
+                  {lowStockAlerts.length} {t('lowstock.running')}
                 </DialogDescription>
               </div>
             </div>
@@ -7207,7 +7206,7 @@ export default function POSInterface() {
                   </div>
                   {alert.reorderLevel && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
-                      Reorder level: {alert.reorderLevel}
+                      {t('lowstock.reorder')} {alert.reorderLevel}
                     </p>
                   )}
                 </div>
@@ -7219,7 +7218,7 @@ export default function POSInterface() {
               onClick={() => setShowLowStockDialog(false)}
               className="w-full rounded-xl h-11 font-semibold"
             >
-              Close
+              {t('button.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -7345,10 +7344,10 @@ export default function POSInterface() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Tag className="h-5 w-5 text-purple-600" />
-              Apply Discount
+              {t('discount.apply')}
             </DialogTitle>
             <DialogDescription>
-              Redeem loyalty points or apply promo codes to get discounts on this order.
+              {t('discount.description')}
             </DialogDescription>
           </DialogHeader>
 
@@ -7358,7 +7357,7 @@ export default function POSInterface() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Gift className="h-5 w-5 text-purple-600" />
-                  <span className="font-bold text-sm text-purple-900 dark:text-purple-100">Loyalty Points</span>
+                  <span className="font-bold text-sm text-purple-900 dark:text-purple-100">{t('discount.loyalty.points')}</span>
                 </div>
                 {selectedAddress && (
                   <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
@@ -7368,14 +7367,14 @@ export default function POSInterface() {
               </div>
 
               {!selectedAddress ? (
-                <p className="text-xs text-purple-700 dark:text-purple-300">Select a customer to redeem points</p>
+                <p className="text-xs text-purple-700 dark:text-purple-300">{t('discount.select.customer')}</p>
               ) : (
                 <>
                   {redeemedPoints > 0 ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg">
                         <div>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">Points Redeemed</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">{t('discount.points.redeemed')}</p>
                           <p className="font-bold text-lg text-purple-600">{redeemedPoints} pts</p>
                         </div>
                         <div className="text-right">
@@ -7390,7 +7389,7 @@ export default function POSInterface() {
                         className="w-full border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
                       >
                         <X className="h-4 w-4 mr-2" />
-                        Clear Redemption
+                        {t('discount.clear.redemption')}
                       </Button>
                     </div>
                   ) : (
@@ -7400,7 +7399,7 @@ export default function POSInterface() {
                       className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
                     >
                       <Sparkles className="h-4 w-4 mr-2" />
-                      Redeem Points (100 pts = 10 EGP)
+                      {t('discount.redeem.points')}
                     </Button>
                   )}
                 </>
@@ -7418,7 +7417,7 @@ export default function POSInterface() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg">
                     <div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">Code Applied</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">{t('discount.code.applied')}</p>
                       <p className="font-bold text-sm text-blue-600">{promoCode}</p>
                     </div>
                     <div className="text-right">
@@ -7438,7 +7437,7 @@ export default function POSInterface() {
                     className="w-full border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
                   >
                     <X className="h-4 w-4 mr-2" />
-                    Clear Promo Code
+                    {t('discount.clear.promo')}
                   </Button>
                 </div>
               ) : (
@@ -7447,7 +7446,7 @@ export default function POSInterface() {
                     <Input
                       value={promoCode}
                       onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      placeholder="Enter promo code"
+                      placeholder={t('discount.enter.promo')}
                       className="flex-1 text-sm"
                     />
                     <Button
@@ -7458,7 +7457,7 @@ export default function POSInterface() {
                       {validatingPromo ? (
                         <RefreshCw className="h-4 w-4 animate-spin" />
                       ) : (
-                        'Apply'
+                        t('button.apply')
                       )}
                     </Button>
                   </div>
@@ -7486,7 +7485,7 @@ export default function POSInterface() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg">
                     <div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">Discount Applied</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">{t('discount.applied')}</p>
                       {manualDiscountType === 'percentage' ? (
                         <p className="font-bold text-sm text-orange-600">{manualDiscountPercent}%</p>
                       ) : (
@@ -7588,7 +7587,7 @@ export default function POSInterface() {
                   <Input
                     value={manualDiscountComment}
                     onChange={(e) => setManualDiscountComment(e.target.value)}
-                    placeholder="Reason for discount (optional)"
+                    placeholder={t('discount.reason')}
                     className="text-sm"
                   />
 
@@ -7632,7 +7631,7 @@ export default function POSInterface() {
               onClick={() => setShowDiscountDialog(false)}
               className="w-full"
             >
-              Done
+              {t('discount.done')}
             </Button>
           </DialogFooter>
         </DialogContent>
