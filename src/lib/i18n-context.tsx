@@ -1157,11 +1157,7 @@ const translations = {
     'costs.description': 'إدارة تكاليف ونفقات الأعمال',
 
     // Delivery Management
-<<<<<<< HEAD
-    'delivery.title': 'مناطق التوصيل',
-=======
     'delivery.title': 'إدارة التوصيل',
->>>>>>> b680170 (Update project with Neon database configuration and improved i18n translation support)
     'delivery.description': 'إدارة مناطق التوصيل والمندوبين',
     'delivery.add.area': 'إضافة منطقة توصيل',
     'delivery.edit.area': 'تعديل منطقة التوصيل',
@@ -1200,8 +1196,6 @@ const translations = {
     'help.contact': 'اتصل بالدعم',
     'help.feedback': 'إرسال ملاحظات',
     'help.report.issue': 'الإبلاغ عن مشكلة',
-<<<<<<< HEAD
-=======
 
     // Additional POS translations
     'pos.item': 'عنصر',
@@ -1355,7 +1349,6 @@ const translations = {
     'receipt.captain': 'فاتورة الكابتن',
     'receipt.thank.you': 'شكراً لك!',
     'receipt.visit.again': 'زورنا مرة أخرى!',
->>>>>>> b680170 (Update project with Neon database configuration and improved i18n translation support)
   },
 };
 
