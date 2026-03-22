@@ -112,7 +112,7 @@ export default function InventoryManagement() {
     const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
 
     if (!branchId || !wasteIngredient || !wasteAmount || !wasteReason) {
-      alert('Please fill in all fields');
+      alert(t('form.required.field'));
       return;
     }
 
@@ -146,7 +146,7 @@ export default function InventoryManagement() {
       }
     } catch (error) {
       console.error('Failed to record waste:', error);
-      alert('Failed to record waste');
+      alert(t('msg.operation.failed'));
     }
   };
 
@@ -154,7 +154,7 @@ export default function InventoryManagement() {
     const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
 
     if (!branchId || !restockIngredient || !restockAmount) {
-      alert('Please fill in all required fields');
+      alert(t('form.required.field'));
       return;
     }
 
@@ -189,7 +189,7 @@ export default function InventoryManagement() {
       }
     } catch (error) {
       console.error('Failed to restock:', error);
-      alert('Failed to process restock');
+      alert(t('msg.operation.failed'));
     }
   };
 
@@ -243,7 +243,7 @@ export default function InventoryManagement() {
                         variant={alert.urgency === 'CRITICAL' ? 'destructive' : 'outline'}
                         className="w-fit h-7 flex items-center justify-center px-3 text-xs sm:text-sm"
                       >
-                        {alert.urgency}
+                        {alert.urgency === 'CRITICAL' ? t('reports.stock.critical') : t('reports.stock.low')}
                       </Badge>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
@@ -285,7 +285,7 @@ export default function InventoryManagement() {
                 onChange={(e) => setWasteIngredient(e.target.value)}
                 className="w-full h-11 sm:h-10 border border-slate-200 dark:border-slate-700 rounded-md px-3 py-2 text-base bg-white dark:bg-slate-900"
               >
-                <option value="">Select ingredient...</option>
+                <option value="">{t('form.select.option')}</option>
                 {ingredients.map((ing) => (
                   <option key={ing.id} value={ing.id}>
                     {ing.name}
@@ -294,7 +294,7 @@ export default function InventoryManagement() {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Quantity Lost</label>
+              <label className="text-sm font-medium">{t('form.quantity')}</label>
               <Input
                 type="number"
                 step="0.01"
@@ -305,7 +305,7 @@ export default function InventoryManagement() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Reason</label>
+              <label className="text-sm font-medium">{t('form.reason')}</label>
               <Textarea
                 value={wasteReason}
                 onChange={(e) => setWasteReason(e.target.value)}
@@ -320,7 +320,7 @@ export default function InventoryManagement() {
               disabled={!wasteIngredient || !wasteAmount || !wasteReason}
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Record Waste
+              {t('inventory.add.waste')}
             </Button>
           </div>
         </CardContent>
@@ -362,7 +362,7 @@ export default function InventoryManagement() {
                 onChange={(e) => setRestockIngredient(e.target.value)}
                 className="w-full h-11 sm:h-10 border border-slate-200 dark:border-slate-700 rounded-md px-3 py-2 text-base bg-white dark:bg-slate-900"
               >
-                <option value="">Select ingredient...</option>
+                <option value="">{t('form.select.option')}</option>
                 {ingredients.map((ing) => (
                   <option key={ing.id} value={ing.id}>
                     {ing.name}
@@ -371,7 +371,7 @@ export default function InventoryManagement() {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Quantity to Add</label>
+              <label className="text-sm font-medium">{t('form.quantity')}</label>
               <Input
                 type="number"
                 step="0.01"
@@ -382,7 +382,7 @@ export default function InventoryManagement() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Supplier (Optional)</label>
+              <label className="text-sm font-medium">Supplier ({t('form.optional')})</label>
               <Input
                 value={restockSupplier}
                 onChange={(e) => setRestockSupplier(e.target.value)}
@@ -396,7 +396,7 @@ export default function InventoryManagement() {
               disabled={!restockIngredient || !restockAmount}
             >
               <Package className="h-4 w-4 mr-2" />
-              Restock Inventory
+              {t('inventory.restock')}
             </Button>
           </div>
 

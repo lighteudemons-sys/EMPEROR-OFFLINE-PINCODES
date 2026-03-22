@@ -413,14 +413,14 @@ export default function ReportsDashboard() {
         setSelectedOrder(null);
         setOrderDialogOpen(false);
 
-        alert('Order refunded successfully!');
+        alert(t('msg.saved.successfully'));
         fetchOrders();
       } else {
-        alert(data.error || 'Failed to process refund');
+        alert(data.error || t('msg.operation.failed'));
       }
     } catch (error) {
       console.error('Refund error:', error);
-      alert('Failed to process refund');
+      alert(t('msg.operation.failed'));
     } finally {
       setIsRefunding(false);
     }
@@ -428,7 +428,7 @@ export default function ReportsDashboard() {
 
   const handleVoidItem = async () => {
     if (!selectedVoidItem || !voidQuantity || voidQuantity <= 0) {
-      alert('Please select an item and quantity to void');
+      alert(t('form.required.field'));
       return;
     }
 
@@ -449,7 +449,7 @@ export default function ReportsDashboard() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert(`Voided ${voidQuantity} ${selectedVoidItem.menuItem?.name || selectedVoidItem.itemName} successfully!`);
+        alert(`${t('btn.void')}ed ${voidQuantity} ${selectedVoidItem.menuItem?.name || selectedVoidItem.itemName} ${t('msg.saved.successfully')}`);
         setVoidItemDialogOpen(false);
         setVoidQuantity(1);
         setVoidReason('');
@@ -469,11 +469,11 @@ export default function ReportsDashboard() {
           }
         }
       } else {
-        alert(data.error || 'Failed to void item');
+        alert(data.error || t('msg.operation.failed'));
       }
     } catch (error) {
       console.error('Void item error:', error);
-      alert('Failed to void item');
+      alert(t('msg.operation.failed'));
     } finally {
       setIsVoiding(false);
     }
@@ -481,7 +481,7 @@ export default function ReportsDashboard() {
 
   const openVoidDialog = (item: any) => {
     if (selectedOrder?.isRefunded) {
-      alert('Cannot void items from a refunded order');
+      alert(t('form.invalid.input'));
       return;
     }
     setSelectedVoidItem(item);
@@ -494,7 +494,7 @@ export default function ReportsDashboard() {
 
   const handleExport = () => {
     if (!exportStartDate || !exportEndDate) {
-      alert('Please select both start and end dates');
+      alert(t('form.required.field'));
       return;
     }
 
@@ -571,7 +571,7 @@ export default function ReportsDashboard() {
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full"></div>
-          <p className="text-slate-600">Loading reports...</p>
+          <p className="text-slate-600">{t('msg.loading')}</p>
         </div>
       </div>
     );
@@ -588,7 +588,7 @@ export default function ReportsDashboard() {
                 <BarChart3 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Executive Dashboard</h2>
+                <h2 className="text-2xl font-bold text-slate-900">{t('dashboard.reports')}</h2>
                 <p className="text-sm text-slate-600">Real-time performance insights</p>
               </div>
             </div>
@@ -598,10 +598,10 @@ export default function ReportsDashboard() {
                 <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                   <SelectTrigger className="w-full sm:w-[200px]">
                     <Store className="h-4 w-4 mr-2 text-primary" />
-                    <SelectValue placeholder="All Branches" />
+                    <SelectValue placeholder={t('branch.all')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Branches</SelectItem>
+                    <SelectItem value="all">{t('branch.all')}</SelectItem>
                     {branches.map((branch) => (
                       <SelectItem key={branch.id} value={branch.id}>
                         {branch.branchName}
@@ -643,36 +643,36 @@ export default function ReportsDashboard() {
         <TabsList className="bg-white dark:bg-slate-800 overflow-x-auto">
           <TabsTrigger value="overview">
             <BarChart3 className="h-4 w-4 mr-2" />
-            Overview
+            {t('dashboard.reports')}
           </TabsTrigger>
           <TabsTrigger value="sales">
             <ShoppingCart className="h-4 w-4 mr-2" />
-            Sales & Refunds
+            {t('reports.sales')}
           </TabsTrigger>
           <TabsTrigger value="daily">
             <Calendar className="h-4 w-4 mr-2" />
-            Daily Reports
+            {t('shifts.history')}
           </TabsTrigger>
           <TabsTrigger value="products">
             <Package className="h-4 w-4 mr-2" />
-            Products
+            {t('dashboard.menu')}
           </TabsTrigger>
           <TabsTrigger value="customers">
             <Users className="h-4 w-4 mr-2" />
-            Customers
+            {t('customers.title')}
           </TabsTrigger>
           <TabsTrigger value="staff">
             <Users className="h-4 w-4 mr-2" />
-            Staff
+            {t('users.title')}
           </TabsTrigger>
           <TabsTrigger value="discounts">
             <Tag className="h-4 w-4 mr-2" />
-            Discounts
+            {t('pos.discount')}
           </TabsTrigger>
           {user?.role === 'ADMIN' && (
             <TabsTrigger value="branches">
               <Store className="h-4 w-4 mr-2" />
-              Branches
+              {t('dashboard.branches')}
             </TabsTrigger>
           )}
         </TabsList>
@@ -682,7 +682,7 @@ export default function ReportsDashboard() {
           {/* KPI Cards Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KPICard
-              title="Total Revenue"
+              title={t('analytics.total.revenue')}
               value={formatCurrency(kpiData?.revenue.total || 0, currency)}
               icon={DollarSign}
               growth={kpiData?.revenue.growth}
@@ -690,26 +690,26 @@ export default function ReportsDashboard() {
               color="emerald"
             />
             <KPICard
-              title="Total Orders"
+              title={t('reports.total.orders')}
               value={(kpiData?.orders.total || 0).toString()}
               icon={ShoppingCart}
               growth={kpiData?.orders.growth}
-              subtitle={`${kpiData?.orders.items || 0} items sold`}
+              subtitle={`${kpiData?.orders.items || 0} ${t('reports.items.sold')}`}
               color="blue"
             />
             <KPICard
-              title="Avg Order Value"
+              title={t('reports.avg.order')}
               value={formatCurrency(kpiData?.orders.avgValue || 0, currency)}
               icon={Target}
               growth={kpiData?.orders.avgValueGrowth}
-              subtitle="Per transaction"
+              subtitle={t('reports.per.transaction')}
               color="purple"
             />
             <KPICard
               title="Refund Rate"
               value={`${(kpiData?.refunds.rate || 0).toFixed(1)}%`}
               icon={AlertCircle}
-              subtitle={`${kpiData?.refunds.count || 0} refunded orders`}
+              subtitle={`${kpiData?.refunds.count || 0} ${t('order.refund')} ${t('orders')}`}
               color="red"
             />
           </div>
@@ -721,7 +721,7 @@ export default function ReportsDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5 text-primary" />
-                  Hourly Sales
+                  {t('analytics.hourly')}
                 </CardTitle>
                 <CardDescription>
                   Peak hour: {formatHour(kpiData?.peakHour.hour || 0)} ({formatCurrency(kpiData?.peakHour.revenue || 0, currency)})
@@ -756,7 +756,7 @@ export default function ReportsDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <PieChart className="h-5 w-5 text-primary" />
-                  Order Type Distribution
+                  {t('analytics.hourly.distribution')}
                 </CardTitle>
                 <CardDescription>Revenue breakdown by order type</CardDescription>
               </CardHeader>
@@ -792,17 +792,17 @@ export default function ReportsDashboard() {
                 <div className="grid grid-cols-3 gap-4 mt-6">
                   <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
                     <Utensils className="h-5 w-5 text-emerald-600 mx-auto mb-2" />
-                    <p className="text-xs text-slate-600">Dine-In</p>
+                    <p className="text-xs text-slate-600">{t('pos.order-type.dine-in')}</p>
                     <p className="font-bold text-emerald-700">{kpiData?.orderTypes.dineIn.count || 0}</p>
                   </div>
                   <div className="text-center p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg">
                     <ShoppingCart className="h-5 w-5 text-amber-600 mx-auto mb-2" />
-                    <p className="text-xs text-slate-600">Take-Away</p>
+                    <p className="text-xs text-slate-600">{t('pos.order-type.take-away')}</p>
                     <p className="font-bold text-amber-700">{kpiData?.orderTypes.takeAway.count || 0}</p>
                   </div>
                   <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
                     <Truck className="h-5 w-5 text-blue-600 mx-auto mb-2" />
-                    <p className="text-xs text-slate-600">Delivery</p>
+                    <p className="text-xs text-slate-600">{t('pos.order-type.delivery')}</p>
                     <p className="font-bold text-blue-700">{kpiData?.orderTypes.delivery.count || 0}</p>
                   </div>
                 </div>
@@ -817,7 +817,7 @@ export default function ReportsDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Coffee className="h-5 w-5 text-primary" />
-                  Top Performing Categories
+                  {t('analytics.top.products')}
                 </CardTitle>
                 <CardDescription>Revenue by product category</CardDescription>
               </CardHeader>
@@ -860,7 +860,7 @@ export default function ReportsDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  Payment Methods
+                  {t('order.payment')}
                 </CardTitle>
                 <CardDescription>Transaction breakdown</CardDescription>
               </CardHeader>
@@ -903,7 +903,7 @@ export default function ReportsDashboard() {
                               <p className="font-medium capitalize text-slate-900 dark:text-white">
                                 {methodLower === 'mobile_wallet' ? 'Mobile Wallet' : method}
                               </p>
-                              <p className="text-xs text-slate-500">{count} transactions</p>
+                              <p className="text-xs text-slate-500">{count} {t('shifts.orders')}</p>
                             </div>
                           </div>
                           <p className="font-bold text-primary">{formatCurrency(revenue, currency)}</p>
@@ -924,14 +924,14 @@ export default function ReportsDashboard() {
                   <div className="flex items-center gap-3">
                     <FileSpreadsheet className="h-8 w-8 text-emerald-600" />
                     <div>
-                      <p className="font-semibold text-slate-900 dark:text-white">Export Reports</p>
+                      <p className="font-semibold text-slate-900 dark:text-white">{t('btn.export')} {t('dashboard.reports')}</p>
                       <p className="text-sm text-slate-600 dark:text-slate-400">Download detailed reports in Excel format</p>
                     </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-emerald-200 dark:border-emerald-800">
                   <div>
-                    <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">From Date</Label>
+                    <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('form.date')} {t('from')}</Label>
                     <Input
                       type="date"
                       value={exportStartDate}
@@ -940,7 +940,7 @@ export default function ReportsDashboard() {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">To Date</Label>
+                    <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('form.date')} {t('to')}</Label>
                     <Input
                       type="date"
                       value={exportEndDate}
@@ -955,7 +955,7 @@ export default function ReportsDashboard() {
                       disabled={!exportStartDate || !exportEndDate}
                     >
                       <Download className="h-4 w-4 mr-2" />
-                      Export Excel
+                      {t('btn.export')} Excel
                     </Button>
                   </div>
                 </div>
@@ -973,7 +973,7 @@ export default function ReportsDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5 text-primary" />
-                Sales Orders
+                {t('reports.sales')}
               </CardTitle>
               <CardDescription>View and manage orders, process refunds</CardDescription>
             </CardHeader>
@@ -989,18 +989,18 @@ export default function ReportsDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Order #</TableHead>
-                        <TableHead>Date & Time</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Payment</TableHead>
-                        <TableHead>Subtotal</TableHead>
-                        <TableHead>Delivery Fee</TableHead>
-                        <TableHead>Discount</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Cashier</TableHead>
-                        <TableHead>Branch</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>{t('order.number')}</TableHead>
+                        <TableHead>{t('form.datetime')}</TableHead>
+                        <TableHead>{t('form.type')}</TableHead>
+                        <TableHead>{t('order.payment')}</TableHead>
+                        <TableHead>{t('order.subtotal')}</TableHead>
+                        <TableHead>{t('order.delivery.fee')}</TableHead>
+                        <TableHead>{t('pos.discount')}</TableHead>
+                        <TableHead>{t('order.total')}</TableHead>
+                        <TableHead>{t('order.cashier')}</TableHead>
+                        <TableHead>{t('dashboard.branches')}</TableHead>
+                        <TableHead>{t('status')}</TableHead>
+                        <TableHead className="text-right">{t('actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1021,10 +1021,10 @@ export default function ReportsDashboard() {
                             </TableCell>
                             <TableCell>
                               <Badge variant={order.paymentMethod === 'card' ? 'default' : 'secondary'}>
-                                {order.paymentMethod === 'cash' ? 'Cash' : 
+                                {order.paymentMethod === 'cash' ? t('pos.cash') : 
                                  order.paymentMethodDetail === 'INSTAPAY' ? 'InstaPay' :
                                  order.paymentMethodDetail === 'MOBILE_WALLET' ? 'Mobile Wallet' :
-                                 'Card'}
+                                 t('pos.card')}
                               </Badge>
                             </TableCell>
                             <TableCell className="font-semibold">
@@ -1055,9 +1055,9 @@ export default function ReportsDashboard() {
                             <TableCell>{order.branch?.branchName || 'Unknown'}</TableCell>
                             <TableCell>
                               {order.isRefunded ? (
-                                <Badge variant="destructive">Refunded</Badge>
+                                <Badge variant="destructive">{t('order.refund')}</Badge>
                               ) : (
-                                <Badge className="bg-emerald-600">Completed</Badge>
+                                <Badge className="bg-emerald-600">{t('msg.saved.successfully')}</Badge>
                               )}
                             </TableCell>
                             <TableCell className="text-right">
@@ -1078,7 +1078,7 @@ export default function ReportsDashboard() {
                       {orders.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={11} className="text-center py-8 text-slate-500">
-                            No orders found for the selected period
+                            {t('empty.no.orders')}
                           </TableCell>
                         </TableRow>
                       )}
@@ -1090,7 +1090,7 @@ export default function ReportsDashboard() {
                 {totalOrders > 0 && (
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-600 dark:text-slate-400">
-                      Showing {((currentPage - 1) * ordersPerPage) + 1} to {Math.min(currentPage * ordersPerPage, totalOrders)} of {totalOrders} orders
+                      {t('table.showing')} {((currentPage - 1) * ordersPerPage) + 1} {t('table.to')} {Math.min(currentPage * ordersPerPage, totalOrders)} {t('table.of')} {totalOrders} {t('orders')}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -1099,7 +1099,7 @@ export default function ReportsDashboard() {
                         onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                         disabled={currentPage === 1}
                       >
-                        Previous
+                        {t('pagination.previous')}
                       </Button>
                       <div className="flex items-center gap-1">
                         {Array.from({ length: Math.min(5, Math.ceil(totalOrders / ordersPerPage)) }, (_, i) => {
@@ -1133,7 +1133,7 @@ export default function ReportsDashboard() {
                         onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalOrders / ordersPerPage), prev + 1))}
                         disabled={currentPage === Math.ceil(totalOrders / ordersPerPage)}
                       >
-                        Next
+                        {t('pagination.next')}
                       </Button>
                     </div>
                   </div>
@@ -1181,67 +1181,67 @@ export default function ReportsDashboard() {
       <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Order Details #{selectedOrder?.orderNumber}</DialogTitle>
+            <DialogTitle>{t('order.details')} #{selectedOrder?.orderNumber}</DialogTitle>
           </DialogHeader>
           {selectedOrder && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-slate-500">Date & Time</Label>
+                  <Label className="text-slate-500">{t('form.datetime')}</Label>
                   <p className="font-semibold">{new Date(selectedOrder.orderTimestamp).toLocaleString()}</p>
                 </div>
                 <div>
-                  <Label className="text-slate-500">Order Type</Label>
+                  <Label className="text-slate-500">{t('order.type')}</Label>
                   <p className="font-semibold capitalize">{selectedOrder.orderType}</p>
                 </div>
                 <div>
-                  <Label className="text-slate-500">Payment Method</Label>
+                  <Label className="text-slate-500">{t('order.payment')}</Label>
                   <p className="font-semibold capitalize">{selectedOrder.paymentMethod}</p>
                 </div>
                 <div>
-                  <Label className="text-slate-500">Subtotal</Label>
+                  <Label className="text-slate-500">{t('order.subtotal')}</Label>
                   <p className="font-semibold text-lg">
                     {formatCurrency(selectedOrder.subtotal, currency)}
                   </p>
                 </div>
                 {selectedOrder.deliveryFee > 0 && (
                   <div>
-                    <Label className="text-slate-500">Delivery Fee</Label>
+                    <Label className="text-slate-500">{t('order.delivery.fee')}</Label>
                     <p className="font-semibold text-lg text-amber-600">
                       {formatCurrency(selectedOrder.deliveryFee, currency)}
                     </p>
                   </div>
                 )}
                 <div>
-                  <Label className="text-slate-500">Discount</Label>
+                  <Label className="text-slate-500">{t('pos.discount')}</Label>
                   <p className="font-semibold text-lg text-purple-600">
                     {formatCurrency(Math.max(0, selectedOrder.subtotal + (selectedOrder.deliveryFee || 0) - selectedOrder.totalAmount), currency)}
                   </p>
                 </div>
                 <div>
-                  <Label className="text-slate-500">Total (Paid)</Label>
+                  <Label className="text-slate-500">{t('order.total')} ({t('pos.cash')})</Label>
                   <p className="font-bold text-xl text-emerald-600">
                     {formatCurrency(selectedOrder.totalAmount, currency)}
                   </p>
                 </div>
                 <div>
-                  <Label className="text-slate-500">Cashier</Label>
+                  <Label className="text-slate-500">{t('order.cashier')}</Label>
                   <p className="font-semibold">{selectedOrder.cashier?.name || 'Unknown'}</p>
                 </div>
                 <div>
-                  <Label className="text-slate-500">Branch</Label>
+                  <Label className="text-slate-500">{t('dashboard.branches')}</Label>
                   <p className="font-semibold">{selectedOrder.branch?.branchName || 'Unknown'}</p>
                 </div>
               </div>
 
               <div>
-                <Label className="text-slate-500 mb-2 block">Order Items</Label>
+                <Label className="text-slate-500 mb-2 block">{t('order.items')}</Label>
                 <div className="border rounded-lg divide-y">
                   {selectedOrder.items.map((item, index: number) => (
                     <div key={index} className="p-3 flex justify-between items-start">
                       <div className="flex-1">
                         <p className="font-medium">{item.menuItem?.name || item.itemName}</p>
-                        <p className="text-sm text-slate-500">Qty: {item.quantity} × {formatCurrency(item.unitPrice, currency)}</p>
+                        <p className="text-sm text-slate-500">{t('form.quantity')}: {item.quantity} × {formatCurrency(item.unitPrice, currency)}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <p className="font-semibold">
@@ -1265,9 +1265,9 @@ export default function ReportsDashboard() {
 
               {selectedOrder.isRefunded && (
                 <div className="bg-red-50 dark:bg-red-950/30 p-4 rounded-lg">
-                  <p className="font-semibold text-red-700 dark:text-red-300">Refunded</p>
+                  <p className="font-semibold text-red-700 dark:text-red-300">{t('order.refund')}</p>
                   {selectedOrder.refundReason && (
-                    <p className="text-sm text-slate-600 mt-1">Reason: {selectedOrder.refundReason}</p>
+                    <p className="text-sm text-slate-600 mt-1">{t('form.reason')}: {selectedOrder.refundReason}</p>
                   )}
                 </div>
               )}
@@ -1281,7 +1281,7 @@ export default function ReportsDashboard() {
                   }}
                 >
                   <Printer className="h-4 w-4 mr-2" />
-                  Print Receipt
+                  {t('receipt.print')}
                 </Button>
 
                 {!selectedOrder.isRefunded && (
@@ -1293,7 +1293,7 @@ export default function ReportsDashboard() {
                     }}
                   >
                     <AlertCircle className="h-4 w-4 mr-2" />
-                    Process Refund
+                    {t('order.refund')}
                   </Button>
                 )}
               </div>
@@ -1306,44 +1306,44 @@ export default function ReportsDashboard() {
       <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Process Refund</DialogTitle>
+            <DialogTitle>{t('order.refund')}</DialogTitle>
             <DialogDescription>
-              Refund order #{selectedOrder?.orderNumber} for {formatCurrency(selectedOrder?.totalAmount || 0, currency)}
+              {t('order.refund')} order #{selectedOrder?.orderNumber} for {formatCurrency(selectedOrder?.totalAmount || 0, currency)}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">{t('username')}</Label>
               <Input
                 id="username"
                 value={refundUsername}
                 onChange={(e) => setRefundUsername(e.target.value)}
-                placeholder="Enter your username"
+                placeholder={t('auth.username')}
               />
             </div>
             <div>
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('password')}</Label>
               <Input
                 id="password"
                 type="password"
                 value={refundPassword}
                 onChange={(e) => setRefundPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder={t('auth.password')}
               />
             </div>
             <div>
-              <Label htmlFor="reason">Reason for Refund</Label>
+              <Label htmlFor="reason">{t('form.reason')} {t('order.refund')}</Label>
               <Input
                 id="reason"
                 value={refundReason}
                 onChange={(e) => setRefundReason(e.target.value)}
-                placeholder="Enter refund reason"
+                placeholder={t('form.reason')}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
-              Cancel
+              {t('btn.cancel')}
             </Button>
             <Button
               className="bg-red-600 hover:bg-red-700"
@@ -1370,14 +1370,14 @@ export default function ReportsDashboard() {
       <Dialog open={voidItemDialogOpen} onOpenChange={setVoidItemDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Void Item</DialogTitle>
+            <DialogTitle>{t('pos.void.item')}</DialogTitle>
             <DialogDescription>
-              Void {voidQuantity} x {selectedVoidItem?.menuItem?.name || selectedVoidItem?.itemName}
+              {t('btn.void')} {voidQuantity} x {selectedVoidItem?.menuItem?.name || selectedVoidItem?.itemName}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="void-quantity">Quantity to Void</Label>
+              <Label htmlFor="void-quantity">{t('form.quantity')} {t('to')} {t('pos.void')}</Label>
               <Input
                 id="void-quantity"
                 type="number"
@@ -1387,47 +1387,47 @@ export default function ReportsDashboard() {
                 onChange={(e) => setVoidQuantity(parseInt(e.target.value) || 1)}
               />
               <p className="text-xs text-slate-500 mt-1">
-                Available: {selectedVoidItem?.quantity || 0}
+                {t('form.available')}: {selectedVoidItem?.quantity || 0}
               </p>
             </div>
             <div>
-              <Label htmlFor="void-username">Username</Label>
+              <Label htmlFor="void-username">{t('username')}</Label>
               <Input
                 id="void-username"
                 value={voidUsername}
                 onChange={(e) => setVoidUsername(e.target.value)}
-                placeholder="Enter your username"
+                placeholder={t('auth.username')}
               />
             </div>
             <div>
-              <Label htmlFor="void-password">Password</Label>
+              <Label htmlFor="void-password">{t('password')}</Label>
               <Input
                 id="void-password"
                 type="password"
                 value={voidPassword}
                 onChange={(e) => setVoidPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder={t('auth.password')}
               />
             </div>
             <div>
-              <Label htmlFor="void-reason">Reason for Void</Label>
+              <Label htmlFor="void-reason">{t('form.reason')} {t('pos.void')}</Label>
               <Input
                 id="void-reason"
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
-                placeholder="Enter void reason"
+                placeholder={t('form.reason')}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setVoidItemDialogOpen(false)}>
-              Cancel
+              {t('btn.cancel')}
             </Button>
             {isVoiding ? (
               <>
                 <Button disabled>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
+                  {t('msg.processing')}
                 </Button>
               </>
             ) : (
@@ -1437,7 +1437,7 @@ export default function ReportsDashboard() {
                   onClick={handleVoidItem}
                   disabled={!voidUsername || !voidPassword || !voidReason || voidQuantity <= 0}
                 >
-                  Void Item
+                  {t('btn.void')} {t('pos.item')}
                 </Button>
               </>
             )}

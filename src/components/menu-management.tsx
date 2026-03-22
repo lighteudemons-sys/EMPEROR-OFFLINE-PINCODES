@@ -132,7 +132,7 @@ interface VariantOptionFormData {
 }
 
 export default function MenuManagement() {
-  const { currency } = useI18n();
+  const { currency, t } = useI18n();
   const [activeTab, setActiveTab] = useState('items');
   
   // Menu Items State
@@ -817,7 +817,7 @@ export default function MenuManagement() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    if (!confirm('Are you sure you want to delete this menu item?')) return;
+    if (!confirm(t('msg.confirm.delete'))) return;
     
     setLoading(true);
     try {
@@ -927,10 +927,10 @@ export default function MenuManagement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Coffee className="h-6 w-6" />
-            Menu Management
+            {t('menu.title')}
           </CardTitle>
           <CardDescription>
-            Manage menu categories, items, and variants. Categories organize menu items for POS filtering.
+            {t('menu.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -970,17 +970,17 @@ export default function MenuManagement() {
                   <DialogTrigger asChild>
                     <Button onClick={resetItemForm} className="h-11 min-h-[44px] w-full md:w-auto">
                       <Plus className="h-4 w-4 mr-2" />
-                      Add Item
+                      {t('menu.add.item')}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="w-full max-w-[95vw] sm:max-w-[600px] max-h-[90dvh] overflow-y-auto pb-safe">
                     <form onSubmit={handleItemSubmit}>
                       <DialogHeader>
-                        <DialogTitle>{editingItem ? 'Edit Menu Item' : 'Add Menu Item'}</DialogTitle>
+                        <DialogTitle>{editingItem ? t('menu.edit.item') : t('menu.add.item')}</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                          <Label htmlFor="itemName">Item Name *</Label>
+                          <Label htmlFor="itemName">{t('menu.item.name')} *</Label>
                           <Input
                             id="itemName"
                             value={itemFormData.name}
@@ -993,7 +993,7 @@ export default function MenuManagement() {
                         
                         {/* Image Upload for Menu Item */}
                         <div className="space-y-2">
-                          <Label>Item Image</Label>
+                          <Label>{t('menu.item.image')}</Label>
                           <div className="flex gap-4">
                             {itemFormData.imagePath && (
                               <img
@@ -1034,7 +1034,7 @@ export default function MenuManagement() {
                                   className="h-11 min-h-[44px]"
                                 >
                                   <Upload className="h-4 w-4 mr-2" />
-                                  {itemUploading ? 'Uploading...' : 'Upload Image'}
+                                  {itemUploading ? t('loading') : t('btn.upload') + ' ' + t('menu.item.image')}
                                 </Button>
                               </div>
                               {itemFormData.imagePath && (
@@ -1046,7 +1046,7 @@ export default function MenuManagement() {
                                   className="h-9"
                                 >
                                   <X className="h-4 w-4 mr-1" />
-                                  Remove Image
+                                  {t('btn.remove')} {t('menu.item.image')}
                                 </Button>
                               )}
                             </div>
@@ -1054,7 +1054,7 @@ export default function MenuManagement() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="category">Category *</Label>
+                            <Label htmlFor="category">{t('form.category')} *</Label>
                             <Select
                               value={itemFormData.categoryId}
                               onValueChange={(value) => {
@@ -1072,7 +1072,7 @@ export default function MenuManagement() {
                               }}
                             >
                               <SelectTrigger id="category" className="h-11">
-                                <SelectValue placeholder="Select category" />
+                                <SelectValue placeholder={t('form.select.option')} />
                               </SelectTrigger>
                               <SelectContent>
                                 {categories.map((cat) => (
@@ -1087,7 +1087,7 @@ export default function MenuManagement() {
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="price">Base Price ({currency}) *</Label>
+                            <Label htmlFor="price">{t('menu.item.price')} ({currency}) *</Label>
                             <div className="relative">
                               <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                               <Input
@@ -1121,7 +1121,7 @@ export default function MenuManagement() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="active">Status</Label>
+                            <Label htmlFor="active">{t('form.status')}</Label>
                             <Select
                               value={itemFormData.isActive.toString()}
                               onValueChange={(value) => setItemFormData({ ...itemFormData, isActive: value === 'true' })}
@@ -1130,13 +1130,13 @@ export default function MenuManagement() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="true">Active</SelectItem>
-                                <SelectItem value="false">Inactive</SelectItem>
+                                <SelectItem value="true">{t('active')}</SelectItem>
+                                <SelectItem value="false">{t('inactive')}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="sortOrder">Sort Order</Label>
+                            <Label htmlFor="sortOrder">{t('menu.item.sort.order')}</Label>
                             <Input
                               id="sortOrder"
                               type="number"
@@ -1358,10 +1358,10 @@ export default function MenuManagement() {
                       </div>
                       <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
                         <Button type="button" variant="outline" onClick={() => setItemDialogOpen(false)} className="h-11 min-h-[44px] w-full sm:w-auto">
-                          Cancel
+                          {t('btn.cancel')}
                         </Button>
                         <Button type="submit" disabled={loading} className="h-11 min-h-[44px] w-full sm:w-auto">
-                          {loading ? 'Saving...' : editingItem ? 'Update' : 'Add'} Item
+                          {loading ? t('loading') : editingItem ? t('btn.update') : t('btn.add')} {t('menu.add.item').split(' ').pop()}
                         </Button>
                       </DialogFooter>
                     </form>
@@ -1375,21 +1375,21 @@ export default function MenuManagement() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[40px]"></TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead className="text-center">Sort</TableHead>
-                        <TableHead>Base Price</TableHead>
+                        <TableHead>{t('form.name')}</TableHead>
+                        <TableHead>{t('form.category')}</TableHead>
+                        <TableHead className="text-center">{t('menu.item.sort.order')}</TableHead>
+                        <TableHead>Base {t('form.price')}</TableHead>
                         <TableHead>Product Cost</TableHead>
                         <TableHead>Profit</TableHead>
                         <TableHead>Margin</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>{t('form.status')}</TableHead>
+                        <TableHead className="text-right">{t('actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {loading ? (
                         <TableRow key="loading">
-                          <TableCell colSpan={10} className="text-center py-8">Loading...</TableCell>
+                          <TableCell colSpan={10} className="text-center py-8">{t('loading')}</TableCell>
                         </TableRow>
                       ) : filteredItems.length === 0 ? (
                         <TableRow key="empty">
@@ -1448,12 +1448,12 @@ export default function MenuManagement() {
                               </TableCell>
                               <TableCell>
                                 <Badge variant={item.isActive ? 'default' : 'secondary'}>
-                                  {item.isActive ? 'Active' : 'Inactive'}
+                                  {item.isActive ? t('active') : t('inactive')}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-1 sm:gap-2">
-                                  <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)} className="h-9 w-9 sm:h-8 sm:w-8">
+                                  <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)} className="h-9 w-9 sm:h-8 sm:w-8" title={t('btn.edit')}>
                                     <Pencil className="h-4 w-4" />
                                   </Button>
                                   <Button
@@ -1461,6 +1461,7 @@ export default function MenuManagement() {
                                     size="icon"
                                     onClick={() => handleDeleteItem(item.id)}
                                     className="h-9 w-9 sm:h-8 sm:w-8 text-red-600 hover:text-red-700"
+                                    title={t('btn.delete')}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -1554,17 +1555,17 @@ export default function MenuManagement() {
                   <DialogTrigger asChild>
                     <Button onClick={resetCategoryForm} className="h-11 min-h-[44px] w-full sm:w-auto">
                       <Plus className="h-4 w-4 mr-2" />
-                      Add Category
+                      {t('menu.add.category')}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="w-full max-w-[95vw] sm:max-w-[500px] max-h-[90dvh] overflow-y-auto pb-safe">
                     <form onSubmit={handleCategorySubmit}>
                       <DialogHeader>
-                        <DialogTitle>{editingCategory ? 'Edit Category' : 'Add Category'}</DialogTitle>
+                        <DialogTitle>{editingCategory ? t('menu.edit.category') : t('menu.add.category')}</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                          <Label htmlFor="categoryName">Category Name *</Label>
+                          <Label htmlFor="categoryName">{t('menu.category.name')} *</Label>
                           <Input
                             id="categoryName"
                             value={categoryFormData.name}
@@ -1575,12 +1576,12 @@ export default function MenuManagement() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="categoryDescription">Description</Label>
+                          <Label htmlFor="categoryDescription">{t('menu.category.description')}</Label>
                           <Input
                             id="categoryDescription"
                             value={categoryFormData.description}
                             onChange={(e) => setCategoryFormData({ ...categoryFormData, description: e.target.value })}
-                            placeholder="Optional description"
+                            placeholder={t('form.optional') + ' ' + t('menu.category.description').toLowerCase()}
                             className="h-11"
                           />
                         </div>
@@ -1628,7 +1629,7 @@ export default function MenuManagement() {
                                   className="h-11 min-h-[44px]"
                                 >
                                   <Upload className="h-4 w-4 mr-2" />
-                                  {categoryUploading ? 'Uploading...' : 'Upload Image'}
+                                  {categoryUploading ? t('loading') : t('btn.upload') + ' ' + 'Category Image'}
                                 </Button>
                               </div>
                               {categoryFormData.imagePath && (
@@ -1640,7 +1641,7 @@ export default function MenuManagement() {
                                   className="h-9"
                                 >
                                   <X className="h-4 w-4 mr-1" />
-                                  Remove Image
+                                  {t('btn.remove')} Image
                                 </Button>
                               )}
                             </div>
@@ -1661,7 +1662,7 @@ export default function MenuManagement() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="active">Status</Label>
+                            <Label htmlFor="active">{t('form.status')}</Label>
                             <Select
                               value={categoryFormData.isActive.toString()}
                               onValueChange={(value) => setCategoryFormData({ ...categoryFormData, isActive: value === 'true' })}
@@ -1670,8 +1671,8 @@ export default function MenuManagement() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="true">Active</SelectItem>
-                                <SelectItem value="false">Inactive</SelectItem>
+                                <SelectItem value="true">{t('active')}</SelectItem>
+                                <SelectItem value="false">{t('inactive')}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1715,10 +1716,10 @@ export default function MenuManagement() {
                       </div>
                       <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
                         <Button type="button" variant="outline" onClick={() => setCategoryDialogOpen(false)} className="h-11 min-h-[44px] w-full sm:w-auto">
-                          Cancel
+                          {t('btn.cancel')}
                         </Button>
                         <Button type="submit" disabled={loading} className="h-11 min-h-[44px] w-full sm:w-auto">
-                          {loading ? 'Saving...' : editingCategory ? 'Update' : 'Add'} Category
+                          {loading ? t('loading') : editingCategory ? t('btn.update') : t('btn.add')} {t('menu.add.category').split(' ').pop()}
                         </Button>
                       </DialogFooter>
                     </form>
@@ -1736,7 +1737,7 @@ export default function MenuManagement() {
                           <CardTitle className="text-base">{category.name}</CardTitle>
                         </div>
                         <Badge variant={category.isActive ? 'default' : 'secondary'}>
-                          {category.isActive ? 'Active' : 'Inactive'}
+                          {category.isActive ? t('active') : t('inactive')}
                         </Badge>
                       </div>
                       {category.description && (
@@ -1769,11 +1770,12 @@ export default function MenuManagement() {
                             size="icon"
                             className="h-9 w-9 sm:h-8 sm:w-8 text-red-600 hover:text-red-700"
                             onClick={() => {
-                              if (confirm('Are you sure you want to delete this category?')) {
+                              if (confirm(t('msg.confirm.delete'))) {
                                 handleDeleteCategory(category.id);
                               }
                             }}
                             disabled={(category._count?.menuItems || 0) > 0}
+                            title={t('btn.delete')}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>

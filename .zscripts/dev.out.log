@@ -3264,3 +3264,249 @@ You can learn more, including how to opt-out if you'd not like to participate in
 https://nextjs.org/telemetry
 
 [?25h
+▲ Next.js 16.1.3 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://21.0.10.95:3000
+- Environments: .env
+
+✓ Starting...
+✓ Ready in 1014ms
+  Reload env: .env
+○ Compiling / ...
+ GET / 200 in 6.5s (compile: 5.9s, render: 551ms)
+[DB] 📁 Using SQLite database (Local Development)
+[DB] ✅ Prisma client initialized successfully
+ GET /api/auth/session 200 in 270ms (compile: 259ms, render: 11ms)
+prisma:error 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany()` invocation in
+/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__21da50f3._.js:370:154
+
+  367 const includeInactive = searchParams.get('includeInactive') === 'true';
+  368 const cacheKey = `branches:all:${includeInactive ? 'include-inactive' : 'active-only'}`;
+  369 const branches = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$cache$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["getCached"])(cacheKey, async ()=>{
+→ 370     return await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany(
+error: Error validating datasource `db`: the URL must start with the protocol `postgresql://` or `postgres://`.
+  -->  schema.prisma:7
+   | 
+ 6 |   provider = "postgresql"
+ 7 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+Get branches error: Error [PrismaClientInitializationError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany()` invocation in
+/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__21da50f3._.js:370:154
+
+  367 const includeInactive = searchParams.get('includeInactive') === 'true';
+  368 const cacheKey = `branches:all:${includeInactive ? 'include-inactive' : 'active-only'}`;
+  369 const branches = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$cache$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["getCached"])(cacheKey, async ()=>{
+→ 370     return await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany(
+error: Error validating datasource `db`: the URL must start with the protocol `postgresql://` or `postgres://`.
+  -->  schema.prisma:7
+   | 
+ 6 |   provider = "postgresql"
+ 7 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+    at <unknown> (src/app/api/branches/route.ts:13:30)
+    at <unknown> (-->  schema.prisma:7)
+    at async (src/app/api/branches/route.ts:13:14)
+    at async getCached (src/lib/cache.ts:179:16)
+    at async GET (src/app/api/branches/route.ts:12:22)
+  11 |
+  12 |     const branches = await getCached(cacheKey, async () => {
+> 13 |       return await db.branch.findMany({
+     |                              ^
+  14 |         where: includeInactive ? undefined : { isActive: true },
+  15 |         orderBy: { branchName: 'asc' },
+  16 |         select: { {
+  clientVersion: '6.11.1',
+  errorCode: undefined,
+  retryable: undefined
+}
+ GET /api/branches 500 in 697ms (compile: 427ms, render: 269ms)
+ GET /login 200 in 709ms (compile: 495ms, render: 214ms)
+⚠ Cross origin request detected from preview-chat-c8fab2e0-6380-41b7-a6c8-a128a1664a6d.space.z.ai to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ GET / 200 in 161ms (compile: 4ms, render: 158ms)
+ GET /login 200 in 117ms (compile: 7ms, render: 110ms)
+ GET / 200 in 35ms (compile: 3ms, render: 32ms)
+ GET / 200 in 32ms (compile: 2ms, render: 30ms)
+  Reload env: .env
+ GET / 200 in 166ms (compile: 146ms, render: 20ms)
+prisma:error 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany()` invocation in
+/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__21da50f3._.js:370:154
+
+  367 const includeInactive = searchParams.get('includeInactive') === 'true';
+  368 const cacheKey = `branches:all:${includeInactive ? 'include-inactive' : 'active-only'}`;
+  369 const branches = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$cache$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["getCached"])(cacheKey, async ()=>{
+→ 370     return await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany(
+error: Error validating datasource `db`: the URL must start with the protocol `postgresql://` or `postgres://`.
+  -->  schema.prisma:7
+   | 
+ 6 |   provider = "postgresql"
+ 7 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+Get branches error: Error [PrismaClientInitializationError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany()` invocation in
+/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__21da50f3._.js:370:154
+
+  367 const includeInactive = searchParams.get('includeInactive') === 'true';
+  368 const cacheKey = `branches:all:${includeInactive ? 'include-inactive' : 'active-only'}`;
+  369 const branches = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$cache$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["getCached"])(cacheKey, async ()=>{
+→ 370     return await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany(
+error: Error validating datasource `db`: the URL must start with the protocol `postgresql://` or `postgres://`.
+  -->  schema.prisma:7
+   | 
+ 6 |   provider = "postgresql"
+ 7 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+    at <unknown> (src/app/api/branches/route.ts:13:30)
+    at <unknown> (-->  schema.prisma:7)
+    at async (src/app/api/branches/route.ts:13:14)
+    at async getCached (src/lib/cache.ts:179:16)
+    at async GET (src/app/api/branches/route.ts:12:22)
+  11 |
+  12 |     const branches = await getCached(cacheKey, async () => {
+> 13 |       return await db.branch.findMany({
+     |                              ^
+  14 |         where: includeInactive ? undefined : { isActive: true },
+  15 |         orderBy: { branchName: 'asc' },
+  16 |         select: { {
+  clientVersion: '6.11.1',
+  errorCode: undefined,
+  retryable: undefined
+}
+ GET /api/branches 500 in 159ms (compile: 18ms, render: 141ms)
+ GET /login 200 in 187ms (compile: 10ms, render: 177ms)
+ GET /api/auth/session 200 in 34ms (compile: 12ms, render: 22ms)
+ GET / 200 in 271ms (compile: 2ms, render: 269ms)
+prisma:error 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany()` invocation in
+/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__21da50f3._.js:370:154
+
+  367 const includeInactive = searchParams.get('includeInactive') === 'true';
+  368 const cacheKey = `branches:all:${includeInactive ? 'include-inactive' : 'active-only'}`;
+  369 const branches = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$cache$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["getCached"])(cacheKey, async ()=>{
+→ 370     return await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany(
+error: Error validating datasource `db`: the URL must start with the protocol `postgresql://` or `postgres://`.
+  -->  schema.prisma:7
+   | 
+ 6 |   provider = "postgresql"
+ 7 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+Get branches error: Error [PrismaClientInitializationError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany()` invocation in
+/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__21da50f3._.js:370:154
+
+  367 const includeInactive = searchParams.get('includeInactive') === 'true';
+  368 const cacheKey = `branches:all:${includeInactive ? 'include-inactive' : 'active-only'}`;
+  369 const branches = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$cache$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["getCached"])(cacheKey, async ()=>{
+→ 370     return await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].branch.findMany(
+error: Error validating datasource `db`: the URL must start with the protocol `postgresql://` or `postgres://`.
+  -->  schema.prisma:7
+   | 
+ 6 |   provider = "postgresql"
+ 7 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+    at <unknown> (src/app/api/branches/route.ts:13:30)
+    at <unknown> (-->  schema.prisma:7)
+    at async (src/app/api/branches/route.ts:13:14)
+    at async getCached (src/lib/cache.ts:179:16)
+    at async GET (src/app/api/branches/route.ts:12:22)
+  11 |
+  12 |     const branches = await getCached(cacheKey, async () => {
+> 13 |       return await db.branch.findMany({
+     |                              ^
+  14 |         where: includeInactive ? undefined : { isActive: true },
+  15 |         orderBy: { branchName: 'asc' },
+  16 |         select: { {
+  clientVersion: '6.11.1',
+  errorCode: undefined,
+  retryable: undefined
+}
+ GET /api/branches 500 in 84ms (compile: 1366µs, render: 82ms)
+ GET /login 200 in 16ms (compile: 1866µs, render: 14ms)
+ GET /api/auth/session 200 in 6ms (compile: 1903µs, render: 4ms)
+ GET /login 200 in 66ms (compile: 34ms, render: 32ms)
+  Reload env: .env.local
+ GET /login 200 in 50ms (compile: 28ms, render: 22ms)
+ GET /login 200 in 55ms (compile: 32ms, render: 23ms)
+ GET /login 200 in 49ms (compile: 28ms, render: 20ms)
+ GET /login 200 in 24ms (compile: 3ms, render: 21ms)
+ GET /login 200 in 20ms (compile: 1807µs, render: 19ms)
+ GET /login 200 in 14ms (compile: 1952µs, render: 12ms)
+ GET /login 200 in 13ms (compile: 1571µs, render: 11ms)
+ GET /login 200 in 15ms (compile: 1955µs, render: 13ms)
+ GET /login 200 in 13ms (compile: 1453µs, render: 11ms)
+ GET /login 200 in 16ms (compile: 1587µs, render: 15ms)
+ GET /login 200 in 14ms (compile: 1531µs, render: 12ms)
+ GET /login 200 in 13ms (compile: 1399µs, render: 11ms)
+ GET /login 200 in 16ms (compile: 1433µs, render: 14ms)
+ GET /login 200 in 24ms (compile: 2ms, render: 22ms)
+ GET /login 200 in 19ms (compile: 3ms, render: 16ms)
+ GET /login 200 in 14ms (compile: 1866µs, render: 12ms)
+ GET /login 200 in 15ms (compile: 1675µs, render: 13ms)
+ GET /login 200 in 14ms (compile: 1598µs, render: 12ms)
+ GET /api/debug-env 200 in 124ms (compile: 117ms, render: 7ms)
+ GET /login 200 in 20ms (compile: 2ms, render: 17ms)
+ GET /login 200 in 19ms (compile: 2ms, render: 17ms)
+ GET /login 200 in 26ms (compile: 2ms, render: 24ms)
+ GET /login 200 in 18ms (compile: 2ms, render: 15ms)
+ GET /login 200 in 14ms (compile: 1607µs, render: 12ms)
+ GET /login 200 in 16ms (compile: 1670µs, render: 14ms)
+ GET /login 200 in 18ms (compile: 1668µs, render: 16ms)
+ GET /login 200 in 19ms (compile: 2ms, render: 17ms)
+ GET /login 200 in 19ms (compile: 2ms, render: 17ms)
+ GET /login 200 in 46ms (compile: 3ms, render: 44ms)
+ GET /login 200 in 16ms (compile: 1682µs, render: 15ms)
+ GET /login 200 in 13ms (compile: 1468µs, render: 12ms)
+ GET /login 200 in 12ms (compile: 1429µs, render: 11ms)
+ GET /login 200 in 12ms (compile: 1417µs, render: 11ms)
+ GET /login 200 in 13ms (compile: 1634µs, render: 11ms)
+ GET /login 200 in 12ms (compile: 1585µs, render: 11ms)
+ GET /login 200 in 12ms (compile: 1396µs, render: 10ms)
+ GET /login 200 in 17ms (compile: 2ms, render: 14ms)
+ GET /login 200 in 21ms (compile: 1653µs, render: 19ms)
+ GET /login 200 in 12ms (compile: 1544µs, render: 11ms)
+ GET /login 200 in 12ms (compile: 1560µs, render: 11ms)
+ GET /login 200 in 12ms (compile: 1623µs, render: 10ms)
+ GET /login 200 in 12ms (compile: 1573µs, render: 11ms)
+ GET /login 200 in 13ms (compile: 1564µs, render: 12ms)
+ GET /login 200 in 12ms (compile: 1573µs, render: 11ms)
+ GET /login 200 in 12ms (compile: 1517µs, render: 11ms)
+ GET /login 200 in 19ms (compile: 7ms, render: 12ms)
+ GET /login 200 in 13ms (compile: 1559µs, render: 12ms)
+ GET /login 200 in 14ms (compile: 1633µs, render: 12ms)
+ GET /login 200 in 14ms (compile: 1888µs, render: 12ms)
+ GET /login 200 in 16ms (compile: 1745µs, render: 14ms)
+ GET /login 200 in 16ms (compile: 2ms, render: 14ms)
+ GET /login 200 in 14ms (compile: 1537µs, render: 12ms)
+ GET /login 200 in 16ms (compile: 3ms, render: 13ms)
+ GET /login 200 in 12ms (compile: 1618µs, render: 10ms)
+ GET /login 200 in 13ms (compile: 1659µs, render: 11ms)
+ GET /login 200 in 12ms (compile: 1509µs, render: 10ms)
+ GET /login 200 in 16ms (compile: 1353µs, render: 15ms)
+ GET /login 200 in 17ms (compile: 2ms, render: 15ms)
+ GET /login 200 in 12ms (compile: 1422µs, render: 10ms)
+ GET /login 200 in 12ms (compile: 1428µs, render: 11ms)
+ GET /login 200 in 13ms (compile: 1621µs, render: 11ms)
+ GET /login 200 in 18ms (compile: 2ms, render: 16ms)
+ GET /login 200 in 19ms (compile: 1938µs, render: 17ms)
+ GET /login 200 in 18ms (compile: 1994µs, render: 16ms)
+ GET /login 200 in 19ms (compile: 2ms, render: 17ms)
+ GET /login 200 in 18ms (compile: 2ms, render: 16ms)
+ GET /login 200 in 18ms (compile: 1928µs, render: 16ms)
+ GET /login 200 in 19ms (compile: 2ms, render: 17ms)
+error: script "dev" was terminated by signal SIGTERM (Polite quit request)
+[?25h

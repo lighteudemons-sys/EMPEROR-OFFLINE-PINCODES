@@ -43,15 +43,15 @@ interface ChangePasswordData {
   confirmPassword: string;
 }
 
+const roles = [
+  { value: 'ADMIN', label: 'HQ Admin', description: 'Full control over all branches' },
+  { value: 'BRANCH_MANAGER', label: 'Branch Manager', description: 'Manage single branch inventory and staff' },
+  { value: 'CASHIER', label: 'Cashier', description: 'Process sales only' },
+];
+
 export default function UserManagement() {
   const { user: currentUser } = useAuth();
   const { t } = useI18n();
-
-  const roles = [
-    { value: 'ADMIN', label: t('users.admin'), description: 'Full control over all branches' },
-    { value: 'BRANCH_MANAGER', label: t('users.manager'), description: 'Manage single branch inventory and staff' },
-    { value: 'CASHIER', label: t('users.cashier'), description: 'Process sales only' },
-  ];
   const [users, setUsers] = useState<User[]>([]);
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -134,11 +134,11 @@ export default function UserManagement() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'ADMIN':
-        return <Badge className="bg-emerald-600">{t('users.admin')}</Badge>;
+        return <Badge className="bg-emerald-600">HQ Admin</Badge>;
       case 'BRANCH_MANAGER':
-        return <Badge className="bg-blue-600">{t('users.manager')}</Badge>;
+        return <Badge className="bg-blue-600">Branch Manager</Badge>;
       case 'CASHIER':
-        return <Badge className="bg-slate-600">{t('users.cashier')}</Badge>;
+        return <Badge className="bg-slate-600">Cashier</Badge>;
       default:
         return <Badge>{role}</Badge>;
     }
@@ -254,7 +254,7 @@ export default function UserManagement() {
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setMessage({ type: 'error', text: t('form.password.mismatch') });
+      setMessage({ type: 'error', text: 'Passwords do not match' });
       return;
     }
 
@@ -289,7 +289,7 @@ export default function UserManagement() {
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
       console.error('Password change error:', error);
-      setMessage({ type: 'error', text: t('msg.connection.error') });
+      setMessage({ type: 'error', text: 'Network error. Please try again.' });
     } finally {
       setPasswordLoading(false);
     }
@@ -363,7 +363,7 @@ export default function UserManagement() {
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
       console.error('PIN change error:', error);
-      setMessage({ type: 'error', text: t('msg.connection.error') });
+      setMessage({ type: 'error', text: 'Network error. Please try again.' });
     } finally {
       setPinLoading(false);
     }
@@ -668,7 +668,7 @@ export default function UserManagement() {
             <Users className="h-6 w-6" />
             Users ({filteredUsers.length})
             {currentUser?.role === 'BRANCH_MANAGER' && (
-              <span className="text-sm font-normal text-slate-500 ml-2">'(Your Branch Only)'</span>
+              <span className="text-sm font-normal text-slate-500 ml-2">(Your Branch Only)</span>
             )}
           </CardTitle>
         </CardHeader>
@@ -706,7 +706,7 @@ export default function UserManagement() {
                 </DialogTrigger>
                 <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>{editingUser ? t('users.edit.user') : 'Add New User'}</DialogTitle>
+                    <DialogTitle>{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmit}>
                     <div className="space-y-4 py-4">
@@ -834,7 +834,7 @@ export default function UserManagement() {
                         className="bg-gradient-to-r from-[#C7A35A] to-[#b88e3b] hover:from-[#b88e3b] hover:to-[#C7A35A] text-white w-full sm:w-auto h-11 min-h-[44px]"
                         disabled={loading}
                       >
-                        {loading ? t('msg.saving') : editingUser ? t('btn.update') : t('btn.add')} User
+                        {loading ? 'Saving...' : editingUser ? 'Update' : 'Add'} User
                       </Button>
                     </DialogFooter>
                   </form>
@@ -851,15 +851,15 @@ export default function UserManagement() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-[#F4F0EA] dark:bg-[#0B2B22]">
-                    <TableHead>{t('users.username')}</TableHead>
-                    <TableHead>{'User Code: '}</TableHead>
-                    <TableHead>{t('users.email')}</TableHead>
-                    <TableHead>{t('form.name')}</TableHead>
-                    <TableHead>{t('users.role')}</TableHead>
-                    <TableHead>{t('users.branch')}</TableHead>
-                    <TableHead>{'Status'}</TableHead>
-                    <TableHead>{'Created'}</TableHead>
-                    <TableHead className="text-right">{t('table.actions')}</TableHead>
+                    <TableHead>Username</TableHead>
+                    <TableHead>User Code</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Branch</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -881,7 +881,7 @@ export default function UserManagement() {
                       <TableCell>{user.branchName || '-'}</TableCell>
                       <TableCell>
                         <Badge variant={user.isActive ? 'default' : 'secondary'}>
-                          {user.isActive ? t('users.active') : 'Inactive'}
+                          {user.isActive ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
                       <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
@@ -893,7 +893,7 @@ export default function UserManagement() {
                               size="icon"
                               onClick={() => openPinDialog(user)}
                               className="hover:text-[#C7A35A]"
-                              title={user.hasPin ? 'Change PIN' : t('users.set.pin')}
+                              title={user.hasPin ? 'Change PIN' : 'Set PIN'}
                             >
                               <Lock className="h-4 w-4" />
                             </Button>
@@ -904,7 +904,7 @@ export default function UserManagement() {
                               size="icon"
                               onClick={() => openPasswordDialog(user)}
                               className="hover:text-[#C7A35A]"
-                              title={t('users.change.password')}
+                              title="Change Password"
                             >
                               <Key className="h-4 w-4" />
                             </Button>
@@ -914,7 +914,7 @@ export default function UserManagement() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleEdit(user)}
-                              title={t('users.edit.user')}
+                              title="Edit User"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -936,7 +936,7 @@ export default function UserManagement() {
                               size="icon"
                               onClick={() => handleDelete(user.id, user)}
                               className="hover:text-red-600"
-                              title={t('users.delete.user')}
+                              title="Delete User"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -953,13 +953,13 @@ export default function UserManagement() {
         </CardContent>
       </Card>
 
-      {/* {t('users.change.password')} Dialog */}
+      {/* Change Password Dialog */}
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[#0F3A2E] dark:text-[#FFFDF8]">
               <Lock className="h-5 w-5 text-[#C7A35A]" />
-              {t('users.change.password')}
+              Change Password
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1015,10 +1015,10 @@ export default function UserManagement() {
               {passwordLoading ? (
                 <span className="flex items-center gap-2">
                   <div className="h-4 w-4 border-2 border-white/30 border-t-transparent animate-spin rounded-full"></div>
-                  {t('msg.processing')}
+                  Processing...
                 </span>
               ) : (
-                t('users.change.password')
+                'Change Password'
               )}
             </Button>
           </DialogFooter>
@@ -1031,12 +1031,12 @@ export default function UserManagement() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[#0F3A2E] dark:text-[#FFFDF8]">
               <Lock className="h-5 w-5 text-[#C7A35A]" />
-              {pinTargetUser?.hasPin ? 'Change PIN' : t('users.set.pin')}
+              {pinTargetUser?.hasPin ? 'Change PIN' : 'Set PIN'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              {pinTargetUser?.hasPin ? t('users.change.pin.for') : 'Set PIN for: '} <strong>{pinTargetUser?.username}</strong>
+              {pinTargetUser?.hasPin ? 'Change' : 'Set'} PIN for: <strong>{pinTargetUser?.username}</strong>
               {pinTargetUser?.userCode && (
                 <>
                   {' '} (Code: <span className="font-mono bg-slate-100 px-2 py-0.5 rounded">{pinTargetUser.userCode}</span>)
@@ -1105,10 +1105,10 @@ export default function UserManagement() {
               {pinLoading ? (
                 <span className="flex items-center gap-2">
                   <div className="h-4 w-4 border-2 border-white/30 border-t-transparent animate-spin rounded-full"></div>
-                  {t('msg.processing')}
+                  Processing...
                 </span>
               ) : (
-                pinTargetUser?.hasPin ? 'Change PIN' : t('users.set.pin')
+                pinTargetUser?.hasPin ? 'Change PIN' : 'Set PIN'
               )}
             </Button>
           </DialogFooter>
