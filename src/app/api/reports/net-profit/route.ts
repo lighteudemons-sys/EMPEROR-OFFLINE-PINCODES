@@ -122,9 +122,13 @@ export async function GET(request: NextRequest) {
 
         // Calculate cost for this item
         let itemCost = 0;
+        // Apply customVariantValue multiplier if present (for weight variants like 0.1kg, 0.5kg, etc.)
+        const variantMultiplier = (item.customVariantValue && item.customVariantValue > 0) ? item.customVariantValue : 1;
         ingredientMap.forEach((quantity, ingredientId) => {
           const costPerUnit = ingredientCostMap.get(ingredientId) || 0;
-          itemCost += quantity * costPerUnit;
+          // Scale the recipe quantity by the custom variant value
+          const adjustedQuantity = quantity * variantMultiplier;
+          itemCost += adjustedQuantity * costPerUnit;
         });
 
         totalProductCost += itemCost * item.quantity;
@@ -160,9 +164,13 @@ export async function GET(request: NextRequest) {
           }
           if (ingredientMap) {
             let itemCost = 0;
+            // Apply customVariantValue multiplier if present (for weight variants like 0.1kg, 0.5kg, etc.)
+            const variantMultiplier = (item.customVariantValue && item.customVariantValue > 0) ? item.customVariantValue : 1;
             ingredientMap.forEach((quantity, ingredientId) => {
               const costPerUnit = ingredientCostMap.get(ingredientId) || 0;
-              itemCost += quantity * costPerUnit;
+              // Scale the recipe quantity by the custom variant value
+              const adjustedQuantity = quantity * variantMultiplier;
+              itemCost += adjustedQuantity * costPerUnit;
             });
             category.productCost += itemCost * item.quantity;
           }
