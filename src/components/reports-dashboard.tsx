@@ -660,6 +660,16 @@ export default function ReportsDashboard() {
     return `${displayHour}:00 ${period}`;
   };
 
+  const getCostPercentage = () => {
+    const totalRevenue = detailedOrders.reduce((sum, order) => sum + order.subtotal, 0);
+    const totalProductCost = detailedOrders.reduce((sum, order) => sum + order.totalProductCost, 0);
+
+    if (totalRevenue > 0) {
+      return ((totalProductCost / totalRevenue) * 100).toFixed(1) + '% of revenue';
+    }
+    return 'N/A';
+  };
+
   const GrowthBadge = ({ value, label }: { value: number; label?: string }) => {
     const isPositive = value >= 0;
     return (
@@ -1682,9 +1692,7 @@ export default function ReportsDashboard() {
                   </div>
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Product Cost</p>
                   <p className="text-xs text-slate-500 mt-1">
-                    {detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) > 0
-                      ? `${((detailedOrders.reduce((sum, order) => sum + order.totalProductCost, 0) / detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100).toFixed(1)}% of revenue`
-                      : 'N/A'}
+                    {getCostPercentage()}
                   </p>
                 </div>
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-5 hover:shadow-xl transition-shadow">
