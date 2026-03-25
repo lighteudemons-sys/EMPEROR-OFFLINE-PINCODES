@@ -96,6 +96,36 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Helper function to extract custom variant value from variantName
+    // Handles patterns like "وزن: 0.133x" or "0.1333333333333333x"
+    const extractVariantMultiplier = (item: any): number => {
+      // First, check if customVariantValue is already stored
+      if (item.customVariantValue && item.customVariantValue > 0) {
+        return item.customVariantValue;
+      }
+
+      // For old orders, try to extract from variantName
+      if (item.variantName) {
+        // Pattern: Look for a number followed by 'x' at the end
+        // Examples: "وزن: 0.133x" -> 0.133, "0.1333333333333333x" -> 0.1333333333333333
+        const match = item.variantName.match(/(\d+\.?\d*)\s*x$/i);
+        if (match && match[1]) {
+          const multiplier = parseFloat(match[1]);
+          if (!isNaN(multiplier) && multiplier > 0) {
+            console.log(`[Detailed Report] Extracted variant multiplier from variantName:`, {
+              itemId: item.id,
+              variantName: item.variantName,
+              extractedMultiplier: multiplier
+            });
+            return multiplier;
+          }
+        }
+      }
+
+      // Default to 1 (full unit)
+      return 1;
+    };
+
     // Calculate product costs for each order item
     const ordersWithCosts = orders.map(order => {
       const itemsWithCosts = order.items.map(item => {
@@ -112,10 +142,8 @@ export async function GET(request: NextRequest) {
           }
 
           if (ingredientMap) {
-            // Apply customVariantValue multiplier if present (for weight variants like 0.1kg, 0.5kg, etc.)
-            const variantMultiplier = (item.customVariantValue && item.customVariantValue > 0) 
-              ? item.customVariantValue 
-              : 1;
+            // Extract variant multiplier (from stored value or parsed from variantName)
+            const variantMultiplier = extractVariantMultiplier(item);
 
             ingredientMap.forEach((quantity, ingredientId) => {
               const costPerUnit = ingredientCostMap.get(ingredientId) || 0;
