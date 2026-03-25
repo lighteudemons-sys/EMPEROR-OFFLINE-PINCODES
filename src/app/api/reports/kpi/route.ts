@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
         items: {
           include: {
             menuItem: true,
+            variant: true, // Include variant to check if it's a custom input (weight) variant
           },
         },
         cashier: {
@@ -124,7 +125,23 @@ export async function GET(request: NextRequest) {
 
     // Helper function to extract custom variant value from variantName or price
     // Handles patterns like "وزن: 0.133x" or infers from price ratio
-    const extractVariantMultiplier = (item: any): number => {
+    const extractVariantMultiplier = (item: any): number | null => {
+      // If this is a predefined size variant (not a custom weight input), return null
+      // This ensures we use the variant's recipe quantities as-is
+      if (item.variant && item.variant.variantType) {
+        // Check if this is NOT a custom input variant
+        if (item.variant.variantType.isCustomInput === false) {
+          console.log(`[KPI API] Using predefined variant recipe (no multiplier):`, {
+            itemId: item.id,
+            itemName: item.itemName,
+            variantName: item.variant.variantOption?.name,
+            variantTypeId: item.variant.variantTypeId,
+            isCustomInput: item.variant.variantType.isCustomInput
+          });
+          return null; // Don't apply any multiplier for predefined variants
+        }
+      }
+
       // First, check if customVariantValue is already stored
       if (item.customVariantValue && item.customVariantValue > 0) {
         return item.customVariantValue;
@@ -149,7 +166,8 @@ export async function GET(request: NextRequest) {
       }
 
       // Try to infer from price ratio (for old orders without variantName)
-      if (item.menuItem && item.unitPrice && item.unitPrice > 0 && item.menuItem.price > 0) {
+      // Only do this if we don't have a predefined variant
+      if (!item.variant && item.menuItem && item.unitPrice && item.unitPrice > 0 && item.menuItem.price > 0) {
         const priceRatio = item.unitPrice / item.menuItem.price;
         // Only use this if the ratio is less than 1 (suggests partial portion)
         // and greater than 0.01 (not zero or extremely small)
@@ -166,8 +184,8 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Default to 1 (full unit)
-      return 1;
+      // Default to null (no multiplier)
+      return null;
     };
 
     // Calculate total product cost
@@ -188,11 +206,17 @@ export async function GET(request: NextRequest) {
         // Calculate cost for this item
         let itemCost = 0;
         // Extract variant multiplier (from stored value or parsed from variantName)
+        // Returns null for predefined variants, number for custom weight variants
         const variantMultiplier = extractVariantMultiplier(item);
+
+        // If variantMultiplier is null, use recipe quantities as-is (for predefined variants)
+        // Otherwise, scale by the multiplier (for custom weight variants)
+        const multiplierToUse = variantMultiplier !== null ? variantMultiplier : 1;
+
         ingredientMap.forEach((quantity, ingredientId) => {
           const costPerUnit = ingredientCostMap.get(ingredientId) || 0;
-          // Scale the recipe quantity by the custom variant value
-          const adjustedQuantity = quantity * variantMultiplier;
+          // Scale the recipe quantity by the multiplier (1 if predefined variant)
+          const adjustedQuantity = quantity * multiplierToUse;
           itemCost += adjustedQuantity * costPerUnit;
         });
 

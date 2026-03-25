@@ -16,7 +16,7 @@ import {
   DollarSign, Store, FileText, RotateCw, FileSpreadsheet, PieChart,
   Clock, Users, CreditCard, Wallet, Truck, Utensils, Coffee, ArrowUpRight,
   ArrowDownRight, Activity, Target, AlertCircle, RefreshCw, Download,
-  ArrowRight, Eye, Printer, RefreshCw as RefreshIcon, XCircle, Smartphone, Tag
+  ArrowRight, Eye, Printer, RefreshCw as RefreshIcon, XCircle, X, Smartphone, Tag
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -1891,6 +1891,7 @@ export default function ReportsDashboard() {
               </div>
             </>
           )}
+          </div>
 
           {/* Fixed Footer */}
           <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
