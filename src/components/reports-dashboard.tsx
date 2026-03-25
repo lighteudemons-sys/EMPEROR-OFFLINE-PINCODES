@@ -1607,192 +1607,313 @@ export default function ReportsDashboard() {
 
       {/* Detailed Revenue Report Dialog */}
       <Dialog open={detailedReportOpen} onOpenChange={setDetailedReportOpen}>
-        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              Detailed Revenue Report
-            </DialogTitle>
-            <DialogDescription>
-              View detailed breakdown of all orders with product costs and profit analysis
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="w-[95vw] h-[90vh] max-w-[1600px] overflow-hidden flex flex-col p-0">
+          {/* Fixed Header */}
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-6 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div>
+                  <DialogTitle className="text-2xl font-bold text-white p-0">
+                    Detailed Revenue Report
+                  </DialogTitle>
+                  <DialogDescription className="text-emerald-50">
+                    View detailed breakdown of all orders with product costs and profit analysis
+                  </DialogDescription>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setDetailedReportOpen(false)}
+                className="text-white hover:bg-white/20"
+              >
+                <X className="h-6 w-6" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-6 bg-slate-50 dark:bg-slate-950">
 
           {detailedReportLoading ? (
             <div className="flex items-center justify-center h-96">
               <div className="flex flex-col items-center gap-4">
-                <div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full"></div>
-                <p className="text-slate-600">Loading detailed report...</p>
+                <div className="animate-spin h-12 w-12 border-4 border-white border-t-transparent rounded-full"></div>
+                <p className="text-slate-500 text-lg font-medium">Loading detailed report...</p>
               </div>
             </div>
           ) : detailedOrders.length === 0 ? (
             <div className="flex items-center justify-center h-96">
               <div className="text-center">
-                <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="text-slate-500">No orders found for the selected period</p>
+                <FileText className="h-16 w-16 mx-auto mb-4 text-slate-300" />
+                <p className="text-slate-500 text-lg">No orders found for the selected period</p>
+                <p className="text-slate-400 text-sm mt-2">Try selecting a different time range or branch</p>
               </div>
             </div>
           ) : (
             <>
               {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-1">Total Revenue</p>
-                  <p className="text-2xl font-bold text-emerald-700">
-                    {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.subtotal, 0), currency)}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-5 hover:shadow-xl transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
+                      <DollarSign className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.subtotal, 0), currency)}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Revenue</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {detailedOrders.length} orders
                   </p>
                 </div>
-                <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-1">Total Product Cost</p>
-                  <p className="text-2xl font-bold text-red-700">
-                    {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProductCost, 0), currency)}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-5 hover:shadow-xl transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
+                      <Package className="h-6 w-6 text-red-600 dark:text-red-400" />
+                    </div>
+                    <span className="text-3xl font-bold text-red-600 dark:text-red-400">
+                      {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProductCost, 0), currency)}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Product Cost</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) > 0
+                      ? `${((detailedOrders.reduce((sum, order) => sum + order.totalProductCost, 0) / detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100).toFixed(1)}% of revenue`
+                      : 'N/A'}
                   </p>
                 </div>
-                <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-1">Total Profit</p>
-                  <p className="text-2xl font-bold text-blue-700">
-                    {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0), currency)}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-5 hover:shadow-xl transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                      <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <span className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                      {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0), currency)}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Profit</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Net revenue after costs
                   </p>
                 </div>
-                <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-1">Profit Margin</p>
-                  <p className="text-2xl font-bold text-purple-700">
-                    {(
-                      detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) /
-                      detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100
-                    ).toFixed(1)}%
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-5 hover:shadow-xl transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                      <BarChart3 className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <span className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                      {(
+                        detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) /
+                        detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100
+                      ).toFixed(1)}%
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Profit Margin</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) >= 0 ? 'Profitable' : 'Loss'}
                   </p>
                 </div>
               </div>
 
               {/* Export Button */}
-              <div className="flex justify-end mb-4">
+              <div className="flex justify-end mb-6">
                 <Button
                   onClick={handleExportDetailedReport}
-                  className="bg-emerald-600 hover:bg-emerald-700"
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all px-6"
+                  size="lg"
                 >
-                  <Download className="h-4 w-4 mr-2" />
+                  <Download className="h-5 w-5 mr-2" />
                   Export Detailed Report (Excel)
                 </Button>
               </div>
 
               {/* Orders Table */}
-              <ScrollArea className="h-[500px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="sticky top-0 bg-white">Order #</TableHead>
-                      <TableHead className="sticky top-0 bg-white">Date/Time</TableHead>
-                      <TableHead className="sticky top-0 bg-white">Cashier</TableHead>
-                      <TableHead className="sticky top-0 bg-white">Items</TableHead>
-                      <TableHead className="sticky top-0 bg-white text-right">Revenue</TableHead>
-                      <TableHead className="sticky top-0 bg-white text-right">Product Cost</TableHead>
-                      <TableHead className="sticky top-0 bg-white text-right">Profit</TableHead>
-                      <TableHead className="sticky top-0 bg-white text-right">Margin %</TableHead>
-                      <TableHead className="sticky top-0 bg-white">Type</TableHead>
-                      <TableHead className="sticky top-0 bg-white">Payment</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detailedOrders.map((order) => (
-                      <>
+              <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <ScrollArea className="h-[calc(90vh-380px)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50 dark:bg-slate-800">
+                        <TableHead className="font-semibold">Order #</TableHead>
+                        <TableHead className="font-semibold">Date/Time</TableHead>
+                        <TableHead className="font-semibold">Cashier</TableHead>
+                        <TableHead className="font-semibold">Items</TableHead>
+                        <TableHead className="font-semibold text-right">Revenue</TableHead>
+                        <TableHead className="font-semibold text-right">Product Cost</TableHead>
+                        <TableHead className="font-semibold text-right">Profit</TableHead>
+                        <TableHead className="font-semibold text-right">Margin %</TableHead>
+                        <TableHead className="font-semibold">Type</TableHead>
+                        <TableHead className="font-semibold">Payment</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {detailedOrders.map((order, orderIndex) => (
                         <TableRow
                           key={order.id}
-                          className={order.isRefunded ? 'bg-red-50 dark:bg-red-950/20' : ''}
+                          className={`
+                            hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors
+                            ${orderIndex % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-800/30'}
+                          `}
                         >
-                          <TableCell className="font-medium">
-                            #{order.orderNumber}
+                          <TableCell className="font-mono font-medium">
+                            <span className="text-slate-500">#</span>
+                            {order.orderNumber}
                             {order.isRefunded && (
                               <Badge variant="destructive" className="ml-2">Refunded</Badge>
                             )}
                           </TableCell>
                           <TableCell>
                             <div className="text-sm">
-                              <div>{new Date(order.orderTimestamp).toLocaleDateString()}</div>
-                              <div className="text-slate-500">
+                              <div className="font-medium">{new Date(order.orderTimestamp).toLocaleDateString()}</div>
+                              <div className="text-slate-500 text-xs">
                                 {new Date(order.orderTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{order.cashier?.name || 'N/A'}</TableCell>
                           <TableCell>
-                            <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs">
+                                {order.cashier?.name?.charAt(0) || '?'}
+                              </div>
+                              <span className="text-sm">{order.cashier?.name || 'N/A'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1.5 max-w-md">
                               {order.items.map((item: any, idx: number) => (
-                                <div key={idx} className="text-xs p-1 bg-slate-50 dark:bg-slate-800/50 rounded">
-                                  <div className="font-medium">{item.itemName}</div>
-                                  <div className="text-slate-500">
-                                    {item.quantity} × {formatCurrency(item.unitPrice, currency)}
-                                    {item.variantName && (
-                                      <span className="ml-1 text-xs text-primary">({item.variantName})</span>
-                                    )}
-                                    {item.customVariantValue && (
-                                      <span className="ml-1 text-xs text-blue-600">({item.customVariantValue}x)</span>
-                                    )}
-                                  </div>
-                                  <div className="grid grid-cols-3 gap-2 mt-1 text-xs">
-                                    <div>
-                                      <span className="text-slate-400">Cost:</span>{' '}
-                                      <span className="text-red-600">
-                                        {formatCurrency(item.productCost, currency)}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-400">Profit:</span>{' '}
-                                      <span className={item.profit >= 0 ? 'text-blue-600' : 'text-red-600'}>
-                                        {formatCurrency(item.profit, currency)}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-400">Margin:</span>{' '}
-                                      <span className={item.margin >= 0 ? 'text-blue-600' : 'text-red-600'}>
-                                        {item.margin.toFixed(1)}%
-                                      </span>
+                                <div
+                                  key={idx}
+                                  className="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-primary/30 transition-colors"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-sm text-slate-900 dark:text-white">
+                                        {item.itemName}
+                                      </div>
+                                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                                        <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                                          {item.quantity} × {formatCurrency(item.unitPrice, currency)}
+                                        </span>
+                                        {item.variantName && (
+                                          <Badge variant="secondary" className="text-xs">
+                                            {item.variantName}
+                                          </Badge>
+                                        )}
+                                        {item.customVariantValue && (
+                                          <Badge variant="outline" className="text-xs">
+                                            {item.customVariantValue}x
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-slate-400">Cost:</span>
+                                          <span className="text-xs font-medium text-red-600">
+                                            {formatCurrency(item.productCost, currency)}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-slate-400">Profit:</span>
+                                          <span className={`text-xs font-medium ${item.profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                            {formatCurrency(item.profit, currency)}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-slate-400">Margin:</span>
+                                          <span className={`text-xs font-medium ${item.margin >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                            {item.margin.toFixed(1)}%
+                                          </span>
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(order.subtotal, currency)}
-                          </TableCell>
-                          <TableCell className="text-right text-red-600 font-medium">
-                            {formatCurrency(order.totalProductCost, currency)}
-                          </TableCell>
-                          <TableCell className={`text-right font-medium ${order.totalProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                            {formatCurrency(order.totalProfit, currency)}
+                          <TableCell className="text-right">
+                            <div className="font-medium text-emerald-600 dark:text-emerald-400">
+                              {formatCurrency(order.subtotal, currency)}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <span className={order.profitMargin >= 0 ? 'text-blue-600' : 'text-red-600'}>
+                            <div className="font-medium text-red-600 dark:text-red-400">
+                              {formatCurrency(order.totalProductCost, currency)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className={`font-medium ${order.totalProfit >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {formatCurrency(order.totalProfit, currency)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={`font-semibold ${order.profitMargin >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
                               {order.profitMargin.toFixed(1)}%
                             </span>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{order.orderType}</Badge>
+                            <Badge 
+                              variant="outline"
+                              className={`${
+                                order.orderType === 'dine-in' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                order.orderType === 'take-away' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                'bg-blue-50 text-blue-700 border-blue-200'
+                              }`}
+                            >
+                              {order.orderType}
+                            </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{order.paymentMethod}</Badge>
+                            <Badge 
+                              variant="outline"
+                              className="capitalize"
+                            >
+                              {order.paymentMethod}
+                            </Badge>
                           </TableCell>
                         </TableRow>
-                      </>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
             </>
           )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailedReportOpen(false)}>
-              Close
-            </Button>
-            {!detailedReportLoading && detailedOrders.length > 0 && (
-              <Button onClick={handleExportDetailedReport} className="bg-emerald-600 hover:bg-emerald-700">
-                <Download className="h-4 w-4 mr-2" />
-                Export Excel
-              </Button>
-            )}
-          </DialogFooter>
+          {/* Fixed Footer */}
+          <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-slate-500">
+                {detailedOrders.length} orders shown
+                {detailedOrders.length > 0 && (
+                  <span className="ml-4">
+                    • Average margin: {(
+                      detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) /
+                      detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100
+                    ).toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setDetailedReportOpen(false)}>
+                  Close
+                </Button>
+                {!detailedReportLoading && detailedOrders.length > 0 && (
+                  <Button
+                    onClick={handleExportDetailedReport}
+                    className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Excel
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

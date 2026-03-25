@@ -53,7 +53,11 @@ export async function GET(request: NextRequest) {
         isRefunded: false,
       },
       include: {
-        items: true,
+        items: {
+          include: {
+            menuItem: true,
+          },
+        },
         cashier: {
           select: { name: true },
         },
@@ -118,15 +122,15 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Helper function to extract custom variant value from variantName
-    // Handles patterns like "وزن: 0.133x" or "0.1333333333333333x"
+    // Helper function to extract custom variant value from variantName or price
+    // Handles patterns like "وزن: 0.133x" or infers from price ratio
     const extractVariantMultiplier = (item: any): number => {
       // First, check if customVariantValue is already stored
       if (item.customVariantValue && item.customVariantValue > 0) {
         return item.customVariantValue;
       }
 
-      // For old orders, try to extract from variantName
+      // Try to extract from variantName for old orders
       if (item.variantName) {
         // Pattern: Look for a number followed by 'x' at the end
         // Examples: "وزن: 0.133x" -> 0.133, "0.1333333333333333x" -> 0.1333333333333333
@@ -141,6 +145,24 @@ export async function GET(request: NextRequest) {
             });
             return multiplier;
           }
+        }
+      }
+
+      // Try to infer from price ratio (for old orders without variantName)
+      if (item.menuItem && item.unitPrice && item.unitPrice > 0 && item.menuItem.price > 0) {
+        const priceRatio = item.unitPrice / item.menuItem.price;
+        // Only use this if the ratio is less than 1 (suggests partial portion)
+        // and greater than 0.01 (not zero or extremely small)
+        if (priceRatio > 0 && priceRatio < 0.95) {
+          console.log(`[KPI API] Inferred variant multiplier from price ratio:`, {
+            itemId: item.id,
+            itemName: item.itemName,
+            unitPrice: item.unitPrice,
+            basePrice: item.menuItem.price,
+            priceRatio: priceRatio,
+            inferredMultiplier: priceRatio
+          });
+          return priceRatio;
         }
       }
 
