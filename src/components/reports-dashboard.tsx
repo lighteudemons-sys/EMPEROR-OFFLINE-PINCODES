@@ -1615,9 +1615,9 @@ export default function ReportsDashboard() {
         isDuplicate={true}
       />
 
-      {/* Detailed Revenue Report Dialog - WORLD CLASS */}
-      <Dialog open={detailedReportOpen} onOpenChange={setDetailedReportOpen}>
-        <DialogContent className="w-[100vw] h-[100vh] max-w-[100vw] max-h-[100vh] p-0 m-0 rounded-none border-0 overflow-hidden flex flex-col bg-slate-50">
+      {/* Detailed Revenue Report Dialog - WORLD CLASS FULL SCREEN */}
+      {detailedReportOpen && (
+        <div className="fixed inset-0 z-[9999] bg-slate-50 flex flex-col">
           {/* Stunning Gradient Header */}
           <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6 flex-shrink-0 shadow-2xl">
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-teal-500/10"></div>
@@ -1628,12 +1628,12 @@ export default function ReportsDashboard() {
                     <FileText className="h-7 w-7" />
                   </div>
                   <div>
-                    <DialogTitle className="text-3xl font-bold text-white p-0 tracking-tight">
+                    <h2 className="text-3xl font-bold text-white tracking-tight">
                       Detailed Revenue Report
-                    </DialogTitle>
-                    <DialogDescription className="text-slate-400 text-sm mt-1">
+                    </h2>
+                    <p className="text-slate-400 text-sm mt-1">
                       Complete breakdown of orders with product costs and profit analysis
-                    </DialogDescription>
+                    </p>
                   </div>
                 </div>
                 <Button
@@ -1976,8 +1976,8 @@ export default function ReportsDashboard() {
               </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   );
 }
