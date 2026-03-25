@@ -1615,147 +1615,184 @@ export default function ReportsDashboard() {
         isDuplicate={true}
       />
 
-      {/* Detailed Revenue Report Dialog */}
+      {/* Detailed Revenue Report Dialog - WORLD CLASS */}
       <Dialog open={detailedReportOpen} onOpenChange={setDetailedReportOpen}>
-        <DialogContent className="w-[95vw] h-[90vh] max-w-[1600px] overflow-hidden flex flex-col p-0">
-          {/* Fixed Header */}
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-6 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <FileText className="h-6 w-6" />
+        <DialogContent className="w-[100vw] h-[100vh] max-w-[100vw] max-h-[100vh] p-0 m-0 rounded-none border-0 overflow-hidden flex flex-col bg-slate-50">
+          {/* Stunning Gradient Header */}
+          <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6 flex-shrink-0 shadow-2xl">
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-teal-500/10"></div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl shadow-lg shadow-emerald-500/25">
+                    <FileText className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-3xl font-bold text-white p-0 tracking-tight">
+                      Detailed Revenue Report
+                    </DialogTitle>
+                    <DialogDescription className="text-slate-400 text-sm mt-1">
+                      Complete breakdown of orders with product costs and profit analysis
+                    </DialogDescription>
+                  </div>
                 </div>
-                <div>
-                  <DialogTitle className="text-2xl font-bold text-white p-0">
-                    Detailed Revenue Report
-                  </DialogTitle>
-                  <DialogDescription className="text-emerald-50">
-                    View detailed breakdown of all orders with product costs and profit analysis
-                  </DialogDescription>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setDetailedReportOpen(false)}
+                  className="text-slate-400 hover:text-white hover:bg-white/10 rounded-xl h-10 w-10 transition-all"
+                >
+                  <X className="h-6 w-6" />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setDetailedReportOpen(false)}
-                className="text-white hover:bg-white/20"
-              >
-                <X className="h-6 w-6" />
-              </Button>
             </div>
           </div>
 
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto p-6 bg-slate-50 dark:bg-slate-950">
-
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-hidden flex flex-col">
           {detailedReportLoading ? (
-            <div className="flex items-center justify-center h-96">
-              <div className="flex flex-col items-center gap-4">
-                <div className="animate-spin h-12 w-12 border-4 border-white border-t-transparent rounded-full"></div>
-                <p className="text-slate-500 text-lg font-medium">Loading detailed report...</p>
+            <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center gap-6">
+                <div className="relative">
+                  <div className="animate-spin h-16 w-16 border-4 border-slate-200 border-t-emerald-500 rounded-full"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <FileText className="h-6 w-6 text-emerald-500" />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-slate-700 text-lg font-semibold">Loading detailed report...</p>
+                  <p className="text-slate-500 text-sm mt-1">Please wait while we fetch your data</p>
+                </div>
               </div>
             </div>
           ) : detailedOrders.length === 0 ? (
-            <div className="flex items-center justify-center h-96">
-              <div className="text-center">
-                <FileText className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-                <p className="text-slate-500 text-lg">No orders found for the selected period</p>
-                <p className="text-slate-400 text-sm mt-2">Try selecting a different time range or branch</p>
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center max-w-md">
+                <div className="w-24 h-24 mx-auto mb-6 bg-slate-200 dark:bg-slate-800 rounded-3xl flex items-center justify-center">
+                  <FileText className="h-12 w-12 text-slate-400" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">No orders found</h3>
+                <p className="text-slate-500">
+                  Try selecting a different time range or branch filter
+                </p>
               </div>
             </div>
           ) : (
             <>
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-5 hover:shadow-xl transition-shadow">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
-                      <DollarSign className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              {/* Stunning Summary Cards */}
+              <div className="bg-white border-b border-slate-200 p-6 flex-shrink-0 shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Revenue Card */}
+                  <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-2xl p-5 border border-emerald-200 dark:border-emerald-900/50 hover:shadow-lg transition-all group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform"></div>
+                    <div className="relative">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl shadow-lg shadow-emerald-500/25">
+                          <DollarSign className="h-6 w-6 text-white" />
+                        </div>
+                        <span className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                          {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.subtotal, 0), currency)}
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Total Revenue</p>
+                      <p className="text-xs text-slate-500 mt-1">{detailedOrders.length} orders</p>
                     </div>
-                    <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.subtotal, 0), currency)}
-                    </span>
                   </div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Revenue</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {detailedOrders.length} orders
-                  </p>
-                </div>
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-5 hover:shadow-xl transition-shadow">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
-                      <Package className="h-6 w-6 text-red-600 dark:text-red-400" />
+
+                  {/* Product Cost Card */}
+                  <div className="relative overflow-hidden bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/20 dark:to-rose-950/20 rounded-2xl p-5 border border-red-200 dark:border-red-900/50 hover:shadow-lg transition-all group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform"></div>
+                    <div className="relative">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-gradient-to-br from-red-500 to-rose-500 rounded-xl shadow-lg shadow-red-500/25">
+                          <Package className="h-6 w-6 text-white" />
+                        </div>
+                        <span className="text-3xl font-bold bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent">
+                          {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProductCost, 0), currency)}
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Total Product Cost</p>
+                      <p className="text-xs text-slate-500 mt-1">{getCostPercentage()}</p>
                     </div>
-                    <span className="text-3xl font-bold text-red-600 dark:text-red-400">
-                      {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProductCost, 0), currency)}
-                    </span>
                   </div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Product Cost</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {getCostPercentage()}
-                  </p>
-                </div>
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-5 hover:shadow-xl transition-shadow">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-                      <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+
+                  {/* Profit Card */}
+                  <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-2xl p-5 border border-blue-200 dark:border-blue-900/50 hover:shadow-lg transition-all group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform"></div>
+                    <div className="relative">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl shadow-lg shadow-blue-500/25">
+                          <TrendingUp className="h-6 w-6 text-white" />
+                        </div>
+                        <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                          {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0), currency)}
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Total Profit</p>
+                      <p className="text-xs text-slate-500 mt-1">Net revenue after costs</p>
                     </div>
-                    <span className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                      {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0), currency)}
-                    </span>
                   </div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Profit</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Net revenue after costs
-                  </p>
-                </div>
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-5 hover:shadow-xl transition-shadow">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
-                      <BarChart3 className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+
+                  {/* Margin Card */}
+                  <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 rounded-2xl p-5 border border-purple-200 dark:border-purple-900/50 hover:shadow-lg transition-all group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform"></div>
+                    <div className="relative">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg shadow-purple-500/25">
+                          <BarChart3 className="h-6 w-6 text-white" />
+                        </div>
+                        <span className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                          {(
+                            detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) /
+                            detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100
+                          ).toFixed(1)}%
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Profit Margin</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) >= 0 ? 'Profitable' : 'Loss'}
+                      </p>
                     </div>
-                    <span className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                      {(
-                        detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) /
-                        detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100
-                      ).toFixed(1)}%
-                    </span>
                   </div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Profit Margin</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) >= 0 ? 'Profitable' : 'Loss'}
-                  </p>
                 </div>
               </div>
 
-              {/* Export Button */}
-              <div className="flex justify-end mb-6">
-                <Button
-                  onClick={handleExportDetailedReport}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all px-6"
-                  size="lg"
-                >
-                  <Download className="h-5 w-5 mr-2" />
-                  Export Detailed Report (Excel)
-                </Button>
-              </div>
-
-              {/* Orders Table */}
-              <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <ScrollArea className="h-[calc(90vh-380px)]">
+              {/* Scrollable Table Container */}
+              <div className="flex-1 overflow-auto">
+                <div className="min-w-full">
                   <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50 dark:bg-slate-800">
-                        <TableHead className="font-semibold">Order #</TableHead>
-                        <TableHead className="font-semibold">Date/Time</TableHead>
-                        <TableHead className="font-semibold">Cashier</TableHead>
-                        <TableHead className="font-semibold">Items</TableHead>
-                        <TableHead className="font-semibold text-right">Revenue</TableHead>
-                        <TableHead className="font-semibold text-right">Product Cost</TableHead>
-                        <TableHead className="font-semibold text-right">Profit</TableHead>
-                        <TableHead className="font-semibold text-right">Margin %</TableHead>
-                        <TableHead className="font-semibold">Type</TableHead>
-                        <TableHead className="font-semibold">Payment</TableHead>
+                    <TableHeader className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-900 shadow-sm">
+                      <TableRow>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 whitespace-nowrap">
+                          Order #
+                        </TableHead>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 whitespace-nowrap">
+                          Date/Time
+                        </TableHead>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 whitespace-nowrap">
+                          Cashier
+                        </TableHead>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 whitespace-nowrap min-w-[400px]">
+                          Items
+                        </TableHead>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 text-right whitespace-nowrap">
+                          Revenue
+                        </TableHead>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 text-right whitespace-nowrap">
+                          Product Cost
+                        </TableHead>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 text-right whitespace-nowrap">
+                          Profit
+                        </TableHead>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 text-right whitespace-nowrap">
+                          Margin %
+                        </TableHead>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 whitespace-nowrap">
+                          Type
+                        </TableHead>
+                        <TableHead className="font-bold text-slate-800 dark:text-slate-200 text-sm py-4 px-4 whitespace-nowrap">
+                          Payment
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1764,46 +1801,50 @@ export default function ReportsDashboard() {
                           key={order.id}
                           className={`
                             hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors
-                            ${orderIndex % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-800/30'}
+                            ${orderIndex % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/30 dark:bg-slate-800/20'}
                           `}
                         >
-                          <TableCell className="font-mono font-medium">
-                            <span className="text-slate-500">#</span>
-                            {order.orderNumber}
+                          <TableCell className="font-mono font-bold py-4 px-4 whitespace-nowrap">
+                            <span className="text-slate-400 mr-1">#</span>
+                            <span className="text-slate-900 dark:text-white">{order.orderNumber}</span>
                             {order.isRefunded && (
                               <Badge variant="destructive" className="ml-2">Refunded</Badge>
                             )}
                           </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div className="font-medium">{new Date(order.orderTimestamp).toLocaleDateString()}</div>
-                              <div className="text-slate-500 text-xs">
+                          <TableCell className="py-4 px-4 whitespace-nowrap">
+                            <div>
+                              <div className="font-semibold text-slate-900 dark:text-white">
+                                {new Date(order.orderTimestamp).toLocaleDateString()}
+                              </div>
+                              <div className="text-xs text-slate-500">
                                 {new Date(order.orderTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs">
+                          <TableCell className="py-4 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-sm font-bold text-slate-700 dark:text-slate-300 shadow-sm">
                                 {order.cashier?.name?.charAt(0) || '?'}
                               </div>
-                              <span className="text-sm">{order.cashier?.name || 'N/A'}</span>
+                              <span className="font-medium text-slate-900 dark:text-white">
+                                {order.cashier?.name || 'N/A'}
+                              </span>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="space-y-1.5 max-w-md">
+                          <TableCell className="py-4 px-4">
+                            <div className="space-y-2">
                               {order.items.map((item: any, idx: number) => (
                                 <div
                                   key={idx}
-                                  className="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-primary/30 transition-colors"
+                                  className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
                                 >
-                                  <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-start justify-between gap-3">
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-sm text-slate-900 dark:text-white">
+                                      <div className="font-bold text-sm text-slate-900 dark:text-white mb-1.5">
                                         {item.itemName}
                                       </div>
-                                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-                                        <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                                      <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
+                                        <span className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded-lg font-semibold">
                                           {item.quantity} × {formatCurrency(item.unitPrice, currency)}
                                         </span>
                                         {item.variantName && (
@@ -1812,29 +1853,29 @@ export default function ReportsDashboard() {
                                           </Badge>
                                         )}
                                         {item.customVariantValue && (
-                                          <Badge variant="outline" className="text-xs">
+                                          <Badge variant="outline" className="text-xs font-mono">
                                             {item.customVariantValue}x
                                           </Badge>
                                         )}
                                       </div>
-                                      <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-xs text-slate-400">Cost:</span>
-                                          <span className="text-xs font-medium text-red-600">
+                                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                        <div className="bg-red-50 dark:bg-red-950/30 rounded-lg p-2">
+                                          <div className="text-[10px] text-slate-500 uppercase font-semibold tracking-wider">Cost</div>
+                                          <div className="text-sm font-bold text-red-600 dark:text-red-400">
                                             {formatCurrency(item.productCost, currency)}
-                                          </span>
+                                          </div>
                                         </div>
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-xs text-slate-400">Profit:</span>
-                                          <span className={`text-xs font-medium ${item.profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                        <div className={`rounded-lg p-2 ${item.profit >= 0 ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-red-50 dark:bg-red-950/30'}`}>
+                                          <div className="text-[10px] text-slate-500 uppercase font-semibold tracking-wider">Profit</div>
+                                          <div className={`text-sm font-bold ${item.profit >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
                                             {formatCurrency(item.profit, currency)}
-                                          </span>
+                                          </div>
                                         </div>
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-xs text-slate-400">Margin:</span>
-                                          <span className={`text-xs font-medium ${item.margin >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                        <div className={`rounded-lg p-2 ${item.margin >= 0 ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-red-50 dark:bg-red-950/30'}`}>
+                                          <div className="text-[10px] text-slate-500 uppercase font-semibold tracking-wider">Margin</div>
+                                          <div className={`text-sm font-bold ${item.margin >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
                                             {item.margin.toFixed(1)}%
-                                          </span>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -1843,42 +1884,42 @@ export default function ReportsDashboard() {
                               ))}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="font-medium text-emerald-600 dark:text-emerald-400">
+                          <TableCell className="py-4 px-4 text-right whitespace-nowrap">
+                            <div className="font-bold text-lg text-emerald-600 dark:text-emerald-400">
                               {formatCurrency(order.subtotal, currency)}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="font-medium text-red-600 dark:text-red-400">
+                          <TableCell className="py-4 px-4 text-right whitespace-nowrap">
+                            <div className="font-bold text-lg text-red-600 dark:text-red-400">
                               {formatCurrency(order.totalProductCost, currency)}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className={`font-medium ${order.totalProfit >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <TableCell className="py-4 px-4 text-right whitespace-nowrap">
+                            <div className={`font-bold text-lg ${order.totalProfit >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
                               {formatCurrency(order.totalProfit, currency)}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <span className={`font-semibold ${order.profitMargin >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <TableCell className="py-4 px-4 text-right whitespace-nowrap">
+                            <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${order.profitMargin >= 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'}`}>
                               {order.profitMargin.toFixed(1)}%
                             </span>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-4 px-4 whitespace-nowrap">
                             <Badge 
                               variant="outline"
-                              className={`${
-                                order.orderType === 'dine-in' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                order.orderType === 'take-away' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                'bg-blue-50 text-blue-700 border-blue-200'
+                              className={`font-semibold text-xs px-3 py-1 ${
+                                order.orderType === 'dine-in' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700' :
+                                order.orderType === 'take-away' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700' :
+                                'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700'
                               }`}
                             >
                               {order.orderType}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-4 px-4 whitespace-nowrap">
                             <Badge 
                               variant="outline"
-                              className="capitalize"
+                              className="font-semibold text-xs px-3 py-1 capitalize bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700"
                             >
                               {order.paymentMethod}
                             </Badge>
@@ -1887,37 +1928,49 @@ export default function ReportsDashboard() {
                       ))}
                     </TableBody>
                   </Table>
-                </ScrollArea>
+                </div>
               </div>
             </>
           )}
           </div>
 
-          {/* Fixed Footer */}
-          <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          {/* Sticky Footer */}
+          <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-lg">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-500">
-                {detailedOrders.length} orders shown
-                {detailedOrders.length > 0 && (
-                  <span className="ml-4">
-                    • Average margin: {(
-                      detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) /
-                      detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100
-                    ).toFixed(1)}%
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    {detailedOrders.length} orders
                   </span>
+                </div>
+                {detailedOrders.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      Avg Margin: {(
+                        detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) /
+                        detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100
+                      ).toFixed(1)}%
+                    </span>
+                  </div>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setDetailedReportOpen(false)}>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setDetailedReportOpen(false)}
+                  className="font-semibold px-6 py-2 rounded-xl"
+                >
                   Close
                 </Button>
                 {!detailedReportLoading && detailedOrders.length > 0 && (
                   <Button
                     onClick={handleExportDetailedReport}
-                    className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all"
+                    className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold px-6 py-2 rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/30 transition-all"
                   >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export Excel
+                    <Download className="h-5 w-5 mr-2" />
+                    Export to Excel
                   </Button>
                 )}
               </div>
