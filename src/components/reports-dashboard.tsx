@@ -159,6 +159,11 @@ export default function ReportsDashboard() {
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
 
+  // Detailed Revenue Report state
+  const [detailedReportOpen, setDetailedReportOpen] = useState(false);
+  const [detailedOrders, setDetailedOrders] = useState<any[]>([]);
+  const [detailedReportLoading, setDetailedReportLoading] = useState(false);
+
   // Fetch branches
   useEffect(() => {
     const fetchBranches = async () => {
@@ -509,6 +514,142 @@ export default function ReportsDashboard() {
     window.location.href = `/api/reports/export?${params.toString()}`;
   };
 
+  const handleOpenDetailedReport = async () => {
+    setDetailedReportLoading(true);
+    setDetailedReportOpen(true);
+
+    try {
+      const range = timeRanges.find(r => r.value === timeRange);
+      if (!range) return;
+
+      const now = new Date();
+      const endDate = new Date(now);
+      let startDate = new Date(now);
+
+      // Set dates based on selected time range (same logic as fetchKPIs)
+      if (timeRange === 'today') {
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'yesterday') {
+        startDate.setDate(now.getDate() - 1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setDate(now.getDate() - 1);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'lastWeek') {
+        startDate.setDate(now.getDate() - 7);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setDate(now.getDate() - 1);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'lastMonth') {
+        startDate.setMonth(now.getMonth() - 1);
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setMonth(now.getMonth());
+        endDate.setDate(0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'week') {
+        const dayOfWeek = startDate.getDay();
+        startDate.setDate(startDate.getDate() - dayOfWeek);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'month') {
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'quarter') {
+        startDate.setMonth(startDate.getMonth() - 3);
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'year') {
+        startDate.setMonth(0, 1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      const params = new URLSearchParams();
+      params.append('startDate', startDate.toISOString());
+      params.append('endDate', endDate.toISOString());
+      if (selectedBranch && selectedBranch !== 'all') {
+        params.append('branchId', selectedBranch);
+      }
+
+      const response = await fetch(`/api/reports/detailed-orders?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setDetailedOrders(data.data);
+      } else {
+        alert(data.error || 'Failed to fetch detailed orders');
+      }
+    } catch (error) {
+      console.error('Failed to fetch detailed orders:', error);
+      alert('Failed to fetch detailed orders');
+    } finally {
+      setDetailedReportLoading(false);
+    }
+  };
+
+  const handleExportDetailedReport = () => {
+    const range = timeRanges.find(r => r.value === timeRange);
+    if (!range) return;
+
+    const now = new Date();
+    const endDate = new Date(now);
+    let startDate = new Date(now);
+
+    // Set dates based on selected time range
+    if (timeRange === 'today') {
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'yesterday') {
+      startDate.setDate(now.getDate() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setDate(now.getDate() - 1);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'lastWeek') {
+      startDate.setDate(now.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setDate(now.getDate() - 1);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'lastMonth') {
+      startDate.setMonth(now.getMonth() - 1);
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setMonth(now.getMonth());
+      endDate.setDate(0);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'week') {
+      const dayOfWeek = startDate.getDay();
+      startDate.setDate(startDate.getDate() - dayOfWeek);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'month') {
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'quarter') {
+      startDate.setMonth(startDate.getMonth() - 3);
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'year') {
+      startDate.setMonth(0, 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    const params = new URLSearchParams();
+    params.append('format', 'excel');
+    params.append('startDate', startDate.toISOString());
+    params.append('endDate', endDate.toISOString());
+    if (selectedBranch && selectedBranch !== 'all') {
+      params.append('branchId', selectedBranch);
+    }
+
+    window.location.href = `/api/reports/detailed-orders?${params.toString()}`;
+  };
+
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
@@ -536,7 +677,8 @@ export default function ReportsDashboard() {
     icon: Icon,
     growth,
     subtitle,
-    color = 'primary'
+    color = 'primary',
+    onClick
   }: {
     title: string;
     value: string;
@@ -544,8 +686,12 @@ export default function ReportsDashboard() {
     growth?: number;
     subtitle?: string;
     color?: string;
+    onClick?: () => void;
   }) => (
-    <Card className="group hover:shadow-lg transition-all duration-300 border-2 hover:border-primary/30">
+    <Card
+      className={`group hover:shadow-lg transition-all duration-300 border-2 hover:border-primary/30 ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
       <CardContent className="pt-6">
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -686,8 +832,14 @@ export default function ReportsDashboard() {
               value={formatCurrency(kpiData?.revenue.total || 0, currency)}
               icon={DollarSign}
               growth={kpiData?.revenue.growth}
-              subtitle={`Product Cost: ${formatCurrency(kpiData?.revenue.productCost || 0, currency)} | Net: ${formatCurrency(kpiData?.revenue.net || 0, currency)}`}
+              subtitle={
+                <div className="flex items-center gap-1">
+                  <span>Product Cost: {formatCurrency(kpiData?.revenue.productCost || 0, currency)} | Net: {formatCurrency(kpiData?.revenue.net || 0, currency)}</span>
+                  <Eye className="h-3 w-3 text-primary" />
+                </div>
+              }
               color="emerald"
+              onClick={handleOpenDetailedReport}
             />
             <KPICard
               title={t('reports.total.orders')}
@@ -1452,6 +1604,197 @@ export default function ReportsDashboard() {
         order={duplicateReceiptOrder}
         isDuplicate={true}
       />
+
+      {/* Detailed Revenue Report Dialog */}
+      <Dialog open={detailedReportOpen} onOpenChange={setDetailedReportOpen}>
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Detailed Revenue Report
+            </DialogTitle>
+            <DialogDescription>
+              View detailed breakdown of all orders with product costs and profit analysis
+            </DialogDescription>
+          </DialogHeader>
+
+          {detailedReportLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="flex flex-col items-center gap-4">
+                <div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full"></div>
+                <p className="text-slate-600">Loading detailed report...</p>
+              </div>
+            </div>
+          ) : detailedOrders.length === 0 ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p className="text-slate-500">No orders found for the selected period</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
+                  <p className="text-sm text-slate-600 mb-1">Total Revenue</p>
+                  <p className="text-2xl font-bold text-emerald-700">
+                    {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.subtotal, 0), currency)}
+                  </p>
+                </div>
+                <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-lg">
+                  <p className="text-sm text-slate-600 mb-1">Total Product Cost</p>
+                  <p className="text-2xl font-bold text-red-700">
+                    {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProductCost, 0), currency)}
+                  </p>
+                </div>
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                  <p className="text-sm text-slate-600 mb-1">Total Profit</p>
+                  <p className="text-2xl font-bold text-blue-700">
+                    {formatCurrency(detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0), currency)}
+                  </p>
+                </div>
+                <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg">
+                  <p className="text-sm text-slate-600 mb-1">Profit Margin</p>
+                  <p className="text-2xl font-bold text-purple-700">
+                    {(
+                      detailedOrders.reduce((sum, order) => sum + order.totalProfit, 0) /
+                      detailedOrders.reduce((sum, order) => sum + order.subtotal, 0) * 100
+                    ).toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Export Button */}
+              <div className="flex justify-end mb-4">
+                <Button
+                  onClick={handleExportDetailedReport}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Detailed Report (Excel)
+                </Button>
+              </div>
+
+              {/* Orders Table */}
+              <ScrollArea className="h-[500px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky top-0 bg-white">Order #</TableHead>
+                      <TableHead className="sticky top-0 bg-white">Date/Time</TableHead>
+                      <TableHead className="sticky top-0 bg-white">Cashier</TableHead>
+                      <TableHead className="sticky top-0 bg-white">Items</TableHead>
+                      <TableHead className="sticky top-0 bg-white text-right">Revenue</TableHead>
+                      <TableHead className="sticky top-0 bg-white text-right">Product Cost</TableHead>
+                      <TableHead className="sticky top-0 bg-white text-right">Profit</TableHead>
+                      <TableHead className="sticky top-0 bg-white text-right">Margin %</TableHead>
+                      <TableHead className="sticky top-0 bg-white">Type</TableHead>
+                      <TableHead className="sticky top-0 bg-white">Payment</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailedOrders.map((order) => (
+                      <>
+                        <TableRow
+                          key={order.id}
+                          className={order.isRefunded ? 'bg-red-50 dark:bg-red-950/20' : ''}
+                        >
+                          <TableCell className="font-medium">
+                            #{order.orderNumber}
+                            {order.isRefunded && (
+                              <Badge variant="destructive" className="ml-2">Refunded</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>{new Date(order.orderTimestamp).toLocaleDateString()}</div>
+                              <div className="text-slate-500">
+                                {new Date(order.orderTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{order.cashier?.name || 'N/A'}</TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              {order.items.map((item: any, idx: number) => (
+                                <div key={idx} className="text-xs p-1 bg-slate-50 dark:bg-slate-800/50 rounded">
+                                  <div className="font-medium">{item.itemName}</div>
+                                  <div className="text-slate-500">
+                                    {item.quantity} × {formatCurrency(item.unitPrice, currency)}
+                                    {item.variantName && (
+                                      <span className="ml-1 text-xs text-primary">({item.variantName})</span>
+                                    )}
+                                    {item.customVariantValue && (
+                                      <span className="ml-1 text-xs text-blue-600">({item.customVariantValue}x)</span>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-2 mt-1 text-xs">
+                                    <div>
+                                      <span className="text-slate-400">Cost:</span>{' '}
+                                      <span className="text-red-600">
+                                        {formatCurrency(item.productCost, currency)}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-400">Profit:</span>{' '}
+                                      <span className={item.profit >= 0 ? 'text-blue-600' : 'text-red-600'}>
+                                        {formatCurrency(item.profit, currency)}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-400">Margin:</span>{' '}
+                                      <span className={item.margin >= 0 ? 'text-blue-600' : 'text-red-600'}>
+                                        {item.margin.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(order.subtotal, currency)}
+                          </TableCell>
+                          <TableCell className="text-right text-red-600 font-medium">
+                            {formatCurrency(order.totalProductCost, currency)}
+                          </TableCell>
+                          <TableCell className={`text-right font-medium ${order.totalProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                            {formatCurrency(order.totalProfit, currency)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={order.profitMargin >= 0 ? 'text-blue-600' : 'text-red-600'}>
+                              {order.profitMargin.toFixed(1)}%
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{order.orderType}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{order.paymentMethod}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      </>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailedReportOpen(false)}>
+              Close
+            </Button>
+            {!detailedReportLoading && detailedOrders.length > 0 && (
+              <Button onClick={handleExportDetailedReport} className="bg-emerald-600 hover:bg-emerald-700">
+                <Download className="h-4 w-4 mr-2" />
+                Export Excel
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
