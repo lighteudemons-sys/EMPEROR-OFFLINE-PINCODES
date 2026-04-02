@@ -47,4 +47,6 @@ prompt
 
 server.log
 # Skills directory
-/skills/
+/skills/.accesslog
+.config
+.stats

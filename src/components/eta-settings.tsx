@@ -11,21 +11,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { 
-  Settings, 
-  Save, 
-  TestTube, 
-  CheckCircle, 
-  XCircle, 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Settings,
+  Save,
+  TestTube,
+  CheckCircle,
+  XCircle,
   AlertTriangle,
   Shield,
   Globe,
   FileText,
   Upload,
-  Loader2
+  Loader2,
+  BarChart3,
+  RefreshCw,
+  Clock,
+  CheckCircle2,
+  XCircle2,
+  AlertOctagon,
+  Building2,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 interface ETASettings {
   id?: string;
@@ -54,6 +64,344 @@ interface ETASettings {
   totalFailed: number;
 }
 
+// Admin Dashboard Component
+function AdminDashboard({ data, loading, onRefresh }: { data: any; loading: boolean; onRefresh: () => void }) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        <span className="ml-2">Loading Admin Dashboard...</span>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+          <h3 className="text-lg font-semibold">Dashboard Not Available</h3>
+          <p className="text-slate-600 text-center max-w-md mt-2">
+            Unable to load admin dashboard data. Please try again.
+          </p>
+          <Button onClick={onRefresh} className="mt-4">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { stats, branches, recentSubmissions } = data;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <BarChart3 className="h-6 w-6" />
+            ETA Admin Dashboard
+          </h2>
+          <p className="text-slate-600 mt-1">Monitor ETA compliance across all branches</p>
+        </div>
+        <Button onClick={onRefresh} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Overall Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Total Branches</p>
+                <p className="text-3xl font-bold mt-1">{stats.totalBranches}</p>
+              </div>
+              <Building2 className="h-10 w-10 text-emerald-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Configured</p>
+                <p className="text-3xl font-bold mt-1 text-emerald-600">{stats.configuredBranches}</p>
+              </div>
+              <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Needs Config</p>
+                <p className="text-3xl font-bold mt-1 text-amber-600">{stats.unconfiguredBranches}</p>
+              </div>
+              <AlertOctagon className="h-10 w-10 text-amber-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Success Rate</p>
+                <p className="text-3xl font-bold mt-1 flex items-center gap-1">
+                  {stats.successRate}%
+                  <TrendingUp className="h-5 w-5 text-emerald-600" />
+                </p>
+              </div>
+              <BarChart3 className="h-10 w-10 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Submission Statistics */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Submission Statistics
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+              <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Submissions</div>
+              <div className="text-2xl font-bold">{stats.totalSubmissions}</div>
+            </div>
+            <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg">
+              <div className="text-sm text-emerald-700 dark:text-emerald-400 mb-1">Accepted</div>
+              <div className="text-2xl font-bold text-emerald-600">{stats.totalAccepted}</div>
+            </div>
+            <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
+              <div className="text-sm text-red-700 dark:text-red-400 mb-1">Rejected</div>
+              <div className="text-2xl font-bold text-red-600">{stats.totalRejected}</div>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg">
+              <div className="text-sm text-amber-700 dark:text-amber-400 mb-1">Failed</div>
+              <div className="text-2xl font-bold text-amber-600">{stats.totalFailed}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Branch Status Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Branch ETA Status
+          </CardTitle>
+          <CardDescription>View and manage ETA configuration for all branches</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Branch</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Environment</TableHead>
+                <TableHead>Submissions</TableHead>
+                <TableHead>Success Rate</TableHead>
+                <TableHead>Last Activity</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {branches.map((branch: any) => (
+                <TableRow key={branch.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-slate-400" />
+                      {branch.name}
+                    </div>
+                    {branch.taxRegistrationNumber && (
+                      <div className="text-xs text-slate-500">TRN: {branch.taxRegistrationNumber}</div>
+                    )}
+                  </TableCell>
+                  <TableCell>{branch.location || '-'}</TableCell>
+                  <TableCell>
+                    {branch.needsConfiguration ? (
+                      <Badge variant="outline" className="text-amber-600 border-amber-600">
+                        Needs Config
+                      </Badge>
+                    ) : branch.isActive ? (
+                      <Badge className="bg-emerald-600">Active</Badge>
+                    ) : (
+                      <Badge variant="secondary">Inactive</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {branch.environment ? (
+                      <Badge variant={branch.environment === 'PRODUCTION' ? 'default' : 'secondary'}>
+                        {branch.environment}
+                      </Badge>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      <div className="font-medium">{branch.totalSubmissions}</div>
+                      <div className="text-xs text-slate-500">
+                        {branch.stats.accepted} accepted, {branch.stats.rejected} rejected
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-600"
+                          style={{ width: `${branch.successRate}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium">{branch.successRate}%</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {branch.lastSubmission ? (
+                      <div className="text-xs">
+                        <div>{format(new Date(branch.lastSubmission.etaSubmittedAt || branch.lastSubmission.orderTimestamp), 'MMM d, HH:mm')}</div>
+                        <Badge
+                          variant={
+                            branch.lastSubmission.etaSubmissionStatus === 'ACCEPTED'
+                              ? 'default'
+                              : branch.lastSubmission.etaSubmissionStatus === 'FAILED'
+                              ? 'destructive'
+                              : 'secondary'
+                          }
+                          className="mt-1"
+                        >
+                          {branch.lastSubmission.etaSubmissionStatus}
+                        </Badge>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {branches.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-slate-600">
+                    No branches found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Recent Submissions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Recent Submissions
+          </CardTitle>
+          <CardDescription>Latest ETA submissions across all branches</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order #</TableHead>
+                <TableHead>Branch</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Submitted At</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recentSubmissions.map((submission: any, index: number) => (
+                <TableRow key={`${submission.id}-${index}`}>
+                  <TableCell className="font-medium">{submission.orderNumber}</TableCell>
+                  <TableCell>{submission.branchName}</TableCell>
+                  <TableCell>{parseFloat(submission.totalAmount).toFixed(2)} EGP</TableCell>
+                  <TableCell>
+                    {format(new Date(submission.etaSubmittedAt || submission.orderTimestamp), 'MMM d, yyyy HH:mm:ss')}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        submission.etaSubmissionStatus === 'ACCEPTED'
+                          ? 'default'
+                          : submission.etaSubmissionStatus === 'FAILED'
+                          ? 'destructive'
+                          : 'secondary'
+                      }
+                    >
+                      {submission.etaSubmissionStatus}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {recentSubmissions.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-slate-600">
+                    No recent submissions
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Branches Needing Configuration */}
+      {stats.unconfiguredBranches > 0 && (
+        <Card className="border-amber-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-amber-700">
+              <AlertOctagon className="h-5 w-5" />
+              Action Required: Branches Need Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-slate-600 mb-4">
+              The following branches need ETA configuration. Assign a branch manager to configure their settings.
+            </p>
+            <div className="space-y-2">
+              {branches
+                .filter((b: any) => b.needsConfiguration)
+                .map((branch: any) => (
+                  <div
+                    key={branch.id}
+                    className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Building2 className="h-4 w-4 text-amber-600" />
+                      <div>
+                        <div className="font-medium">{branch.name}</div>
+                        <div className="text-xs text-slate-500">{branch.location || 'No location'}</div>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-amber-600 border-amber-600">
+                      Needs Config
+                    </Badge>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function ETASettings() {
   const { user } = useAuth();
   const [settings, setSettings] = useState<ETASettings | null>(null);
@@ -63,6 +411,10 @@ export default function ETASettings() {
   const [testResult, setTestResult] = useState<any>(null);
   const [showSecret, setShowSecret] = useState(false);
   const [isBranchUser, setIsBranchUser] = useState(false);
+
+  // Admin Dashboard State
+  const [adminData, setAdminData] = useState<any>(null);
+  const [adminLoading, setAdminLoading] = useState(false);
 
   // Load ETA settings
   useEffect(() => {
@@ -75,9 +427,10 @@ export default function ETASettings() {
 
       // Check if user has a branch (required for ETA settings)
       if (!user.branchId) {
-        console.log('[ETA Settings] User is Admin (no branchId), ETA settings not available');
+        console.log('[ETA Settings] User is Admin (no branchId), loading admin dashboard');
         setIsBranchUser(false);
         setLoading(false);
+        await fetchAdminDashboard();
         return;
       }
 
@@ -87,6 +440,28 @@ export default function ETASettings() {
 
     loadSettings();
   }, [user]);
+
+  // Fetch Admin Dashboard Data
+  const fetchAdminDashboard = async () => {
+    setAdminLoading(true);
+    try {
+      const response = await fetch('/api/eta/admin-dashboard');
+      const data = await response.json();
+
+      if (response.ok) {
+        setAdminData(data);
+        console.log('[ETA Admin Dashboard] Data loaded successfully');
+      } else {
+        console.error('[ETA Admin Dashboard] Failed to load data:', data);
+        showErrorToast('Error', data.error || 'Failed to load admin dashboard data');
+      }
+    } catch (error) {
+      console.error('[ETA Admin Dashboard] Error:', error);
+      showErrorToast('Error', 'Failed to load admin dashboard');
+    } finally {
+      setAdminLoading(false);
+    }
+  };
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -276,30 +651,9 @@ export default function ETASettings() {
     );
   }
 
-  // Show message for Admin users who don't have a branch
+  // Show Admin Dashboard for users without a branch
   if (!isBranchUser) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Shield className="h-16 w-16 text-slate-400 mb-4" />
-          <h3 className="text-xl font-semibold mb-2">ETA Settings Not Available</h3>
-          <p className="text-slate-600 text-center max-w-md mt-2">
-            ETA Settings are only available for branch users. As an Admin, you don't have a branch assigned.
-          </p>
-          <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg max-w-md">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              <strong>To configure ETA settings:</strong>
-            </p>
-            <ol className="list-decimal list-inside text-sm text-slate-600 dark:text-slate-400 mt-2 space-y-1">
-              <li>Create a branch in the Branches section</li>
-              <li>Assign a user to that branch</li>
-              <li>Log in as that branch user</li>
-              <li>Access ETA Settings from the sidebar</li>
-            </ol>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <AdminDashboard data={adminData} loading={adminLoading} onRefresh={fetchAdminDashboard} />;
   }
 
   if (!settings) {
