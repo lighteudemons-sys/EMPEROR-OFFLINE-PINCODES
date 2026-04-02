@@ -65,21 +65,60 @@ export default function ETASettings() {
 
   // Load ETA settings
   useEffect(() => {
-    if (user?.branchId) {
-      fetchSettings();
-    }
+    const loadSettings = async () => {
+      // Check if user has a branch (required for ETA settings)
+      if (!user?.branchId) {
+        console.warn('[ETA Settings] User does not have a branchId, skipping ETA settings load');
+        setLoading(false);
+        // Set default settings even without branchId so UI shows
+        setSettings({
+          companyName: '',
+          taxRegistrationNumber: '',
+          branchCode: '',
+          commercialRegister: '',
+          address: '',
+          city: '',
+          governorate: '',
+          postalCode: '',
+          phone: '',
+          email: '',
+          clientId: '',
+          clientSecret: '',
+          environment: 'TEST',
+          certificateFile: '',
+          certificatePassword: '',
+          autoSubmit: true,
+          includeQR: true,
+          retryFailed: true,
+          maxRetries: 3,
+          isActive: true,
+          totalSubmitted: 0,
+          totalFailed: 0,
+        });
+        return;
+      }
+
+      await fetchSettings();
+    };
+
+    loadSettings();
   }, [user?.branchId]);
 
   const fetchSettings = async () => {
     setLoading(true);
     try {
+      console.log('[ETA Settings] Fetching settings for branch:', user.branchId);
       const response = await fetch(`/api/eta/settings?branchId=${user.branchId}`);
       const data = await response.json();
 
+      console.log('[ETA Settings] Response status:', response.status, 'data:', data);
+
       if (response.ok && data.settings) {
         setSettings(data.settings);
+        console.log('[ETA Settings] Settings loaded successfully');
       } else if (response.status === 404) {
         // No settings exist yet, use defaults
+        console.log('[ETA Settings] No settings found, using defaults');
         setSettings({
           companyName: '',
           taxRegistrationNumber: '',
@@ -105,13 +144,40 @@ export default function ETASettings() {
           totalFailed: 0,
         });
       } else {
-        throw new Error(data.error || 'Failed to fetch ETA settings');
+        console.error('[ETA Settings] Failed to fetch settings:', data);
+        throw new Error(data.error || data.details || 'Failed to fetch ETA settings');
       }
     } catch (error) {
-      console.error('Failed to fetch ETA settings:', error);
-      showErrorToast('Error', 'Failed to load ETA settings');
+      console.error('[ETA Settings] Error:', error);
+      showErrorToast('Error', error instanceof Error ? error.message : 'Failed to load ETA settings');
+      // Set default settings even on error so UI shows
+      setSettings({
+        companyName: '',
+        taxRegistrationNumber: '',
+        branchCode: '',
+        commercialRegister: '',
+        address: '',
+        city: '',
+        governorate: '',
+        postalCode: '',
+        phone: '',
+        email: '',
+        clientId: '',
+        clientSecret: '',
+        environment: 'TEST',
+        certificateFile: '',
+        certificatePassword: '',
+        autoSubmit: true,
+        includeQR: true,
+        retryFailed: true,
+        maxRetries: 3,
+        isActive: true,
+        totalSubmitted: 0,
+        totalFailed: 0,
+      });
     } finally {
       setLoading(false);
+      console.log('[ETA Settings] Loading complete, loading = false');
     }
   };
 
