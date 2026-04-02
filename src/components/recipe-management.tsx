@@ -349,7 +349,12 @@ export default function RecipeManagement() {
 
   const getMenuItemName = (menuItemId: string) => {
     const item = menuItems.find((i) => i.id === menuItemId);
-    return item?.name || 'Unknown';
+    if (!item) return 'Unknown';
+    return item.category ? `${item.name} (${item.category})` : item.name;
+  };
+
+  const getMenuItemNameWithCategory = (item: MenuItem) => {
+    return item.category ? `${item.name} (${item.category})` : item.name;
   };
 
   const getIngredientName = (ingredientId: string) => {
@@ -441,7 +446,7 @@ export default function RecipeManagement() {
                 <SelectItem value="all">All Menu Items</SelectItem>
                 {menuItems.map((item) => (
                   <SelectItem key={item.id} value={item.id}>
-                    {item.name} {item.hasVariants && <Badge variant="outline" className="ml-2 text-xs">Has Variants</Badge>}
+                    {getMenuItemNameWithCategory(item)} {item.hasVariants && <Badge variant="outline" className="ml-2 text-xs">Has Variants</Badge>}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -491,7 +496,7 @@ export default function RecipeManagement() {
                         <SelectContent>
                           {menuItems.map((item) => (
                             <SelectItem key={item.id} value={item.id}>
-                              {item.name} {item.hasVariants && <Badge variant="outline" className="ml-2 text-xs">Variants</Badge>}
+                              {getMenuItemNameWithCategory(item)} {item.hasVariants && <Badge variant="outline" className="ml-2 text-xs">Variants</Badge>}
                             </SelectItem>
                           ))}
                         </SelectContent>
