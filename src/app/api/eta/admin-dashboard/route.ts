@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         }
       },
       orderBy: {
-        name: 'asc'
+        branchName: 'asc'
       }
     });
 
@@ -98,9 +98,9 @@ export async function GET(request: NextRequest) {
 
       return {
         id: branch.id,
-        name: branch.name,
-        code: branch.code,
-        location: branch.location,
+        name: branch.branchName,
+        code: branch.licenseKey,
+        location: branch.address,
         hasSettings,
         isActive,
         environment: branch.etaSettings?.environment || null,
