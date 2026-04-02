@@ -65,57 +65,68 @@ interface RecipeFormData {
   ingredients: RecipeIngredient[];
 }
 
-// Unit conversion factors (to base unit)
-const UNIT_CONVERSIONS: Record<string, { baseUnit: string; toBase: number; displayUnits: string[] }> = {
-  // Weight units
-  'kg': { baseUnit: 'kg', toBase: 1, displayUnits: ['kg', 'g'] },
-  'g': { baseUnit: 'g', toBase: 1, displayUnits: ['g', 'kg'] },
-  'gram': { baseUnit: 'g', toBase: 1, displayUnits: ['g', 'kg'] },
+// Unit conversion system with proper base units and conversion factors
+// Base units: weight = 'g', volume = 'ml'
+const UNIT_CONVERSIONS: Record<string, { unitType: string; toBase: number; displayUnits: string[] }> = {
+  // Weight units (base: grams)
+  'kg': { unitType: 'weight', toBase: 1000, displayUnits: ['kg', 'g'] },
+  'g': { unitType: 'weight', toBase: 1, displayUnits: ['g', 'kg'] },
+  'gram': { unitType: 'weight', toBase: 1, displayUnits: ['g', 'kg'] },
+  'kilogram': { unitType: 'weight', toBase: 1000, displayUnits: ['kg', 'g'] },
 
-  // Volume units
-  'l': { baseUnit: 'l', toBase: 1, displayUnits: ['l', 'ml'] },
-  'L': { baseUnit: 'l', toBase: 1, displayUnits: ['l', 'ml'] },
-  'liter': { baseUnit: 'l', toBase: 1, displayUnits: ['l', 'ml'] },
-  'ml': { baseUnit: 'ml', toBase: 1, displayUnits: ['ml', 'l'] },
-  'milliliter': { baseUnit: 'ml', toBase: 1, displayUnits: ['ml', 'l'] },
+  // Volume units (base: milliliters)
+  'l': { unitType: 'volume', toBase: 1000, displayUnits: ['l', 'ml'] },
+  'L': { unitType: 'volume', toBase: 1000, displayUnits: ['l', 'ml'] },
+  'liter': { unitType: 'volume', toBase: 1000, displayUnits: ['l', 'ml'] },
+  'litre': { unitType: 'volume', toBase: 1000, displayUnits: ['l', 'ml'] },
+  'ml': { unitType: 'volume', toBase: 1, displayUnits: ['ml', 'l'] },
+  'milliliter': { unitType: 'volume', toBase: 1, displayUnits: ['ml', 'l'] },
+  'millilitre': { unitType: 'volume', toBase: 1, displayUnits: ['ml', 'l'] },
 
-  // Count units
-  'piece': { baseUnit: 'piece', toBase: 1, displayUnits: ['piece'] },
-  'pieces': { baseUnit: 'piece', toBase: 1, displayUnits: ['piece'] },
-  'unit': { baseUnit: 'unit', toBase: 1, displayUnits: ['unit'] },
-  'units': { baseUnit: 'unit', toBase: 1, displayUnits: ['unit'] },
+  // Count units (base: unit)
+  'piece': { unitType: 'count', toBase: 1, displayUnits: ['piece'] },
+  'pieces': { unitType: 'count', toBase: 1, displayUnits: ['piece'] },
+  'unit': { unitType: 'count', toBase: 1, displayUnits: ['unit'] },
+  'units': { unitType: 'count', toBase: 1, displayUnits: ['unit'] },
+};
+
+// Base unit names for display
+const BASE_UNIT_NAMES: Record<string, string> = {
+  weight: 'g',
+  volume: 'ml',
+  count: 'unit',
 };
 
 // Get unit conversion info
-function getUnitConversion(ingredientUnit: string) {
-  const unitKey = ingredientUnit.toLowerCase().trim();
+function getUnitConversion(unit: string) {
+  const unitKey = unit.toLowerCase().trim();
   return UNIT_CONVERSIONS[unitKey] || {
-    baseUnit: ingredientUnit,
+    unitType: 'count',
     toBase: 1,
-    displayUnits: [ingredientUnit],
+    displayUnits: [unit],
   };
 }
 
-// Convert quantity from input unit to ingredient's base unit
+// Convert quantity from input unit to ingredient's unit
 function convertToIngredientUnit(quantity: number, inputUnit: string, ingredientUnit: string): number {
-  const inputConversion = UNIT_CONVERSIONS[inputUnit.toLowerCase()];
-  const ingredientConversion = UNIT_CONVERSIONS[ingredientUnit.toLowerCase()];
+  const inputConversion = getUnitConversion(inputUnit);
+  const ingredientConversion = getUnitConversion(ingredientUnit);
 
-  // If no conversion info or same conversion group, no conversion needed
-  if (!inputConversion || !ingredientConversion) {
+  // If same unit, no conversion needed
+  if (inputUnit.toLowerCase() === ingredientUnit.toLowerCase()) {
     return quantity;
   }
 
-  // If both units are in the same conversion group, convert between them
-  if (inputConversion.baseUnit === ingredientConversion.baseUnit) {
-    // Convert to base unit first, then to target unit
-    const quantityInBase = quantity * inputConversion.toBase;
-    const quantityInTarget = quantityInBase / ingredientConversion.toBase;
-    return quantityInTarget;
+  // If different unit types, no conversion possible
+  if (inputConversion.unitType !== ingredientConversion.unitType) {
+    return quantity;
   }
 
-  // Different conversion groups, no conversion possible
-  return quantity;
+  // Convert: input → base unit → ingredient unit
+  const quantityInBase = quantity * inputConversion.toBase;
+  const quantityInTarget = quantityInBase / ingredientConversion.toBase;
+  
+  return quantityInTarget;
 }
 
 // Get display units for an ingredient

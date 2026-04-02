@@ -66,9 +66,15 @@ export default function ETASettings() {
   // Load ETA settings
   useEffect(() => {
     const loadSettings = async () => {
+      // Check if user exists
+      if (!user) {
+        console.log('[ETA Settings] User not loaded yet, waiting...');
+        return;
+      }
+
       // Check if user has a branch (required for ETA settings)
-      if (!user?.branchId) {
-        console.warn('[ETA Settings] User does not have a branchId, skipping ETA settings load');
+      if (!user.branchId) {
+        console.warn('[ETA Settings] User does not have a branchId, using default settings');
         setLoading(false);
         // Set default settings even without branchId so UI shows
         setSettings({
@@ -102,7 +108,7 @@ export default function ETASettings() {
     };
 
     loadSettings();
-  }, [user?.branchId]);
+  }, [user]);
 
   const fetchSettings = async () => {
     setLoading(true);
