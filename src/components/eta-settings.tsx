@@ -62,6 +62,7 @@ export default function ETASettings() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [showSecret, setShowSecret] = useState(false);
+  const [isBranchUser, setIsBranchUser] = useState(false);
 
   // Load ETA settings
   useEffect(() => {
@@ -74,36 +75,13 @@ export default function ETASettings() {
 
       // Check if user has a branch (required for ETA settings)
       if (!user.branchId) {
-        console.warn('[ETA Settings] User does not have a branchId, using default settings');
+        console.log('[ETA Settings] User is Admin (no branchId), ETA settings not available');
+        setIsBranchUser(false);
         setLoading(false);
-        // Set default settings even without branchId so UI shows
-        setSettings({
-          companyName: '',
-          taxRegistrationNumber: '',
-          branchCode: '',
-          commercialRegister: '',
-          address: '',
-          city: '',
-          governorate: '',
-          postalCode: '',
-          phone: '',
-          email: '',
-          clientId: '',
-          clientSecret: '',
-          environment: 'TEST',
-          certificateFile: '',
-          certificatePassword: '',
-          autoSubmit: true,
-          includeQR: true,
-          retryFailed: true,
-          maxRetries: 3,
-          isActive: true,
-          totalSubmitted: 0,
-          totalFailed: 0,
-        });
         return;
       }
 
+      setIsBranchUser(true);
       await fetchSettings();
     };
 
@@ -190,6 +168,12 @@ export default function ETASettings() {
   const handleSave = async () => {
     if (!settings) return;
 
+    // Ensure user has a branch
+    if (!user?.branchId) {
+      showErrorToast('Access Denied', 'ETA settings can only be saved by branch users');
+      return;
+    }
+
     // Validation
     if (!settings.companyName || !settings.taxRegistrationNumber || !settings.branchCode) {
       showErrorToast('Validation Error', 'Please fill in all required fields');
@@ -224,6 +208,12 @@ export default function ETASettings() {
 
   const handleTestConnection = async () => {
     if (!settings) return;
+
+    // Ensure user has a branch
+    if (!user?.branchId) {
+      showErrorToast('Access Denied', 'Connection test is only available for branch users');
+      return;
+    }
 
     setTesting(true);
     setTestResult(null);
@@ -283,6 +273,32 @@ export default function ETASettings() {
         <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
         <span className="ml-2">Loading ETA settings...</span>
       </div>
+    );
+  }
+
+  // Show message for Admin users who don't have a branch
+  if (!isBranchUser) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <Shield className="h-16 w-16 text-slate-400 mb-4" />
+          <h3 className="text-xl font-semibold mb-2">ETA Settings Not Available</h3>
+          <p className="text-slate-600 text-center max-w-md mt-2">
+            ETA Settings are only available for branch users. As an Admin, you don't have a branch assigned.
+          </p>
+          <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg max-w-md">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              <strong>To configure ETA settings:</strong>
+            </p>
+            <ol className="list-decimal list-inside text-sm text-slate-600 dark:text-slate-400 mt-2 space-y-1">
+              <li>Create a branch in the Branches section</li>
+              <li>Assign a user to that branch</li>
+              <li>Log in as that branch user</li>
+              <li>Access ETA Settings from the sidebar</li>
+            </ol>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
