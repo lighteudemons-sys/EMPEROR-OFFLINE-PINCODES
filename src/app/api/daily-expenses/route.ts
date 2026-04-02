@@ -1,0 +1,581 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+
+/**
+ * Get or create a cost category for a specific expense type and branch
+ */
+async function getExpenseCostCategory(branchId: string, category: string) {
+  console.log('[Daily Expenses] Looking for cost category:', category, 'for branch:', branchId);
+
+  let costCategory = await db.costCategory.findFirst({
+    where: {
+      name: category,
+      branchId, // Get branch-specific category
+    },
+  });
+
+  if (!costCategory) {
+    console.log('[Daily Expenses] Category not found, creating new one:', category, 'for branch:', branchId);
+    // Map expense categories to appropriate icons
+    const iconMap: Record<string, string> = {
+      'EQUIPMENT': 'Wrench',
+      'REPAIRS': 'Wrench',
+      'UTILITIES': 'Zap',
+      'RENT': 'Building2',
+      'SALARIES': 'Users',
+      'MARKETING': 'Megaphone',
+      'SUPPLIES': 'Package',
+      'OTHER': 'DollarSign',
+    };
+    const icon = iconMap[category] || 'DollarSign';
+    
+    // Create the expense category for this branch
+    costCategory = await db.costCategory.create({
+      data: {
+        name: category,
+        description: `Operational expenses for ${category}`,
+        icon: icon,
+        sortOrder: 998, // Show just above Daily Expenses
+        isActive: true,
+        branchId, // Make it branch-specific
+      },
+    });
+    console.log('[Daily Expenses] Created cost category:', costCategory.id, costCategory.name);
+  } else {
+    console.log('[Daily Expenses] Found existing cost category:', costCategory.id, costCategory.name);
+  }
+
+  return costCategory;
+}
+
+/**
+ * Create or update a daily expense cost record for a branch
+ * Accumulates amounts and appends notes with timestamps
+ * NOTE: Inventory expenses are NOT added to costs (they go directly to inventory)
+ */
+async function createOrUpdateDailyExpenseCost(
+  branchId: string,
+  amount: number,
+  reason: string,
+  shiftId: string,
+  recordedBy: string,
+  category: string
+) {
+  // Skip cost creation for inventory expenses - they go directly to inventory
+  if (category === 'INVENTORY') {
+    console.log('[Daily Expenses] Skipping cost creation for INVENTORY category expense');
+    return null;
+  }
+
+  const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+  // Get or create the expense category (not "Daily Expenses", but the actual category like Equipment, Repairs, etc.)
+  const costCategory = await getExpenseCostCategory(branchId, category);
+
+  // Check if there's already a cost for this shift, period, and category
+  const existingCost = await db.branchCost.findFirst({
+    where: {
+      branchId,
+      costCategoryId: costCategory.id,
+      shiftId,
+      period: currentPeriod,
+    },
+    include: {
+      branch: {
+        select: { id: true, branchName: true },
+      },
+      costCategory: {
+        select: { id: true, name: true, icon: true },
+      },
+    },
+  });
+
+  let branchCost;
+
+  if (existingCost) {
+    // Update existing cost: add amount and append notes
+    const newAmount = existingCost.amount + amount;
+
+    // Append new notes with timestamp
+    const timestamp = new Date().toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const updatedNotes = existingCost.notes
+      ? `${existingCost.notes}\n\n---\n${timestamp}: Added ${amount.toFixed(2)} - ${reason}`
+      : `Expense: ${reason}\n\n---\n${timestamp}: Added ${amount.toFixed(2)} - ${reason}`;
+
+    branchCost = await db.branchCost.update({
+      where: { id: existingCost.id },
+      data: {
+        amount: newAmount,
+        notes: updatedNotes,
+      },
+      include: {
+        branch: {
+          select: { id: true, branchName: true },
+        },
+        costCategory: {
+          select: { id: true, name: true, icon: true },
+        },
+      },
+    });
+
+    console.log('[Daily Expenses] Updated existing cost:', branchCost.id, 'Category:', costCategory.name, 'New total:', newAmount);
+  } else {
+    // Create new cost entry
+    const timestamp = new Date().toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    branchCost = await db.branchCost.create({
+      data: {
+        branchId,
+        costCategoryId: costCategory.id,
+        shiftId,
+        amount: amount,
+        period: currentPeriod,
+        notes: `Expense: ${reason}\n\n---\n${timestamp}: Added ${amount.toFixed(2)} - ${reason}`,
+      },
+      include: {
+        branch: {
+          select: { id: true, branchName: true },
+        },
+        costCategory: {
+          select: { id: true, name: true, icon: true },
+        },
+      },
+    });
+
+    console.log('[Daily Expenses] Created new cost:', branchCost.id, 'Category:', costCategory.name);
+  }
+
+  return branchCost;
+}
+
+/**
+ * Handle inventory expense - update stock with weighted average price
+ */
+async function handleInventoryExpense(
+  branchId: string,
+  ingredientId: string,
+  quantity: number,
+  unitPrice: number,
+  quantityUnit: string,
+  recordedBy: string
+) {
+  console.log('[Daily Expenses] Handling inventory expense:', {
+    ingredientId,
+    quantity,
+    unitPrice,
+    quantityUnit,
+  });
+
+  // Find or create branch inventory record
+  let branchInventory = await db.branchInventory.findUnique({
+    where: {
+      branchId_ingredientId: {
+        branchId,
+        ingredientId,
+      },
+    },
+  });
+
+  if (!branchInventory) {
+    console.log('[Daily Expenses] Creating new branch inventory record');
+    branchInventory = await db.branchInventory.create({
+      data: {
+        branchId,
+        ingredientId,
+        currentStock: quantity,
+        reservedStock: 0,
+        lastRestockAt: new Date(),
+        lastModifiedAt: new Date(),
+        lastModifiedBy: recordedBy,
+      },
+    });
+  }
+
+  const oldStock = branchInventory.currentStock;
+  const oldPrice = branchInventory.currentStock > 0
+    ? (await db.ingredient.findUnique({ where: { id: ingredientId } }))?.costPerUnit || 0
+    : unitPrice;
+
+  // Calculate new stock
+  const newStock = oldStock + quantity;
+
+  console.log('[Daily Expenses] Stock update:', {
+    oldStock,
+    quantityToAdd: quantity,
+    newStock,
+  });
+
+  // Calculate weighted average price: (old_total + new_total) / (old_quantity + new_quantity)
+  const oldTotalValue = oldStock * oldPrice;
+  const newTotalValue = quantity * unitPrice;
+  const weightedAveragePrice = (oldTotalValue + newTotalValue) / newStock;
+
+  console.log('[Daily Expenses] Price calculation:', {
+    oldStock,
+    oldPrice,
+    oldTotalValue,
+    quantity,
+    unitPrice,
+    newTotalValue,
+    newStock,
+    weightedAveragePrice,
+  });
+
+  // Update branch inventory
+  branchInventory = await db.branchInventory.update({
+    where: { id: branchInventory.id },
+    data: {
+      currentStock: newStock,
+      lastRestockAt: new Date(),
+      lastModifiedAt: new Date(),
+      lastModifiedBy: recordedBy,
+    },
+  });
+
+  console.log('[Daily Expenses] Stock updated successfully:', {
+    oldStock,
+    newStock: branchInventory.currentStock,
+  });
+
+  // Update ingredient's base cost per unit (weighted average)
+  await db.ingredient.update({
+    where: { id: ingredientId },
+    data: {
+      costPerUnit: weightedAveragePrice,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create inventory transaction record
+  const inventoryTxn = await db.inventoryTransaction.create({
+    data: {
+      branchId,
+      ingredientId,
+      transactionType: 'RESTOCK',
+      quantityChange: quantity,
+      stockBefore: oldStock,
+      stockAfter: newStock,
+      reason: `Inventory expense restock. Previous price: ${oldPrice.toFixed(2)}, New price: ${weightedAveragePrice.toFixed(2)}`,
+      createdBy: recordedBy,
+    },
+  });
+
+  console.log('[Daily Expenses] Inventory updated successfully:', {
+    newStock,
+    newPrice: weightedAveragePrice,
+    transactionId: inventoryTxn.id,
+  });
+
+  return {
+    newStock,
+    newPrice: weightedAveragePrice,
+    oldPrice,
+    transactionId: inventoryTxn.id,
+  };
+}
+
+/**
+ * GET /api/daily-expenses
+ * List daily expenses with optional filters
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const branchId = searchParams.get('branchId');
+    const shiftId = searchParams.get('shiftId');
+    const recordedBy = searchParams.get('recordedBy');
+    const category = searchParams.get('category');
+    const ingredientId = searchParams.get('ingredientId');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = parseInt(searchParams.get('offset') || '0');
+
+    const where: any = {};
+
+    if (branchId) {
+      where.branchId = branchId;
+    }
+    if (shiftId) {
+      where.shiftId = shiftId;
+    }
+    if (recordedBy) {
+      where.recordedBy = recordedBy;
+    }
+    if (category) {
+      where.category = category;
+    }
+    if (ingredientId) {
+      where.ingredientId = ingredientId;
+    }
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endDateTime;
+      }
+    }
+
+    const expenses = await db.dailyExpense.findMany({
+      where,
+      include: {
+        branch: {
+          select: { id: true, branchName: true },
+        },
+        shift: {
+          select: { id: true, startTime: true, endTime: true, cashier: true },
+        },
+        recorder: {
+          select: { id: true, username: true, name: true },
+        },
+        cost: true,
+        ingredient: {
+          select: { id: true, name: true, unit: true, costPerUnit: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+    });
+
+    const total = await db.dailyExpense.count({ where });
+
+    return NextResponse.json({
+      success: true,
+      expenses,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + expenses.length < total,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Daily Expenses] Get expenses error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch expenses', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/daily-expenses
+ * Create a new daily expense
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      branchId,
+      shiftId,
+      amount,
+      reason,
+      recordedBy,
+      category = 'OTHER',
+      ingredientId,
+      quantity,
+      quantityUnit,
+      unitPrice,
+    } = body;
+
+    console.log('[Daily Expenses] POST request received:', {
+      category,
+      ingredientId,
+      quantity,
+      unitPrice,
+      amount,
+    });
+
+    // Validation
+    if (!branchId || !shiftId || !amount || !reason || !recordedBy) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields: branchId, shiftId, amount, reason, recordedBy' },
+        { status: 400 }
+      );
+    }
+
+    if (amount <= 0) {
+      return NextResponse.json(
+        { success: false, error: 'Amount must be greater than 0' },
+        { status: 400 }
+      );
+    }
+
+    if (reason.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Reason cannot be empty' },
+        { status: 400 }
+      );
+    }
+
+    // Validate inventory-specific fields
+    if (category === 'INVENTORY') {
+      if (!ingredientId || !quantity || !quantityUnit || !unitPrice) {
+        return NextResponse.json(
+          { success: false, error: 'Inventory expenses require: ingredientId, quantity, quantityUnit, unitPrice' },
+          { status: 400 }
+        );
+      }
+
+      if (quantity <= 0) {
+        return NextResponse.json(
+          { success: false, error: 'Quantity must be greater than 0' },
+          { status: 400 }
+        );
+      }
+
+      if (unitPrice <= 0) {
+        return NextResponse.json(
+          { success: false, error: 'Unit price must be greater than 0' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Verify shift exists and is open
+    const shift = await db.shift.findUnique({
+      where: { id: shiftId },
+    });
+
+    if (!shift) {
+      return NextResponse.json(
+        { success: false, error: 'Shift not found' },
+        { status: 404 }
+      );
+    }
+
+    if (shift.isClosed) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot add expenses to a closed shift' },
+        { status: 400 }
+      );
+    }
+
+    // Verify shift belongs to the same branch
+    if (shift.branchId !== branchId) {
+      return NextResponse.json(
+        { success: false, error: 'Shift does not belong to this branch' },
+        { status: 400 }
+      );
+    }
+
+    // Handle inventory expense if applicable
+    let inventoryUpdate = null;
+    if (category === 'INVENTORY') {
+      inventoryUpdate = await handleInventoryExpense(
+        branchId,
+        ingredientId,
+        parseFloat(quantity.toString()),
+        parseFloat(unitPrice.toString()),
+        quantityUnit,
+        recordedBy
+      );
+    }
+
+    // Create daily expense
+    const expense = await db.dailyExpense.create({
+      data: {
+        branchId,
+        shiftId,
+        amount: parseFloat(amount),
+        reason: reason.trim(),
+        recordedBy,
+        category: category as any,
+        ingredientId: category === 'INVENTORY' ? ingredientId : null,
+        quantity: category === 'INVENTORY' ? parseFloat(quantity.toString()) : null,
+        quantityUnit: category === 'INVENTORY' ? quantityUnit : null,
+        unitPrice: category === 'INVENTORY' ? parseFloat(unitPrice.toString()) : null,
+      },
+    });
+
+    // Create corresponding BranchCost record for reporting in Branch Operation
+    // Only for non-inventory expenses
+    let branchCost = null;
+    let costCreationError = null;
+    try {
+      console.log('[Daily Expenses] Attempting to create/update BranchCost for branch:', branchId);
+      branchCost = await createOrUpdateDailyExpenseCost(
+        branchId,
+        parseFloat(amount),
+        reason.trim(),
+        shiftId,
+        recordedBy,
+        category
+      );
+
+      if (branchCost) {
+        // Update the expense with the costId
+        await db.dailyExpense.update({
+          where: { id: expense.id },
+          data: { costId: branchCost.id },
+        });
+
+        expense.costId = branchCost.id;
+        console.log('[Daily Expenses] Successfully created/updated BranchCost:', branchCost.id, 'Amount:', branchCost.amount);
+      }
+    } catch (costError: any) {
+      costCreationError = costError;
+      console.error('[Daily Expenses] Failed to create/update cost record:', costError);
+      console.error('[Daily Expenses] Cost error details:', {
+        message: costError.message,
+        code: costError.code,
+        meta: costError.meta,
+      });
+      // Don't fail the expense creation if cost creation fails
+    }
+
+    console.log('[Daily Expenses] Created expense:', {
+      id: expense.id,
+      amount: expense.amount,
+      reason: expense.reason,
+      category: expense.category,
+      costId: expense.costId,
+      costCreationError: costCreationError ? costCreationError.message : null,
+    });
+
+    // Return success with a warning if cost creation failed
+    return NextResponse.json({
+      success: true,
+      expense: {
+        ...expense,
+        ingredient: inventoryUpdate ? {
+          name: (await db.ingredient.findUnique({ where: { id: ingredientId } }))?.name,
+          unit: quantityUnit,
+          newPrice: inventoryUpdate.newPrice,
+          oldPrice: inventoryUpdate.oldPrice,
+        } : null,
+      },
+      inventoryUpdate,
+      message: costCreationError
+        ? 'Daily expense recorded (but failed to create cost entry - check logs)'
+        : category === 'INVENTORY'
+        ? 'Inventory expense recorded successfully'
+        : 'Daily expense recorded successfully',
+      costWarning: costCreationError ? costCreationError.message : null,
+    });
+  } catch (error: any) {
+    console.error('[Daily Expenses] Create expense error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to create expense', details: error.message },
+      { status: 500 }
+    );
+  }
+}
