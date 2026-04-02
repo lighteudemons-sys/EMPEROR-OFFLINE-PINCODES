@@ -69,15 +69,15 @@ interface RecipeFormData {
 const UNIT_CONVERSIONS: Record<string, { baseUnit: string; toBase: number; displayUnits: string[] }> = {
   // Weight units
   'kg': { baseUnit: 'kg', toBase: 1, displayUnits: ['kg', 'g'] },
-  'g': { baseUnit: 'kg', toBase: 0.001, displayUnits: ['g', 'kg'] },
-  'gram': { baseUnit: 'kg', toBase: 0.001, displayUnits: ['g', 'kg'] },
+  'g': { baseUnit: 'g', toBase: 1, displayUnits: ['g', 'kg'] },
+  'gram': { baseUnit: 'g', toBase: 1, displayUnits: ['g', 'kg'] },
 
   // Volume units
   'l': { baseUnit: 'l', toBase: 1, displayUnits: ['l', 'ml'] },
   'L': { baseUnit: 'l', toBase: 1, displayUnits: ['l', 'ml'] },
   'liter': { baseUnit: 'l', toBase: 1, displayUnits: ['l', 'ml'] },
-  'ml': { baseUnit: 'l', toBase: 0.001, displayUnits: ['ml', 'l'] },
-  'milliliter': { baseUnit: 'l', toBase: 0.001, displayUnits: ['ml', 'l'] },
+  'ml': { baseUnit: 'ml', toBase: 1, displayUnits: ['ml', 'l'] },
+  'milliliter': { baseUnit: 'ml', toBase: 1, displayUnits: ['ml', 'l'] },
 
   // Count units
   'piece': { baseUnit: 'piece', toBase: 1, displayUnits: ['piece'] },
@@ -96,13 +96,26 @@ function getUnitConversion(ingredientUnit: string) {
   };
 }
 
-// Convert quantity from input unit to base unit
-function convertToBaseUnit(quantity: number, inputUnit: string, baseUnit: string): number {
-  const conversion = UNIT_CONVERSIONS[inputUnit.toLowerCase()];
-  if (!conversion || conversion.baseUnit !== baseUnit.toLowerCase()) {
-    return quantity; // No conversion needed or conversion not available
+// Convert quantity from input unit to ingredient's base unit
+function convertToIngredientUnit(quantity: number, inputUnit: string, ingredientUnit: string): number {
+  const inputConversion = UNIT_CONVERSIONS[inputUnit.toLowerCase()];
+  const ingredientConversion = UNIT_CONVERSIONS[ingredientUnit.toLowerCase()];
+
+  // If no conversion info or same conversion group, no conversion needed
+  if (!inputConversion || !ingredientConversion) {
+    return quantity;
   }
-  return quantity * conversion.toBase;
+
+  // If both units are in the same conversion group, convert between them
+  if (inputConversion.baseUnit === ingredientConversion.baseUnit) {
+    // Convert to base unit first, then to target unit
+    const quantityInBase = quantity * inputConversion.toBase;
+    const quantityInTarget = quantityInBase / ingredientConversion.toBase;
+    return quantityInTarget;
+  }
+
+  // Different conversion groups, no conversion possible
+  return quantity;
 }
 
 // Get display units for an ingredient
@@ -268,17 +281,17 @@ export default function RecipeManagement() {
         const ingredient = getIngredientInfo(ing.ingredientId);
         if (!ingredient) return null;
 
-        const conversion = getUnitConversion(ingredient.unit);
-        const quantityInBaseUnit = convertToBaseUnit(
+        // Convert quantity from input unit to ingredient's unit
+        const quantityInIngredientUnit = convertToIngredientUnit(
           parseFloat(ing.quantityRequired),
           ing.inputUnit,
-          conversion.baseUnit
+          ingredient.unit
         );
 
         const payload: any = {
           menuItemId: formData.menuItemId,
           ingredientId: ing.ingredientId,
-          quantityRequired: quantityInBaseUnit.toFixed(4),
+          quantityRequired: quantityInIngredientUnit.toFixed(4),
         };
 
         if (shouldIncludeVariantId) {
@@ -392,20 +405,23 @@ export default function RecipeManagement() {
     const ingredient = getIngredientInfo(ing.ingredientId);
     if (!ingredient || !ing.quantityRequired || !ing.inputUnit) return null;
 
-    const conversion = getUnitConversion(ingredient.unit);
-    const quantity = parseFloat(ing.quantityRequired);
-    const quantityInBaseUnit = convertToBaseUnit(quantity, ing.inputUnit, conversion.baseUnit);
+    // Check if input unit matches the ingredient's unit (case-insensitive)
+    const unitsMatch = ing.inputUnit.toLowerCase() === ingredient.unit.toLowerCase();
 
-    // If input unit is different from base unit, show conversion
-    if (ing.inputUnit.toLowerCase() !== conversion.baseUnit.toLowerCase()) {
-      return (
-        <span className="text-sm text-slate-600">
-          (→ {quantityInBaseUnit.toFixed(4)} {ingredient.unit})
-        </span>
-      );
+    // If units match, don't show conversion
+    if (unitsMatch) {
+      return null;
     }
 
-    return null;
+    // Convert and show the result in ingredient's unit
+    const quantity = parseFloat(ing.quantityRequired);
+    const quantityInIngredientUnit = convertToIngredientUnit(quantity, ing.inputUnit, ingredient.unit);
+
+    return (
+      <span className="text-sm text-slate-600">
+        (→ {quantityInIngredientUnit.toFixed(4)} {ingredient.unit})
+      </span>
+    );
   };
 
   return (
