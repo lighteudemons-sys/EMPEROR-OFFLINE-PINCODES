@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Package, Utensils, Search, AlertCircle, Layers } from 'lucide-react';
+import { Plus, Trash2, Package, Utensils, Search, AlertCircle, Layers, X, ChevronRight } from 'lucide-react';
 
 interface MenuItem {
   id: string;
@@ -53,11 +53,62 @@ interface Recipe {
   };
 }
 
-interface RecipeFormData {
-  menuItemId: string;
+interface RecipeIngredient {
   ingredientId: string;
   quantityRequired: string;
+  inputUnit: string; // The unit user is entering in
+}
+
+interface RecipeFormData {
+  menuItemId: string;
   menuItemVariantId: string;
+  ingredients: RecipeIngredient[];
+}
+
+// Unit conversion factors (to base unit)
+const UNIT_CONVERSIONS: Record<string, { baseUnit: string; toBase: number; displayUnits: string[] }> = {
+  // Weight units
+  'kg': { baseUnit: 'kg', toBase: 1, displayUnits: ['kg', 'g'] },
+  'g': { baseUnit: 'kg', toBase: 0.001, displayUnits: ['g', 'kg'] },
+  'gram': { baseUnit: 'kg', toBase: 0.001, displayUnits: ['g', 'kg'] },
+
+  // Volume units
+  'l': { baseUnit: 'l', toBase: 1, displayUnits: ['l', 'ml'] },
+  'L': { baseUnit: 'l', toBase: 1, displayUnits: ['l', 'ml'] },
+  'liter': { baseUnit: 'l', toBase: 1, displayUnits: ['l', 'ml'] },
+  'ml': { baseUnit: 'l', toBase: 0.001, displayUnits: ['ml', 'l'] },
+  'milliliter': { baseUnit: 'l', toBase: 0.001, displayUnits: ['ml', 'l'] },
+
+  // Count units
+  'piece': { baseUnit: 'piece', toBase: 1, displayUnits: ['piece'] },
+  'pieces': { baseUnit: 'piece', toBase: 1, displayUnits: ['piece'] },
+  'unit': { baseUnit: 'unit', toBase: 1, displayUnits: ['unit'] },
+  'units': { baseUnit: 'unit', toBase: 1, displayUnits: ['unit'] },
+};
+
+// Get unit conversion info
+function getUnitConversion(ingredientUnit: string) {
+  const unitKey = ingredientUnit.toLowerCase().trim();
+  return UNIT_CONVERSIONS[unitKey] || {
+    baseUnit: ingredientUnit,
+    toBase: 1,
+    displayUnits: [ingredientUnit],
+  };
+}
+
+// Convert quantity from input unit to base unit
+function convertToBaseUnit(quantity: number, inputUnit: string, baseUnit: string): number {
+  const conversion = UNIT_CONVERSIONS[inputUnit.toLowerCase()];
+  if (!conversion || conversion.baseUnit !== baseUnit.toLowerCase()) {
+    return quantity; // No conversion needed or conversion not available
+  }
+  return quantity * conversion.toBase;
+}
+
+// Get display units for an ingredient
+function getDisplayUnits(ingredientUnit: string): string[] {
+  const conversion = getUnitConversion(ingredientUnit);
+  return conversion.displayUnits;
 }
 
 export default function RecipeManagement() {
@@ -70,11 +121,11 @@ export default function RecipeManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState<RecipeFormData>({
     menuItemId: '',
-    ingredientId: '',
-    quantityRequired: '',
     menuItemVariantId: '',
+    ingredients: [],
   });
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -83,7 +134,6 @@ export default function RecipeManagement() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch all real data from database
       const [menuItemsRes, ingredientsRes, recipesRes] = await Promise.all([
         fetch('/api/menu-items?active=true&includeVariants=true'),
         fetch('/api/ingredients'),
@@ -116,39 +166,149 @@ export default function RecipeManagement() {
     return menuItem?.variants || [];
   };
 
+  const getIngredientInfo = (ingredientId: string) => {
+    return ingredients.find((i) => i.id === ingredientId);
+  };
+
+  // Add a new ingredient line to the form
+  const addIngredientLine = () => {
+    setFormData({
+      ...formData,
+      ingredients: [
+        ...formData.ingredients,
+        {
+          ingredientId: '',
+          quantityRequired: '',
+          inputUnit: '',
+        },
+      ],
+    });
+  };
+
+  // Remove an ingredient line from the form
+  const removeIngredientLine = (index: number) => {
+    const newIngredients = formData.ingredients.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      ingredients: newIngredients,
+    });
+  };
+
+  // Update an ingredient line
+  const updateIngredientLine = (index: number, field: keyof RecipeIngredient, value: string) => {
+    const newIngredients = [...formData.ingredients];
+
+    if (field === 'ingredientId') {
+      // When ingredient changes, reset quantity and set default input unit
+      const ingredient = getIngredientInfo(value);
+      const displayUnits = ingredient ? getDisplayUnits(ingredient.unit) : [ingredient?.unit || ''];
+      newIngredients[index] = {
+        ...newIngredients[index],
+        ingredientId: value,
+        quantityRequired: '',
+        inputUnit: displayUnits[0] || '',
+      };
+    } else {
+      newIngredients[index] = {
+        ...newIngredients[index],
+        [field]: value,
+      };
+    }
+
+    setFormData({
+      ...formData,
+      ingredients: newIngredients,
+    });
+  };
+
+  // Validate form
+  const validateForm = () => {
+    if (!formData.menuItemId) {
+      return 'Please select a menu item';
+    }
+
+    if (formData.ingredients.length === 0) {
+      return 'Please add at least one ingredient';
+    }
+
+    for (let i = 0; i < formData.ingredients.length; i++) {
+      const ing = formData.ingredients[i];
+      if (!ing.ingredientId) {
+        return `Please select an ingredient for line ${i + 1}`;
+      }
+      if (!ing.quantityRequired || parseFloat(ing.quantityRequired) <= 0) {
+        return `Please enter a valid quantity for ingredient ${i + 1}`;
+      }
+      if (!ing.inputUnit) {
+        return `Please select a unit for ingredient ${i + 1}`;
+      }
+    }
+
+    return null; // No errors
+  };
+
+  // Submit the recipe with multiple ingredients
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const validationError = validateForm();
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+
+    setSaving(true);
+
     try {
-      const payload: any = {
-        menuItemId: formData.menuItemId,
-        ingredientId: formData.ingredientId,
-        quantityRequired: formData.quantityRequired,
-      };
-
-      // Only include menuItemVariantId if the menu item has variants and a variant is selected (not "base")
       const menuItem = menuItems.find((i) => i.id === formData.menuItemId);
-      if (menuItem?.hasVariants && formData.menuItemVariantId && formData.menuItemVariantId !== 'base') {
-        payload.menuItemVariantId = formData.menuItemVariantId;
-      }
+      const shouldIncludeVariantId = menuItem?.hasVariants && formData.menuItemVariantId && formData.menuItemVariantId !== 'base';
 
-      const response = await fetch('/api/recipes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      // Create all recipe lines in parallel
+      const recipePromises = formData.ingredients.map(async (ing) => {
+        const ingredient = getIngredientInfo(ing.ingredientId);
+        if (!ingredient) return null;
+
+        const conversion = getUnitConversion(ingredient.unit);
+        const quantityInBaseUnit = convertToBaseUnit(
+          parseFloat(ing.quantityRequired),
+          ing.inputUnit,
+          conversion.baseUnit
+        );
+
+        const payload: any = {
+          menuItemId: formData.menuItemId,
+          ingredientId: ing.ingredientId,
+          quantityRequired: quantityInBaseUnit.toFixed(4),
+        };
+
+        if (shouldIncludeVariantId) {
+          payload.menuItemVariantId = formData.menuItemVariantId;
+        }
+
+        const response = await fetch('/api/recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to save recipe line');
+        }
+
+        return await response.json();
       });
 
-      const data = await response.json();
+      await Promise.all(recipePromises);
 
-      if (response.ok) {
-        setDialogOpen(false);
-        resetForm();
-        await fetchData();
-      } else {
-        alert(data.error || 'Failed to save recipe');
-      }
+      setDialogOpen(false);
+      resetForm();
+      await fetchData();
     } catch (error) {
-      console.error('Failed to save recipe:', error);
-      alert('Failed to save recipe');
+      console.error('Failed to save recipes:', error);
+      alert(error instanceof Error ? error.message : 'Failed to save recipes');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -173,9 +333,8 @@ export default function RecipeManagement() {
   const resetForm = () => {
     setFormData({
       menuItemId: '',
-      ingredientId: '',
-      quantityRequired: '',
       menuItemVariantId: '',
+      ingredients: [],
     });
   };
 
@@ -184,6 +343,7 @@ export default function RecipeManagement() {
       ...formData,
       menuItemId,
       menuItemVariantId: '', // Reset variant when menu item changes
+      ingredients: [], // Clear ingredients when menu item changes
     });
   };
 
@@ -218,10 +378,30 @@ export default function RecipeManagement() {
     return matchesSearch && matchesMenuItem && matchesVariant;
   });
 
-  // Filter variant dropdown options based on selected menu item
   const availableVariants = selectedMenuItemId !== 'all'
     ? (menuItems.find((i) => i.id === selectedMenuItemId)?.variants || [])
     : [];
+
+  // Get converted quantity display
+  const getConvertedQuantityDisplay = (ing: RecipeIngredient, index: number) => {
+    const ingredient = getIngredientInfo(ing.ingredientId);
+    if (!ingredient || !ing.quantityRequired || !ing.inputUnit) return null;
+
+    const conversion = getUnitConversion(ingredient.unit);
+    const quantity = parseFloat(ing.quantityRequired);
+    const quantityInBaseUnit = convertToBaseUnit(quantity, ing.inputUnit, conversion.baseUnit);
+
+    // If input unit is different from base unit, show conversion
+    if (ing.inputUnit.toLowerCase() !== conversion.baseUnit.toLowerCase()) {
+      return (
+        <span className="text-sm text-slate-600">
+          (→ {quantityInBaseUnit.toFixed(4)} {ingredient.unit})
+        </span>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="space-y-6">
@@ -234,8 +414,7 @@ export default function RecipeManagement() {
           <CardDescription className="flex items-start gap-2">
             <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
             <span>
-              Link ingredients to menu items and variants to enable automatic inventory deduction.
-              Every sale reduces inventory based on recipe quantities.
+              Add multiple ingredients to menu items at once. Quantities can be entered in convenient units (g, ml) and will auto-convert to the ingredient's base unit.
             </span>
           </CardDescription>
         </CardHeader>
@@ -253,7 +432,7 @@ export default function RecipeManagement() {
 
             <Select value={selectedMenuItemId} onValueChange={(value) => {
               setSelectedMenuItemId(value);
-              setSelectedVariantId('all'); // Reset variant filter when menu item changes
+              setSelectedVariantId('all');
             }}>
               <SelectTrigger className="md:w-[250px]">
                 <SelectValue placeholder="All Menu Items" />
@@ -289,17 +468,18 @@ export default function RecipeManagement() {
               <DialogTrigger asChild>
                 <Button onClick={resetForm}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Recipe Line
+                  Add Recipe
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
                 <form onSubmit={handleSubmit}>
                   <DialogHeader>
-                    <DialogTitle>Add Recipe Line</DialogTitle>
+                    <DialogTitle>Add Recipe (Multiple Ingredients)</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
+                    {/* Menu Item Selection */}
                     <div className="space-y-2">
-                      <Label htmlFor="menuItemId">Menu Item</Label>
+                      <Label htmlFor="menuItemId">Menu Item *</Label>
                       <Select
                         value={formData.menuItemId}
                         onValueChange={handleMenuItemChange}
@@ -318,10 +498,10 @@ export default function RecipeManagement() {
                       </Select>
                     </div>
 
-                    {/* Variant Selector - Only show if menu item has variants */}
+                    {/* Variant Selection */}
                     {getSelectedMenuItemVariants().length > 0 && (
                       <div className="space-y-2">
-                        <Label htmlFor="menuItemVariantId">Variant (Optional)</Label>
+                        <Label htmlFor="menuItemVariantId">Variant</Label>
                         <Select
                           value={formData.menuItemVariantId}
                           onValueChange={(value) => setFormData({ ...formData, menuItemVariantId: value })}
@@ -344,52 +524,153 @@ export default function RecipeManagement() {
                       </div>
                     )}
 
-                    <div className="space-y-2">
-                      <Label htmlFor="ingredientId">Ingredient</Label>
-                      <Select
-                        value={formData.ingredientId}
-                        onValueChange={(value) => setFormData({ ...formData, ingredientId: value })}
-                        required
-                      >
-                        <SelectTrigger id="ingredientId">
-                          <SelectValue placeholder="Select ingredient" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ingredients.map((ingredient) => (
-                            <SelectItem key={ingredient.id} value={ingredient.id}>
-                              {ingredient.name} ({ingredient.unit})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="quantityRequired">Quantity Required</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="quantityRequired"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.quantityRequired}
-                          onChange={(e) => setFormData({ ...formData, quantityRequired: e.target.value })}
-                          placeholder="0.00"
-                          required
-                        />
-                        <Badge variant="outline">
-                          {formData.ingredientId && getIngredientUnit(formData.ingredientId)}
-                        </Badge>
+                    {/* Ingredients Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Ingredients *</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addIngredientLine}
+                          disabled={!formData.menuItemId}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Ingredient Line
+                        </Button>
                       </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        Amount of this ingredient needed per menu item sold
-                      </p>
+
+                      {formData.ingredients.length === 0 ? (
+                        <div className="p-4 border border-dashed border-slate-300 rounded-md text-center text-slate-500">
+                          {formData.menuItemId ? (
+                            <p>Click "Add Ingredient Line" to start adding ingredients</p>
+                          ) : (
+                            <p>Please select a menu item first</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {formData.ingredients.map((ing, index) => {
+                            const ingredient = getIngredientInfo(ing.ingredientId);
+                            const displayUnits = ingredient ? getDisplayUnits(ingredient.unit) : [];
+
+                            return (
+                              <div key={index} className="p-4 bg-slate-50 dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    Ingredient {index + 1}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeIngredientLine(index)}
+                                    className="h-8 w-8 text-red-600 hover:text-red-700"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  {/* Ingredient Selection */}
+                                  <div className="space-y-1">
+                                    <Label htmlFor={`ingredient-${index}`} className="text-xs">Ingredient *</Label>
+                                    <Select
+                                      value={ing.ingredientId}
+                                      onValueChange={(value) => updateIngredientLine(index, 'ingredientId', value)}
+                                      required
+                                    >
+                                      <SelectTrigger id={`ingredient-${index}`}>
+                                        <SelectValue placeholder="Select ingredient" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {ingredients.map((ingredient) => (
+                                          <SelectItem key={ingredient.id} value={ingredient.id}>
+                                            {ingredient.name} ({ingredient.unit})
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  {/* Quantity Input */}
+                                  <div className="space-y-1">
+                                    <Label htmlFor={`quantity-${index}`} className="text-xs">Quantity *</Label>
+                                    <Input
+                                      id={`quantity-${index}`}
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={ing.quantityRequired}
+                                      onChange={(e) => updateIngredientLine(index, 'quantityRequired', e.target.value)}
+                                      placeholder="0.00"
+                                      required
+                                      disabled={!ing.ingredientId}
+                                    />
+                                    {getConvertedQuantityDisplay(ing, index)}
+                                  </div>
+
+                                  {/* Unit Selection */}
+                                  <div className="space-y-1">
+                                    <Label htmlFor={`unit-${index}`} className="text-xs">Unit *</Label>
+                                    <Select
+                                      value={ing.inputUnit}
+                                      onValueChange={(value) => updateIngredientLine(index, 'inputUnit', value)}
+                                      required
+                                      disabled={!ing.ingredientId}
+                                    >
+                                      <SelectTrigger id={`unit-${index}`}>
+                                        <SelectValue placeholder="Unit" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {displayUnits.map((unit) => (
+                                          <SelectItem key={unit} value={unit}>
+                                            {unit}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {ingredient && (
+                                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                                        Base unit: {ingredient.unit}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto h-11 min-h-[44px]">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setDialogOpen(false)}
+                      disabled={saving}
+                      className="w-full sm:w-auto h-11 min-h-[44px]"
+                    >
                       Cancel
                     </Button>
-                    <Button type="submit" className="w-full sm:w-auto h-11 min-h-[44px]">Add to Recipe</Button>
+                    <Button
+                      type="submit"
+                      disabled={saving || formData.ingredients.length === 0}
+                      className="w-full sm:w-auto h-11 min-h-[44px]"
+                    >
+                      {saving ? (
+                        <span className="flex items-center gap-2">
+                          <div className="h-4 w-4 border-2 border-white/30 border-t-transparent animate-spin rounded-full"></div>
+                          Saving...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Plus className="h-4 w-4" />
+                          Save Recipe ({formData.ingredients.length} ingredient{formData.ingredients.length !== 1 ? 's' : ''})
+                        </span>
+                      )}
+                    </Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
