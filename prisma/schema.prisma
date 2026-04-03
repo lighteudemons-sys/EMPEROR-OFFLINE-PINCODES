@@ -116,19 +116,41 @@ model Table {
 }
 
 model BranchLicense {
-  id             String   @id @default(cuid())
+  id             String          @id @default(cuid())
   branchId       String
-  licenseKey     String   @unique
-  activationDate DateTime @default(now())
+  licenseKey     String          @unique
+  activationDate DateTime        @default(now())
   expirationDate DateTime
-  maxDevices     Int      @default(1)
-  isRevoked      Boolean  @default(false)
+  maxDevices     Int             @default(5)
+  isRevoked      Boolean         @default(false)
   revokedReason  String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  devices        LicenseDevice[]
 
   @@index([branchId])
   @@index([licenseKey])
+}
+
+model LicenseDevice {
+  id          String   @id @default(cuid())
+  branchId    String
+  licenseId   String
+  deviceId    String   // Unique device fingerprint
+  deviceName  String?  // User-friendly name (e.g., "Cashier iPad", "Main POS")
+  deviceType  String?  // "pc", "mobile", "tablet"
+  osInfo      String?  // OS name and version
+  browserInfo String?  // Browser info if web-based
+  lastActive  DateTime @default(now())
+  isActive    Boolean  @default(true)
+  registeredAt DateTime @default(now())
+  registeredBy String? // User who registered this device
+
+  @@unique([licenseId, deviceId])
+  @@index([branchId])
+  @@index([licenseId])
+  @@index([deviceId])
+  @@index([isActive])
 }
 
 model BranchETASettings {

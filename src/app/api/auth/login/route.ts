@@ -149,12 +149,39 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check if license is expired
-      if (new Date(branch.licenseExpiresAt) < new Date()) {
-        return NextResponse.json(
-          { success: false, error: `Branch license expired on ${new Date(branch.licenseExpiresAt).toLocaleDateString()}. Please contact administrator.` },
-          { status: 403 }
-        );
+      // Check license - try new BranchLicense system first, fall back to old system
+      const branchLicense = await db.branchLicense.findUnique({
+        where: { branchId: user.branchId },
+        include: { devices: true }
+      });
+
+      if (branchLicense) {
+        // New license system
+        if (branchLicense.isRevoked) {
+          return NextResponse.json(
+            { success: false, error: `License revoked: ${branchLicense.revokedReason || 'Please contact administrator.'}` },
+            { status: 403 }
+          );
+        }
+
+        // Check if license is expired
+        if (new Date(branchLicense.expirationDate) < new Date()) {
+          return NextResponse.json(
+            { success: false, error: `Branch license expired on ${new Date(branchLicense.expirationDate).toLocaleDateString()}. Please contact administrator.` },
+            { status: 403 }
+          );
+        }
+
+        // Note: Device limit is enforced during activation, not on every login
+        // This allows offline access for already-registered devices
+      } else {
+        // Fallback to old license system for backward compatibility
+        if (new Date(branch.licenseExpiresAt) < new Date()) {
+          return NextResponse.json(
+            { success: false, error: `Branch license expired on ${new Date(branch.licenseExpiresAt).toLocaleDateString()}. Please contact administrator.` },
+            { status: 403 }
+          );
+        }
       }
     }
 
