@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Check license - try new BranchLicense system first, fall back to old system
-      const branchLicense = await db.branchLicense.findUnique({
+      const branchLicense = await db.branchLicense.findFirst({
         where: { branchId: user.branchId },
         include: { devices: true }
       });
