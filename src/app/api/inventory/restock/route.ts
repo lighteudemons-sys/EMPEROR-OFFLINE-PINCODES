@@ -8,22 +8,23 @@ export async function POST(request: NextRequest) {
       branchId,
       ingredientId,
       quantity,
-      cost,
+      pricePerUnit,
+      totalCost,
       supplier,
       userId,
     } = body;
 
     // Validate request
-    if (!branchId || !ingredientId || !quantity || !userId) {
+    if (!branchId || !ingredientId || !quantity || !pricePerUnit || !userId) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    if (quantity <= 0) {
+    if (quantity <= 0 || pricePerUnit < 0) {
       return NextResponse.json(
-        { error: 'Quantity must be positive' },
+        { error: 'Quantity and price must be positive' },
         { status: 400 }
       );
     }
@@ -51,16 +52,28 @@ export async function POST(request: NextRequest) {
     });
 
     const stockBefore = inventory?.currentStock || 0;
+    const oldPricePerUnit = inventory?.costPerUnit || ingredient.costPerUnit || 0;
     const stockAfter = stockBefore + quantity;
+
+    // Calculate weighted average price
+    // Formula: (Old Stock * Old Price + New Stock * New Price) / Total Stock
+    let newPricePerUnit = pricePerUnit;
+    if (stockBefore > 0 && oldPricePerUnit > 0) {
+      const oldValue = stockBefore * oldPricePerUnit;
+      const newValue = quantity * pricePerUnit;
+      const totalValue = oldValue + newValue;
+      newPricePerUnit = totalValue / stockAfter;
+    }
 
     // Create restock transaction
     const result = await db.$transaction(async (tx) => {
-      // Update or create inventory
+      // Update or create inventory with weighted average price
       if (inventory) {
         await tx.branchInventory.update({
           where: { id: inventory.id },
           data: {
             currentStock: stockAfter,
+            costPerUnit: newPricePerUnit, // Update branch-specific price
             lastRestockAt: new Date(),
             lastModifiedAt: new Date(),
           },
@@ -71,6 +84,7 @@ export async function POST(request: NextRequest) {
             branchId,
             ingredientId,
             currentStock: stockAfter,
+            costPerUnit: pricePerUnit, // Use purchase price for new inventory
             lastRestockAt: new Date(),
             lastModifiedAt: new Date(),
           },
@@ -86,25 +100,28 @@ export async function POST(request: NextRequest) {
           quantityChange: quantity,
           stockBefore,
           stockAfter,
-          reason: supplier ? `Supplier: ${supplier}` : 'Manual restock',
+          reason: supplier ? `Supplier: ${supplier} (Price: ${pricePerUnit.toFixed(2)} ${'/unit'})` : `Manual restock (Price: ${pricePerUnit.toFixed(2)} ${'/unit'})`,
           createdBy: userId,
         },
       });
 
-      return { stockBefore, stockAfter };
+      return { stockBefore, stockAfter, newPricePerUnit, oldPricePerUnit };
     });
 
     return NextResponse.json({
       success: true,
-      message: `Restocked ${quantity} ${ingredient.unit} of ${ingredient.name}`,
+      message: `Restocked ${quantity} ${ingredient.unit} of ${ingredient.name}. New price: ${result.newPricePerUnit.toFixed(2)} ${'/unit'}`,
       restock: {
         ingredient: ingredient.name,
         quantity,
         unit: ingredient.unit,
+        pricePerUnit,
+        totalCost,
         supplier,
-        cost,
         stockBefore,
         stockAfter,
+        oldPricePerUnit: result.oldPricePerUnit,
+        newPricePerUnit: result.newPricePerUnit,
       },
     });
   } catch (error: any) {

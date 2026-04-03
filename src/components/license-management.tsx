@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Shield, Key, DevicePhoneMobile, Monitor, Tablet, Trash2, AlertCircle, CheckCircle, Clock, RefreshCw, Copy } from 'lucide-react';
+import { Shield, Key, Smartphone, Monitor, Tablet, Trash2, AlertCircle, CheckCircle, Clock, RefreshCw, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface License {
@@ -193,7 +193,7 @@ export function LicenseManagement() {
   const getDeviceIcon = (deviceType: string | null) => {
     switch (deviceType) {
       case 'pc': return <Monitor className="w-4 h-4" />;
-      case 'mobile': return <DevicePhoneMobile className="w-4 h-4" />;
+      case 'mobile': return <Smartphone className="w-4 h-4" />;
       case 'tablet': return <Tablet className="w-4 h-4" />;
       default: return <Monitor className="w-4 h-4" />;
     }

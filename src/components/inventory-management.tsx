@@ -38,6 +38,7 @@ export default function InventoryManagement() {
   const [wasteReason, setWasteReason] = useState('');
   const [restockIngredient, setRestockIngredient] = useState('');
   const [restockAmount, setRestockAmount] = useState('');
+  const [restockPrice, setRestockPrice] = useState('');
   const [restockSupplier, setRestockSupplier] = useState('');
   const [ingredients, setIngredients] = useState<any[]>([]);
   const { language, currency, t } = useI18n();
@@ -153,20 +154,25 @@ export default function InventoryManagement() {
   const handleRestock = async () => {
     const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
 
-    if (!branchId || !restockIngredient || !restockAmount) {
+    if (!branchId || !restockIngredient || !restockAmount || !restockPrice) {
       alert(t('form.required.field'));
       return;
     }
 
     try {
+      const quantity = parseFloat(restockAmount);
+      const pricePerUnit = parseFloat(restockPrice);
+      const totalCost = quantity * pricePerUnit;
+
       const response = await fetch('/api/inventory/restock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           branchId,
           ingredientId: restockIngredient,
-          quantity: parseFloat(restockAmount),
-          cost: parseFloat(restockAmount) * 15,
+          quantity,
+          pricePerUnit,
+          totalCost,
           supplier: restockSupplier || 'Manual restock',
           userId: user.id,
         }),
@@ -178,6 +184,7 @@ export default function InventoryManagement() {
         alert(data.message);
         setRestockIngredient('');
         setRestockAmount('');
+        setRestockPrice('');
         setRestockSupplier('');
 
         // Refresh alerts
@@ -382,6 +389,18 @@ export default function InventoryManagement() {
               />
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">Price per Unit ({currency})</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={restockPrice}
+                onChange={(e) => setRestockPrice(e.target.value)}
+                placeholder="0.00"
+                className="h-11 sm:h-10 text-base"
+              />
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">Supplier ({t('form.optional')})</label>
               <Input
                 value={restockSupplier}
@@ -393,7 +412,7 @@ export default function InventoryManagement() {
             <Button
               onClick={handleRestock}
               className="w-full h-12 sm:h-10 text-base font-medium"
-              disabled={!restockIngredient || !restockAmount}
+              disabled={!restockIngredient || !restockAmount || !restockPrice}
             >
               <Package className="h-4 w-4 mr-2" />
               {t('inventory.restock')}

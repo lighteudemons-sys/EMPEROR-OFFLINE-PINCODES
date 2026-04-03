@@ -361,6 +361,7 @@ model BranchInventory {
   ingredientId          String
   currentStock          Float                   @default(0)
   reservedStock         Float                   @default(0)
+  costPerUnit           Float                   @default(0) // Branch-specific cost per unit
   expiryDate            DateTime?
   lastRestockAt         DateTime?
   lastModifiedAt        DateTime                @default(now())

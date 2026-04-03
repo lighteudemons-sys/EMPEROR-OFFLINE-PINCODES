@@ -196,6 +196,7 @@ async function handleInventoryExpense(
         branchId,
         ingredientId,
         currentStock: quantity,
+        costPerUnit: unitPrice, // Set the purchase price for new inventory
         reservedStock: 0,
         lastRestockAt: new Date(),
         lastModifiedAt: new Date(),
@@ -205,9 +206,10 @@ async function handleInventoryExpense(
   }
 
   const oldStock = branchInventory.currentStock;
-  const oldPrice = branchInventory.currentStock > 0
-    ? (await db.ingredient.findUnique({ where: { id: ingredientId } }))?.costPerUnit || 0
-    : unitPrice;
+  // Get old price from branch inventory (branch-specific), fallback to ingredient base price
+  const oldPrice = (branchInventory.costPerUnit && branchInventory.costPerUnit > 0)
+    ? branchInventory.costPerUnit
+    : (await db.ingredient.findUnique({ where: { id: ingredientId } }))?.costPerUnit || unitPrice;
 
   // Calculate new stock
   const newStock = oldStock + quantity;
@@ -234,11 +236,12 @@ async function handleInventoryExpense(
     weightedAveragePrice,
   });
 
-  // Update branch inventory
+  // Update branch inventory with branch-specific price
   branchInventory = await db.branchInventory.update({
     where: { id: branchInventory.id },
     data: {
       currentStock: newStock,
+      costPerUnit: weightedAveragePrice, // Update branch-specific price, not global
       lastRestockAt: new Date(),
       lastModifiedAt: new Date(),
       lastModifiedBy: recordedBy,
@@ -248,15 +251,7 @@ async function handleInventoryExpense(
   console.log('[Daily Expenses] Stock updated successfully:', {
     oldStock,
     newStock: branchInventory.currentStock,
-  });
-
-  // Update ingredient's base cost per unit (weighted average)
-  await db.ingredient.update({
-    where: { id: ingredientId },
-    data: {
-      costPerUnit: weightedAveragePrice,
-      updatedAt: new Date(),
-    },
+    newPrice: weightedAveragePrice,
   });
 
   // Create inventory transaction record
