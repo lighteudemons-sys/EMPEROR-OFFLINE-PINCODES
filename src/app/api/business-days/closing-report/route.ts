@@ -176,7 +176,8 @@ export async function GET(request: NextRequest) {
       const baseName = orderItem.menuItem?.name || orderItem.itemName;
       const variant = orderItem.variantName || '';
       // Remove weight pattern to get the base variant name
-      const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x\s*\(\d+g\)/g, '');
+      // Matches both: "- وزن: 0.125x (125g)" and "- وزن: 0.125x"
+      const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x(\s*\(\d+g\))?/g, '').trim();
       const displayName = baseVariant ? `${baseName} - ${baseVariant}`.trim() : baseName;
 
       return {

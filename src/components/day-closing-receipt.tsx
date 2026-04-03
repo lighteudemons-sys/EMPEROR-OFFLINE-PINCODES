@@ -453,8 +453,13 @@ export function DayClosingReceipt({ businessDayId, open, onClose }: DayClosingRe
     let itemsHtml = '';
     data.categoryBreakdown?.forEach(category => {
       itemsHtml += `
-        <div style="margin-bottom: 10px;">
-          <div style="font-weight: bold; margin-bottom: 3px;">${category.categoryName}</div>
+        <div style="margin-bottom: 15px;">
+          <div style="font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #000; padding-bottom: 2px;">${category.categoryName}</div>
+          <div style="font-size: 11px; margin-bottom: 2px; color: #666;">
+            <span style="display: inline-block; width: 45%;">Item</span>
+            <span style="display: inline-block; width: 25%; text-align: center;">Qty/Weight</span>
+            <span style="display: inline-block; width: 25%; text-align: right;">Total</span>
+          </div>
       `;
 
       category.items?.forEach(item => {
@@ -462,18 +467,19 @@ export function DayClosingReceipt({ businessDayId, open, onClose }: DayClosingRe
         if (item.isCustomInput && item.totalWeight !== undefined) {
           const weightInKG = item.totalWeight.toFixed(2);
           itemsHtml += `
-            <div style="display: flex; justify-content: space-between; margin: 2px 0;">
-              <span style="flex: 1; text-align: left;">وزن: ${weightInKG} KG ${item.itemName}</span>
-              <span style="flex: 0 0 80px; text-align: right;">${item.totalPrice.toFixed(2)}</span>
+            <div style="display: flex; align-items: center; margin: 1px 0; font-size: 12px;">
+              <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.itemName}</span>
+              <span style="flex: 0 0 80px; text-align: center; color: #333;">${weightInKG} KG</span>
+              <span style="flex: 0 0 80px; text-align: right; font-weight: bold;">${item.totalPrice.toFixed(2)}</span>
             </div>
           `;
         } else {
           // Regular items: show quantity
           itemsHtml += `
-            <div style="display: flex; justify-content: space-between; margin: 2px 0;">
-              <span style="flex: 0 0 30px; text-align: left; font-weight: bold;">${item.quantity}x</span>
-              <span style="flex: 1; text-align: left;">${item.itemName}</span>
-              <span style="flex: 0 0 80px; text-align: right;">${item.totalPrice.toFixed(2)}</span>
+            <div style="display: flex; align-items: center; margin: 1px 0; font-size: 12px;">
+              <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.itemName}</span>
+              <span style="flex: 0 0 80px; text-align: center; color: #333;">${item.quantity}x</span>
+              <span style="flex: 0 0 80px; text-align: right; font-weight: bold;">${item.totalPrice.toFixed(2)}</span>
             </div>
           `;
         }
