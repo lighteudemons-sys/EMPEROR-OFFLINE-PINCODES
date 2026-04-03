@@ -11,8 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, LayoutDashboard, Key, AlertTriangle, CheckCircle, Clock, Search, Settings, Phone, MapPin } from 'lucide-react';
+import { Plus, Pencil, Trash2, LayoutDashboard, Key, AlertTriangle, CheckCircle, Clock, Search, Settings, Phone, MapPin, Shield } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-context';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LicenseManagement } from '@/components/license-management';
 
 interface Branch {
   id: string;
@@ -252,220 +254,246 @@ export default function BranchManagement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <LayoutDashboard className="h-6 w-6" />
-            Branch Management
+            Branch & License Management
           </CardTitle>
           <CardDescription>
-            Create and manage branch licenses. Branches cannot modify menu or pricing - they can only manage local inventory.
+            Manage branches and their licenses. Each branch can have up to 5 devices (PC, mobile, or tablet).
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search branches..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+      </Card>
 
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={resetForm}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Branch
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <form onSubmit={handleSubmit}>
-                  <DialogHeader>
-                    <DialogTitle>{editingBranch ? 'Edit Branch' : 'Add New Branch'}</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="branchName">Branch Name</Label>
-                      <Input
-                        id="branchName"
-                        value={formData.branchName}
-                        onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
-                        placeholder="e.g., Downtown"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="licenseKey">License Key</Label>
-                      <div className="relative">
-                        <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input
-                          id="licenseKey"
-                          value={formData.licenseKey}
-                          onChange={(e) => setFormData({ ...formData, licenseKey: e.target.value })}
-                          placeholder="LIC-XXXX-YYYY-ZZZZ"
-                          className="pl-10 font-mono"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input
-                          id="phone"
-                          type="tel"
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          placeholder="e.g., +20 123 456 7890"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="address">Address</Label>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input
-                          id="address"
-                          value={formData.address}
-                          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                          placeholder="e.g., 123 Main Street, Cairo, Egypt"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="expirationDays">License Duration (days)</Label>
-                      <Input
-                        id="expirationDays"
-                        type="number"
-                        min="1"
-                        value={formData.expirationDays}
-                        onChange={(e) => setFormData({ ...formData, expirationDays: e.target.value })}
-                        placeholder="365"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                      Cancel
+      <Tabs defaultValue="branches" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="branches" className="flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4" />
+            Branches
+          </TabsTrigger>
+          <TabsTrigger value="licenses" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            License Management
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="branches" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Branches</CardTitle>
+              <CardDescription>
+                Create and manage branch licenses. Branches cannot modify menu or pricing - they can only manage local inventory.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Search branches..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button onClick={resetForm}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Branch
                     </Button>
-                    <Button type="submit">{editingBranch ? 'Update' : 'Add'} Branch</Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardContent>
-      </Card>
-
-     
-
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Branches ({filteredBranches.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8 text-slate-600">Loading...</div>
-          ) : (
-            <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-              <div className="min-w-[800px] md:min-w-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Branch Name</TableHead>
-                    <TableHead>License Key</TableHead>
-                    <TableHead>License Status</TableHead>
-                    <TableHead>Sync Status</TableHead>
-                    <TableHead>Last Sync</TableHead>
-                    <TableHead>Menu Version</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredBranches.map((branch) => {
-                    const syncStatus = getSyncStatus(branch);
-                    const licenseStatus = getLicenseStatus(branch);
-                    return (
-                      <TableRow key={branch.id}>
-                        <TableCell className="font-medium">{branch.branchName}</TableCell>
-                        <TableCell>
-                          <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
-                            {branch.licenseKey}
-                          </code>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${licenseStatus.color}`} />
-                            <span className="text-sm">{licenseStatus.text}</span>
-                            {licenseStatus.status === 'warning' && (
-                              <AlertTriangle className="h-4 w-4 text-amber-500" />
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${syncStatus.color}`} />
-                            <span className="text-sm capitalize">{syncStatus.status}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {branch.lastSyncAt ? (
-                            <div className="flex items-center gap-1 text-sm">
-                              <Clock className="h-3 w-3" />
-                              {Math.floor((Date.now() - branch.lastSyncAt.getTime()) / 60000)}m ago
-                            </div>
-                          ) : (
-                            <span className="text-sm text-slate-500">Never</span>
-                          )}
-                        </TableCell>
-                        <TableCell>v{branch.menuVersion}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={branch.isActive}
-                              onCheckedChange={() => toggleBranchStatus(branch.id, branch.isActive)}
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[500px]">
+                    <form onSubmit={handleSubmit}>
+                      <DialogHeader>
+                        <DialogTitle>{editingBranch ? 'Edit Branch' : 'Add New Branch'}</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="branchName">Branch Name</Label>
+                          <Input
+                            id="branchName"
+                            value={formData.branchName}
+                            onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+                            placeholder="e.g., Downtown"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="licenseKey">License Key</Label>
+                          <div className="relative">
+                            <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                              id="licenseKey"
+                              value={formData.licenseKey}
+                              onChange={(e) => setFormData({ ...formData, licenseKey: e.target.value })}
+                              placeholder="LIC-XXXX-YYYY-ZZZZ"
+                              className="pl-10 font-mono"
+                              required
                             />
-                            <Badge variant={branch.isActive ? 'default' : 'secondary'}>
-                              {branch.isActive ? 'Active' : 'Inactive'}
-                            </Badge>
                           </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleEdit(branch)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(branch.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="phone">Phone Number</Label>
+                          <div className="relative">
+                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                              id="phone"
+                              type="tel"
+                              value={formData.phone}
+                              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                              placeholder="e.g., +20 123 456 7890"
+                            />
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {filteredBranches.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-slate-600">
-                        No branches found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="address">Address</Label>
+                          <div className="relative">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                              id="address"
+                              value={formData.address}
+                              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                              placeholder="e.g., 123 Main Street, Cairo, Egypt"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="expirationDays">License Duration (days)</Label>
+                          <Input
+                            id="expirationDays"
+                            type="number"
+                            min="1"
+                            value={formData.expirationDays}
+                            onChange={(e) => setFormData({ ...formData, expirationDays: e.target.value })}
+                            placeholder="365"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button type="submit">{editingBranch ? 'Update' : 'Add'} Branch</Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                Branches ({filteredBranches.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="text-center py-8 text-slate-600">Loading...</div>
+              ) : (
+                <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+                  <div className="min-w-[800px] md:min-w-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Branch Name</TableHead>
+                        <TableHead>License Key</TableHead>
+                        <TableHead>License Status</TableHead>
+                        <TableHead>Sync Status</TableHead>
+                        <TableHead>Last Sync</TableHead>
+                        <TableHead>Menu Version</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredBranches.map((branch) => {
+                        const syncStatus = getSyncStatus(branch);
+                        const licenseStatus = getLicenseStatus(branch);
+                        return (
+                          <TableRow key={branch.id}>
+                            <TableCell className="font-medium">{branch.branchName}</TableCell>
+                            <TableCell>
+                              <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                                {branch.licenseKey}
+                              </code>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${licenseStatus.color}`} />
+                                <span className="text-sm">{licenseStatus.text}</span>
+                                {licenseStatus.status === 'warning' && (
+                                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${syncStatus.color}`} />
+                                <span className="text-sm capitalize">{syncStatus.status}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {branch.lastSyncAt ? (
+                                <div className="flex items-center gap-1 text-sm">
+                                  <Clock className="h-3 w-3" />
+                                  {Math.floor((Date.now() - branch.lastSyncAt.getTime()) / 60000)}m ago
+                                </div>
+                              ) : (
+                                <span className="text-sm text-slate-500">Never</span>
+                              )}
+                            </TableCell>
+                            <TableCell>v{branch.menuVersion}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={branch.isActive}
+                                  onCheckedChange={() => toggleBranchStatus(branch.id, branch.isActive)}
+                                />
+                                <Badge variant={branch.isActive ? 'default' : 'secondary'}>
+                                  {branch.isActive ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => handleEdit(branch)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDelete(branch.id)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {filteredBranches.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-8 text-slate-600">
+                            No branches found
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="licenses" className="mt-6">
+          <LicenseManagement />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
