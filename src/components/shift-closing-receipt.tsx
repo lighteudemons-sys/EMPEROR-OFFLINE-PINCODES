@@ -364,10 +364,10 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean } => {
         const isCustom = isCustomInputItem(item);
         if (!isCustom) {
-          // For regular items, use the full display name
+          // For regular items, use only variant option name (excludes variant type name)
           const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
           const itemName = item.menuItemVariant?.variantOption?.name
-            ? `${item.itemName || item.name} (${item.menuItemVariant.variantOption.name})`
+            ? `${item.itemName || item.name} - ${item.menuItemVariant.variantOption.name}`
             : (item.itemName || item.name || 'Unknown Item');
           return {
             key: itemId,
@@ -379,10 +379,33 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         // For custom input items, extract base name without weight
         const baseName = item.itemName || item.name || 'Unknown Item';
         const variant = item.variantName || '';
-        // Remove weight pattern to get the base variant name
+
+        // Check if we have variantOption relation available
+        const optionName = item.menuItemVariant?.variantOption?.name;
+
+        if (optionName) {
+          // Use variantOption name directly if available (excludes variant type name)
+          const displayName = `${baseName} - ${optionName}`.trim();
+          return {
+            key: `custom_${item.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
+            baseName: displayName,
+            isCustomInput: true
+          };
+        }
+
+        // Fallback: remove weight pattern to get the base variant name
         // Matches both: "- وزن: 0.125x (125g)" and "- وزن: 0.125x"
         const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x(\s*\(\d+g\))?/g, '').trim();
-        const displayName = baseVariant ? `${baseName} - ${baseVariant}`.trim() : baseName;
+
+        // Extract only the option name (last part after the last hyphen)
+        // Format: "Type - Option" -> extract "Option"
+        let optionOnly = baseVariant;
+        const lastHyphenIndex = baseVariant.lastIndexOf(' - ');
+        if (lastHyphenIndex !== -1) {
+          optionOnly = baseVariant.substring(lastHyphenIndex + 3).trim();
+        }
+
+        const displayName = optionOnly ? `${baseName} - ${optionOnly}`.trim() : baseName;
 
         return {
           key: `custom_${item.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
@@ -744,10 +767,10 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean } => {
       const isCustom = isCustomInputItem(item);
       if (!isCustom) {
-        // For regular items, use the full display name
+        // For regular items, use only variant option name (excludes variant type name)
         const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
         const itemName = item.menuItemVariant?.variantOption?.name
-          ? `${item.itemName} (${item.menuItemVariant.variantOption.name})`
+          ? `${item.itemName} - ${item.menuItemVariant.variantOption.name}`
           : item.itemName;
         return {
           key: itemId,
@@ -759,10 +782,33 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       // For custom input items, extract base name without weight
       const baseName = item.itemName;
       const variant = item.variantName || '';
-      // Remove weight pattern to get the base variant name
+
+      // Check if we have variantOption relation available
+      const optionName = item.menuItemVariant?.variantOption?.name;
+
+      if (optionName) {
+        // Use variantOption name directly if available (excludes variant type name)
+        const displayName = `${baseName} - ${optionName}`.trim();
+        return {
+          key: `custom_${item.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
+          baseName: displayName,
+          isCustomInput: true
+        };
+      }
+
+      // Fallback: remove weight pattern to get the base variant name
       // Matches both: "- وزن: 0.125x (125g)" and "- وزن: 0.125x"
       const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x(\s*\(\d+g\))?/g, '').trim();
-      const displayName = baseVariant ? `${baseName} - ${baseVariant}`.trim() : baseName;
+
+      // Extract only the option name (last part after the last hyphen)
+      // Format: "Type - Option" -> extract "Option"
+      let optionOnly = baseVariant;
+      const lastHyphenIndex = baseVariant.lastIndexOf(' - ');
+      if (lastHyphenIndex !== -1) {
+        optionOnly = baseVariant.substring(lastHyphenIndex + 3).trim();
+      }
+
+      const displayName = optionOnly ? `${baseName} - ${optionOnly}`.trim() : baseName;
 
       return {
         key: `custom_${item.menuItemId}_${displayName.replace(/\s+/g, '_')}`,

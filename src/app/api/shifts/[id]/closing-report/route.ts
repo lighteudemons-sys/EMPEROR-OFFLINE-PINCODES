@@ -38,6 +38,15 @@ export async function GET(
                     category: true,
                     categoryId: true
                   }
+                },
+                menuItemVariant: {
+                  include: {
+                    variantOption: {
+                      select: {
+                        name: true
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -142,10 +151,12 @@ export async function GET(
     };
 
     // Get display name for item (including variant if present)
+    // Shows: MenuItemName - VariantOptionName (excludes variant type name)
     const getItemDisplayName = (orderItem: any): string => {
       const baseName = orderItem.menuItem?.name || orderItem.itemName;
-      const variant = orderItem.variantName;
-      return variant ? `${baseName} - ${variant}` : baseName;
+      // Use variantOption name directly (excludes variant type name)
+      const optionName = orderItem.menuItemVariant?.variantOption?.name;
+      return optionName ? `${baseName} - ${optionName}` : baseName;
     };
 
     // Get aggregation key for custom input items
@@ -163,10 +174,33 @@ export async function GET(
       // For custom input items, extract base name without weight
       const baseName = orderItem.menuItem?.name || orderItem.itemName;
       const variant = orderItem.variantName || '';
-      // Remove weight pattern to get the base variant name
+
+      // Check if we have variantOption relation available
+      const optionName = orderItem.menuItemVariant?.variantOption?.name;
+
+      if (optionName) {
+        // Use variantOption name directly if available (excludes variant type name)
+        const displayName = `${baseName} - ${optionName}`.trim();
+        return {
+          key: `custom_${orderItem.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
+          baseName: displayName,
+          isCustomInput: true
+        };
+      }
+
+      // Fallback: remove weight pattern to get the base variant name
       // Matches both: "- وزن: 0.125x (125g)" and "- وزن: 0.125x"
       const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x(\s*\(\d+g\))?/g, '').trim();
-      const displayName = baseVariant ? `${baseName} - ${baseVariant}`.trim() : baseName;
+
+      // Extract only the option name (last part after the last hyphen)
+      // Format: "Type - Option" -> extract "Option"
+      let optionOnly = baseVariant;
+      const lastHyphenIndex = baseVariant.lastIndexOf(' - ');
+      if (lastHyphenIndex !== -1) {
+        optionOnly = baseVariant.substring(lastHyphenIndex + 3).trim();
+      }
+
+      const displayName = optionOnly ? `${baseName} - ${optionOnly}`.trim() : baseName;
 
       return {
         key: `custom_${orderItem.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
