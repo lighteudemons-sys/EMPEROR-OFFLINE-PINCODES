@@ -2347,3 +2347,41 @@ Stage Summary:
 - Admin UI for license management created
 - No breaking changes to existing functionality
 
+
+---
+
+## Task ID: license-schema-fix
+### Work Task
+Fix LicenseDevice model relation and push schema to Neon database.
+
+### Work Summary
+
+**Fixed Prisma Schema Issue:**
+- Added missing `license` relation field to `LicenseDevice` model:
+  ```prisma
+  license BranchLicense @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  ```
+- This fixed the relation error where `BranchLicense.devices` had no opposite relation field
+
+**Database Schema Push:**
+- Successfully pushed schema changes to Neon PostgreSQL database
+- Database URL: `ep-nameless-flower-alam3jmb-pooler.c-3.eu-central-1.aws.neon.tech`
+- Schema synchronized in 8.29 seconds
+- Prisma Client regenerated successfully
+
+**New Tables Created:**
+- `LicenseDevice` table with all required fields and indexes
+- Foreign key constraint to `BranchLicense` table with CASCADE delete
+
+**Files Modified:**
+1. `prisma/schema.prisma` - Added LicenseDevice relation
+
+**Committed & Pushed:**
+- Commit: `2730f03`
+- Pushed to `main` branch on GitHub
+
+Stage Summary:
+- License schema relation fixed
+- Database successfully updated
+- License system fully operational
+
