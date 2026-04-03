@@ -458,13 +458,25 @@ export function DayClosingReceipt({ businessDayId, open, onClose }: DayClosingRe
       `;
 
       category.items?.forEach(item => {
-        itemsHtml += `
-          <div style="display: flex; justify-content: space-between; margin: 2px 0;">
-            <span style="flex: 0 0 30px; text-align: left; font-weight: bold;">${item.quantity}x</span>
-            <span style="flex: 1; text-align: left;">${item.itemName}</span>
-            <span style="flex: 0 0 80px; text-align: right;">${item.totalPrice.toFixed(2)}</span>
-          </div>
-        `;
+        // For custom input items, show total weight instead of quantity
+        if (item.isCustomInput && item.totalWeight !== undefined) {
+          const weightInKG = item.totalWeight.toFixed(2);
+          itemsHtml += `
+            <div style="display: flex; justify-content: space-between; margin: 2px 0;">
+              <span style="flex: 1; text-align: left;">وزن: ${weightInKG} KG ${item.itemName}</span>
+              <span style="flex: 0 0 80px; text-align: right;">${item.totalPrice.toFixed(2)}</span>
+            </div>
+          `;
+        } else {
+          // Regular items: show quantity
+          itemsHtml += `
+            <div style="display: flex; justify-content: space-between; margin: 2px 0;">
+              <span style="flex: 0 0 30px; text-align: left; font-weight: bold;">${item.quantity}x</span>
+              <span style="flex: 1; text-align: left;">${item.itemName}</span>
+              <span style="flex: 0 0 80px; text-align: right;">${item.totalPrice.toFixed(2)}</span>
+            </div>
+          `;
+        }
       });
 
       itemsHtml += `
@@ -724,8 +736,18 @@ export function DayClosingReceipt({ businessDayId, open, onClose }: DayClosingRe
                             <tbody>
                               {category.items?.map((item, idx) => (
                                 <tr key={idx} className="border-b border-border/50">
-                                  <td className="py-2 px-2">{item.itemName}</td>
-                                  <td className="text-right py-2 px-2">{item.quantity}</td>
+                                  <td className="py-2 px-2">
+                                    {item.isCustomInput && item.totalWeight !== undefined
+                                      ? `وزن: ${item.totalWeight.toFixed(2)} KG ${item.itemName}`
+                                      : item.itemName
+                                    }
+                                  </td>
+                                  <td className="text-right py-2 px-2">
+                                    {item.isCustomInput && item.totalWeight !== undefined
+                                      ? ''
+                                      : item.quantity
+                                    }
+                                  </td>
                                   <td className="text-right py-2 px-2">{formatCurrency(item.totalPrice)}</td>
                                 </tr>
                               ))}

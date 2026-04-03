@@ -1230,13 +1230,26 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       `;
 
       category.items.forEach(item => {
-        itemsHtml += `
-          <div style="display: flex; justify-content: space-between; margin: 2px 0;">
-            <span style="flex: 0 0 30px; text-align: left; font-weight: bold;">${item.quantity}x</span>
-            <span style="flex: 1; text-align: left;">${formatItemName(item.itemName)}</span>
-            <span style="flex: 0 0 80px; text-align: right;">${item.totalPrice.toFixed(2)}</span>
-          </div>
-        `;
+        // For custom input items, show total weight instead of quantity
+        if (item.isCustomInput && item.totalWeight !== undefined) {
+          const weightInKG = item.totalWeight.toFixed(2);
+          const weightInGrams = Math.round(item.totalWeight * 1000);
+          itemsHtml += `
+            <div style="display: flex; justify-content: space-between; margin: 2px 0;">
+              <span style="flex: 1; text-align: left;">وزن: ${weightInKG} KG ${item.itemName}</span>
+              <span style="flex: 0 0 80px; text-align: right;">${item.totalPrice.toFixed(2)}</span>
+            </div>
+          `;
+        } else {
+          // Regular items: show quantity
+          itemsHtml += `
+            <div style="display: flex; justify-content: space-between; margin: 2px 0;">
+              <span style="flex: 0 0 30px; text-align: left; font-weight: bold;">${item.quantity}x</span>
+              <span style="flex: 1; text-align: left;">${formatItemName(item.itemName)}</span>
+              <span style="flex: 0 0 80px; text-align: right;">${item.totalPrice.toFixed(2)}</span>
+            </div>
+          `;
+        }
       });
 
       itemsHtml += `
@@ -1772,10 +1785,18 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
                                 key={itemIdx}
                                 className="flex justify-between items-center p-3 text-sm border-b last:border-b-0 hover:bg-muted/30"
                               >
-                                <span className="flex-1 mr-4 truncate">{formatItemName(item.itemName)}</span>
+                                <span className="flex-1 mr-4 truncate">
+                                  {item.isCustomInput && item.totalWeight !== undefined
+                                    ? `وزن: ${item.totalWeight.toFixed(2)} KG ${item.itemName}`
+                                    : formatItemName(item.itemName)
+                                  }
+                                </span>
                                 <div className="flex items-center gap-4 flex-shrink-0">
                                   <span className="text-muted-foreground text-xs w-12 text-right">
-                                    x{item.quantity}
+                                    {item.isCustomInput && item.totalWeight !== undefined
+                                      ? ''
+                                      : `x${item.quantity}`
+                                    }
                                   </span>
                                   <span className="font-medium w-20 text-right">
                                     {formatCurrency(item.totalPrice)}
