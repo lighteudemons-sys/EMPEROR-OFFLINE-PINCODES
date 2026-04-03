@@ -90,6 +90,8 @@ interface ApiResponse {
         itemName: string;
         quantity: number;
         totalPrice: number;
+        isCustomInput?: boolean;
+        totalWeight?: number;
       }>;
     }>;
     voidedItems: Array<{
@@ -253,7 +255,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
           items: cat.items.map(item => ({
             itemName: item.itemName,
             quantity: item.quantity,
-            totalPrice: item.totalPrice
+            totalPrice: item.totalPrice,
+            isCustomInput: item.isCustomInput,
+            totalWeight: item.totalWeight
           }))
         })),
         fontSize: 'medium'

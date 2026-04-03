@@ -82,6 +82,7 @@ model Branch {
   users                   User[]
   wasteLogs               WasteLog[]
   etaSettings             BranchETASettings?
+  licenses                BranchLicense[]
 
   @@index([licenseKey])
   @@index([isActive])
@@ -127,6 +128,7 @@ model BranchLicense {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   devices        LicenseDevice[]
+  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@index([branchId])
   @@index([licenseKey])

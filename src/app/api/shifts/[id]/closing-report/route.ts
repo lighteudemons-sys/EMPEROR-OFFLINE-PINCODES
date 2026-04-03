@@ -130,11 +130,48 @@ export async function GET(
       return category.trim().replace(/\s+/g, ' ');
     };
 
+    // Detect if an item is a custom input (weight-based) item
+    const isCustomInputItem = (orderItem: any): boolean => {
+      return !!(orderItem.variantName && orderItem.variantName.includes('وزن:'));
+    };
+
+    // Extract weight from variant name (e.g., "وزن: 0.125x (125g)" -> 0.125)
+    const extractWeight = (variantName: string): number => {
+      const match = variantName.match(/وزن:\s*([\d.]+)x/);
+      return match ? parseFloat(match[1]) : 0;
+    };
+
     // Get display name for item (including variant if present)
     const getItemDisplayName = (orderItem: any): string => {
       const baseName = orderItem.menuItem?.name || orderItem.itemName;
       const variant = orderItem.variantName;
       return variant ? `${baseName} - ${variant}` : baseName;
+    };
+
+    // Get aggregation key for custom input items
+    const getAggregationKey = (orderItem: any): { key: string; baseName: string; isCustomInput: boolean } => {
+      const isCustom = isCustomInputItem(orderItem);
+      if (!isCustom) {
+        // For regular items, use the full display name
+        return {
+          key: orderItem.menuItemId + (orderItem.menuItemVariantId ? `_${orderItem.menuItemVariantId}` : ''),
+          baseName: getItemDisplayName(orderItem),
+          isCustomInput: false
+        };
+      }
+
+      // For custom input items, extract base name without weight
+      const baseName = orderItem.menuItem?.name || orderItem.itemName;
+      const variant = orderItem.variantName || '';
+      // Remove weight pattern to get the base variant name
+      const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x\s*\(\d+g\)/g, '');
+      const displayName = baseVariant ? `${baseName} - ${baseVariant}`.trim() : baseName;
+
+      return {
+        key: `custom_${orderItem.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
+        baseName: displayName,
+        isCustomInput: true
+      };
     };
 
     // Group items by category
@@ -146,6 +183,8 @@ export async function GET(
         itemName: string;
         quantity: number;
         totalPrice: number;
+        isCustomInput: boolean;
+        totalWeight?: number; // For custom input items in KG
       }>;
     }>();
 
@@ -166,21 +205,28 @@ export async function GET(
         const catData = categoryBreakdown.get(category)!;
         catData.totalSales += orderItem.subtotal;
 
-        const itemName = getItemDisplayName(orderItem);
-        const itemId = orderItem.menuItemId + (orderItem.menuItemVariantId ? `_${orderItem.menuItemVariantId}` : '');
+        const aggKey = getAggregationKey(orderItem);
 
-        if (!catData.items.has(itemId)) {
-          catData.items.set(itemId, {
-            itemId,
-            itemName,
+        if (!catData.items.has(aggKey.key)) {
+          catData.items.set(aggKey.key, {
+            itemId: aggKey.key,
+            itemName: aggKey.baseName,
             quantity: 0,
-            totalPrice: 0
+            totalPrice: 0,
+            isCustomInput: aggKey.isCustomInput,
+            totalWeight: aggKey.isCustomInput ? 0 : undefined
           });
         }
 
-        const itemData = catData.items.get(itemId)!;
+        const itemData = catData.items.get(aggKey.key)!;
         itemData.quantity += orderItem.quantity;
         itemData.totalPrice += orderItem.subtotal;
+
+        // For custom input items, accumulate weight
+        if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
+          const weight = extractWeight(orderItem.variantName || '');
+          itemData.totalWeight += weight * orderItem.quantity;
+        }
       });
     });
 
@@ -194,7 +240,9 @@ export async function GET(
           itemId: item.itemId,
           itemName: item.itemName,
           quantity: item.quantity,
-          totalPrice: item.totalPrice
+          totalPrice: item.totalPrice,
+          isCustomInput: item.isCustomInput,
+          totalWeight: item.totalWeight
         }))
       }))
       .sort((a, b) => b.totalSales - a.totalSales);

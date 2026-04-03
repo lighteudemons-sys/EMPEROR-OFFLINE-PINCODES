@@ -3084,7 +3084,8 @@ export default function ShiftManagement() {
                   </div>
                 </div>
 
-                {/* Expected Cash */}
+                {/* Expected Cash - Hidden from cashiers */}
+                {user?.role !== 'CASHIER' && (
                 <div className="p-3 md:p-4 bg-amber-50 dark:bg-amber-950 rounded-lg">
                   <div className="flex justify-between items-start md:items-center">
                     <div>
@@ -3103,6 +3104,7 @@ export default function ShiftManagement() {
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Closing Cash Input */}
                 <div className="space-y-2">
@@ -3119,8 +3121,8 @@ export default function ShiftManagement() {
                   />
                 </div>
 
-                {/* Live Discrepancy Detection */}
-                {closingCash && (
+                {/* Live Discrepancy Detection - Hidden from cashiers */}
+                {user?.role !== 'CASHIER' && closingCash && (
                   <div
                     className={`p-3 md:p-4 rounded-lg border-2 ${
                       calculateDiscrepancy().hasDiscrepancy

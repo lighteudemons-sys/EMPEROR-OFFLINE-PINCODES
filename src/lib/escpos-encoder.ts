@@ -608,6 +608,8 @@ export interface ShiftClosingReportData {
       itemName: string;
       quantity: number;
       totalPrice: number;
+      isCustomInput?: boolean;
+      totalWeight?: number;
     }>;
   }>;
   fontSize?: 'small' | 'medium' | 'large';
@@ -768,12 +770,29 @@ export function generateShiftClosingReceiptPaper2(data: ShiftClosingReportData):
 
     // Items in category
     category.items.forEach(item => {
-      const nameField = item.itemName.padEnd(24).substring(0, 24);
-      const qtyField = item.quantity.toString().padStart(4).substring(0, 4);
-      const valueField = formatMoney(item.totalPrice).padStart(10).substring(0, 10);
-      
-      encoder.text(`${nameField}${qtyField}${valueField}`)
-        .newLine();
+      // For custom input items, show total weight instead of quantity
+      if (item.isCustomInput && item.totalWeight !== undefined) {
+        const weightInKG = item.totalWeight.toFixed(2);
+        const weightInGrams = Math.round(item.totalWeight * 1000);
+        // Format: "وزن: X.XX KG item_name"
+        const nameField = `وزن: ${weightInKG} KG ${item.itemName}`.padEnd(30).substring(0, 30);
+        const valueField = formatMoney(item.totalPrice).padStart(10).substring(0, 10);
+        
+        encoder.text(nameField)
+          .newLine();
+        encoder.align('right')
+          .text(valueField)
+          .align('left')
+          .newLine();
+      } else {
+        // Regular items: show quantity
+        const nameField = item.itemName.padEnd(24).substring(0, 24);
+        const qtyField = item.quantity.toString().padStart(4).substring(0, 4);
+        const valueField = formatMoney(item.totalPrice).padStart(10).substring(0, 10);
+        
+        encoder.text(`${nameField}${qtyField}${valueField}`)
+          .newLine();
+      }
     });
 
     encoder.hr('-')
@@ -835,6 +854,8 @@ export interface DayClosingReportData {
       itemName: string;
       quantity: number;
       totalPrice: number;
+      isCustomInput?: boolean;
+      totalWeight?: number;
     }>;
   }>;
   notes?: string | null;
@@ -1020,12 +1041,29 @@ export function generateDayClosingReceiptPaper2(data: DayClosingReportData): Uin
 
     // Items in category
     category.items.forEach(item => {
-      const nameField = item.itemName.padEnd(24).substring(0, 24);
-      const qtyField = item.quantity.toString().padStart(4).substring(0, 4);
-      const valueField = formatMoney(item.totalPrice).padStart(10).substring(0, 10);
-      
-      encoder.text(`${nameField}${qtyField}${valueField}`)
-        .newLine();
+      // For custom input items, show total weight instead of quantity
+      if (item.isCustomInput && item.totalWeight !== undefined) {
+        const weightInKG = item.totalWeight.toFixed(2);
+        const weightInGrams = Math.round(item.totalWeight * 1000);
+        // Format: "وزن: X.XX KG item_name"
+        const nameField = `وزن: ${weightInKG} KG ${item.itemName}`.padEnd(30).substring(0, 30);
+        const valueField = formatMoney(item.totalPrice).padStart(10).substring(0, 10);
+        
+        encoder.text(nameField)
+          .newLine();
+        encoder.align('right')
+          .text(valueField)
+          .align('left')
+          .newLine();
+      } else {
+        // Regular items: show quantity
+        const nameField = item.itemName.padEnd(24).substring(0, 24);
+        const qtyField = item.quantity.toString().padStart(4).substring(0, 4);
+        const valueField = formatMoney(item.totalPrice).padStart(10).substring(0, 10);
+        
+        encoder.text(`${nameField}${qtyField}${valueField}`)
+          .newLine();
+      }
     });
 
     encoder.hr('-')

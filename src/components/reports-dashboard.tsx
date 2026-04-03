@@ -31,6 +31,7 @@ import CustomerAnalyticsReport from './reports-customers';
 import BranchComparisonReport from './reports-branches';
 import StaffPerformanceReport from './reports-staff';
 import DailyReportsTab from './reports-daily';
+import BestSellersReport from './reports-best-sellers';
 import { ReceiptViewer } from './receipt-viewer';
 import DiscountsTracking from './discounts-tracking';
 
@@ -813,6 +814,10 @@ export default function ReportsDashboard() {
             <Package className="h-4 w-4 mr-2" />
             {t('dashboard.menu')}
           </TabsTrigger>
+          <TabsTrigger value="best-sellers">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Best Sellers
+          </TabsTrigger>
           <TabsTrigger value="customers">
             <Users className="h-4 w-4 mr-2" />
             {t('customers.title')}
@@ -1314,6 +1319,11 @@ export default function ReportsDashboard() {
         {/* Products Tab */}
         <TabsContent value="products">
           <ProductPerformanceReport />
+        </TabsContent>
+
+        {/* Best Sellers Tab */}
+        <TabsContent value="best-sellers">
+          <BestSellersReport />
         </TabsContent>
 
         {/* Customers Tab */}
