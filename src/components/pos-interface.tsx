@@ -32,7 +32,6 @@ import { useOfflineData, offlineDataFetchers } from '@/hooks/use-offline-data';
 import { useAutoSync } from '@/hooks/use-auto-sync';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import TableGridView from '@/components/table-grid-view';
-import bcrypt from 'bcryptjs';
 
 // Create IndexedDB storage instance for table cart persistence
 const storage = getIndexedDBStorage();
