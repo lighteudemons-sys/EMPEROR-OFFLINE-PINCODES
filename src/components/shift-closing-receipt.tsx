@@ -999,7 +999,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     });
 
     const content = `<!DOCTYPE html>
-<html>
+<html dir="ltr">
 <head>
   <meta charset="UTF-8">
   <title>Shift Closing - Shift ${data.shift.shiftNumber}</title>
@@ -1324,8 +1324,29 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     const dateStr = new Date(data.shift.startTime).toLocaleDateString();
     const timeStr = `${new Date(data.shift.startTime).toLocaleTimeString()} - ${new Date(data.shift.endTime).toLocaleTimeString()}`;
 
+    // Helper to clean up item name for display (remove weight info if present)
+    const cleanItemName = (itemName: string, isCustomInput: boolean): string => {
+      if (!isCustomInput) {
+        // For regular items, just use the formatItemName function
+        return formatItemName(itemName);
+      }
+
+      // For custom input items, remove any remaining weight info from the display name
+      // Pattern: "- وزن: 0.125x (125g)" or "- وزن: 0.125x"
+      return itemName.replace(/\s*-\s*وزن:\s*[\d.]+x(\s*\(\d+g\))?/g, '').trim();
+    };
+
     let itemsHtml = '';
     data.categoryBreakdown.forEach(category => {
+      console.log('[Shift Closing Receipt] Processing category:', category.categoryName);
+      console.log('[Shift Closing Receipt] Items in category:', category.items.map(i => ({
+        name: i.itemName,
+        isCustomInput: i.isCustomInput,
+        quantity: i.quantity,
+        totalPrice: i.totalPrice,
+        totalWeight: i.totalWeight
+      })));
+
       itemsHtml += `
         <div style="margin-bottom: 15px;">
           <div style="font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #000; padding-bottom: 2px;">${category.categoryName}</div>
@@ -1337,12 +1358,22 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       `;
 
       category.items.forEach(item => {
+        const displayName = cleanItemName(item.itemName, item.isCustomInput || false);
+        console.log('[Shift Closing Receipt] Item:', {
+          originalName: item.itemName,
+          displayName,
+          isCustomInput: item.isCustomInput,
+          totalWeight: item.totalWeight,
+          quantity: item.quantity,
+          totalPrice: item.totalPrice
+        });
+
         // For custom input items, show total weight instead of quantity
         if (item.isCustomInput && item.totalWeight !== undefined) {
           const weightInKG = item.totalWeight.toFixed(2);
           itemsHtml += `
             <div style="display: flex; align-items: center; margin: 1px 0; font-size: 12px;">
-              <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.itemName}</span>
+              <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayName}</span>
               <span style="flex: 0 0 80px; text-align: center; color: #333;">${weightInKG} KG</span>
               <span style="flex: 0 0 80px; text-align: right; font-weight: bold;">${item.totalPrice.toFixed(2)}</span>
             </div>
@@ -1351,7 +1382,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
           // Regular items: show quantity
           itemsHtml += `
             <div style="display: flex; align-items: center; margin: 1px 0; font-size: 12px;">
-              <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${formatItemName(item.itemName)}</span>
+              <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayName}</span>
               <span style="flex: 0 0 80px; text-align: center; color: #333;">${item.quantity}x</span>
               <span style="flex: 0 0 80px; text-align: right; font-weight: bold;">${item.totalPrice.toFixed(2)}</span>
             </div>
@@ -1367,7 +1398,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
     const content = `
 <!DOCTYPE html>
-<html>
+<html dir="ltr">
 <head>
   <meta charset="UTF-8">
   <title>Shift Closing - Item Breakdown</title>
@@ -1559,7 +1590,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     }
 
     const content = `<!DOCTYPE html>
-<html>
+<html dir="ltr">
 <head>
   <meta charset="UTF-8">
   <title>Shift Closing - Voids and Refunds</title>

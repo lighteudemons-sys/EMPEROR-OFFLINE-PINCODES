@@ -347,7 +347,16 @@ export async function GET(
 
     console.log('[Shift Closing Report] Final category breakdown after filtering:', {
       totalCategories: categories.length,
-      categories: categories
+      categories: categories.map(c => ({
+        category: c.categoryName,
+        items: c.items.map(i => ({
+          name: i.itemName,
+          isCustomInput: i.isCustomInput,
+          quantity: i.quantity,
+          totalPrice: i.totalPrice,
+          totalWeight: i.totalWeight
+        }))
+      }))
     });
 
     console.log('[Shift Closing Report] Voided Items:', {
