@@ -2422,3 +2422,168 @@ Stage Summary:
 - Users can switch between Branches and License Management
 - Database URL updated to use Neon
 
+
+---
+
+## Task ID: branch-specific-pricing-fix
+### Work Task
+Fix branch-specific inventory pricing issue and add price input to restock dialog.
+
+### Problem Identified
+
+The inventory system had a critical pricing issue:
+1. **Global Price Problem:** `Ingredient.costPerUnit` was global and affected all branches
+2. **No Price Input in Restock Dialog:** Branch managers couldn't enter purchase price
+3. **Wrong Price Calculation:** Hardcoded cost (15) was used for all restocks
+4. **Daily Expense Issue:** Restocking via daily expenses updated global price, affecting all branches
+
+Example scenario:
+- Branch A has 5L Milk @ 30 EGP/L
+- Branch A buys 5L more @ 35 EGP/L
+- System should calculate: (5*30 + 5*35) / 10 = 32.5 EGP/L
+- BUT: This was updating the global Ingredient.price, affecting Branch B too!
+
+### Solution Implemented
+
+#### 1. Database Schema Changes
+**Updated `prisma/schema.prisma`:**
+- Added `costPerUnit Float @default(0)` to `BranchInventory` model
+- Each branch now has its own price per ingredient
+- Global `Ingredient.costPerUnit` serves as default/base price only
+
+#### 2. Build Fix
+**Updated `src/components/license-management.tsx`:**
+- Replaced `DevicePhoneMobile` with `Smartphone` (lucide-react)
+- Fixed build error in Vercel deployment
+
+#### 3. Restock Dialog Enhancement
+**Updated `src/components/inventory-management.tsx`:**
+- Added `restockPrice` state variable
+- Added "Price per Unit" input field after quantity field
+- Updated `handleRestock` to:
+  - Require price input (validation)
+  - Calculate `totalCost = quantity * pricePerUnit`
+  - Send `pricePerUnit` and `totalCost` to API
+- Clear price field after successful restock
+
+#### 4. Restock API - Weighted Average Calculation
+**Updated `src/app/api/inventory/restock/route.ts`:**
+
+**New Parameters:**
+```typescript
+{
+  branchId,
+  ingredientId,
+  quantity,
+  pricePerUnit,      // NEW: Purchase price per unit
+  totalCost,         // NEW: Total cost = quantity * pricePerUnit
+  supplier,
+  userId
+}
+```
+
+**Weighted Average Formula:**
+```typescript
+oldPrice = inventory.costPerUnit || ingredient.costPerUnit
+oldValue = stockBefore * oldPrice
+newValue = quantity * pricePerUnit
+newPricePerUnit = (oldValue + newValue) / (stockBefore + quantity)
+```
+
+**Example Calculation:**
+- Old: 10L @ 30 EGP/L = 300 EGP
+- New: 1L @ 35 EGP/L = 35 EGP
+- Result: 11L @ 30.45 EGP/L (335 EGP / 11L)
+
+**Transaction Logic:**
+- Updates `BranchInventory.costPerUnit` (branch-specific, not global)
+- Creates inventory transaction with price info in reason
+- Returns old and new price for reference
+
+#### 5. Daily Expense Restock Fix
+**Updated `src/app/api/daily-expenses/route.ts`:**
+
+**Before (Wrong):**
+```typescript
+const oldPrice = (await db.ingredient.findUnique(...))?.costPerUnit || 0
+
+// Updates GLOBAL ingredient price - affects ALL branches!
+await db.ingredient.update({
+  where: { id: ingredientId },
+  data: { costPerUnit: weightedAveragePrice }
+});
+```
+
+**After (Correct):**
+```typescript
+// Get branch-specific price first, fallback to ingredient base price
+const oldPrice = (branchInventory.costPerUnit && branchInventory.costPerUnit > 0)
+  ? branchInventory.costPerUnit
+  : (await db.ingredient.findUnique(...))?.costPerUnit || unitPrice
+
+// Update BRANCH inventory price only
+await db.branchInventory.update({
+  where: { id: branchInventory.id },
+  data: {
+    currentStock: newStock,
+    costPerUnit: weightedAveragePrice, // Branch-specific!
+  }
+});
+```
+
+#### 6. Migration Endpoint
+**Created `src/app/api/migrate-branch-pricing/route.ts`:**
+- POST endpoint to populate existing `BranchInventory.costPerUnit` from `Ingredient.costPerUnit`
+- Only updates records where `costPerUnit = 0`
+- To run after deployment: `POST /api/migrate-branch-pricing`
+
+### Files Modified:
+1. `prisma/schema.prisma` - Added costPerUnit to BranchInventory
+2. `src/components/license-management.tsx` - Fixed icon import
+3. `src/components/inventory-management.tsx` - Added price input field
+4. `src/app/api/inventory/restock/route.ts` - Added weighted average calculation
+5. `src/app/api/daily-expenses/route.ts` - Use branch-specific pricing
+
+### Files Created:
+1. `src/app/api/migrate-branch-pricing/route.ts` - Migration endpoint
+
+### How It Works Now:
+
+**Option A - Daily Expense (Shift Opening):**
+- ✅ Calculates weighted average price
+- ✅ Updates only the specific branch's inventory price
+- ✅ Does NOT affect other branches
+
+**Option B - Restock (Branch Manager):**
+- ✅ Now has price input field
+- ✅ Calculates weighted average price correctly
+- ✅ Updates only the specific branch's inventory price
+
+**Option C - Admin Edit:**
+- Admin can still manually edit, but each branch has its own price
+- ✅ Editing one branch doesn't affect others
+
+### Example Usage:
+
+1. **Branch A** restocks Milk:
+   - Current: 10L @ 30 EGP/L
+   - Adds: 1L @ 35 EGP/L
+   - Result: 11L @ 30.45 EGP/L
+
+2. **Branch B** still has their own price (e.g., 10L @ 32 EGP/L)
+   - Branch B's price is NOT affected by Branch A's restock
+
+### Next Steps:
+1. Deploy to production
+2. Run migration: `POST /api/migrate-branch-pricing`
+3. Test restocking with different prices
+4. Verify prices don't affect other branches
+
+Stage Summary:
+- Fixed branch-specific pricing system
+- Added price input to restock dialog
+- Implemented weighted average calculation
+- Fixed daily expense restock to not affect global prices
+- Build error fixed
+- All changes pushed to GitHub (commit 5d8342d)
+
