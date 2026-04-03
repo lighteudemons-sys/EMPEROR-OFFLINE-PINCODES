@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
 
         // Update total quantity and revenue
         stats.totalQuantity += item.quantity;
-        stats.revenue += item.quantity * item.unitPrice;
+        stats.totalRevenue += item.subtotal || (item.quantity * item.unitPrice);
         stats.orders += 1;
 
         // Handle custom input items (weight-based)
@@ -135,22 +135,34 @@ export async function GET(request: NextRequest) {
     });
 
     // Convert to array and format
-    const products = Array.from(productStats.values()).map(p => ({
-      id: p.id,
-      name: p.name,
-      category: p.category,
-      price: p.price,
-      hasVariants: p.hasVariants,
-      totalQuantity: p.totalQuantity,
-      totalRevenue: p.revenue,
-      totalWeight: p.totalWeight,
-      isCustomInput: p.isCustomInput,
-      variants: Array.from(p.variants.entries()).map(([variant, quantity]) => ({
-        name: variant,
-        quantity,
-      })),
-      orders: p.orders,
-    }));
+    const products = Array.from(productStats.values()).map(p => {
+      // Calculate price: for regular items, use average unit price, for custom input, calculate price per KG
+      let price = p.price;
+      if (p.isCustomInput && p.totalWeight > 0) {
+        // For weight-based items, calculate price per KG
+        price = p.totalRevenue / p.totalWeight;
+      } else if (p.totalQuantity > 0 && p.totalRevenue > 0) {
+        // Use average unit price
+        price = p.totalRevenue / p.totalQuantity;
+      }
+
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        price: price || 0,
+        hasVariants: p.hasVariants,
+        totalQuantity: p.totalQuantity,
+        totalRevenue: p.totalRevenue,
+        totalWeight: p.totalWeight,
+        isCustomInput: p.isCustomInput,
+        variants: Array.from(p.variants.entries()).map(([variant, quantity]) => ({
+          name: variant,
+          quantity,
+        })),
+        orders: p.orders,
+      };
+    });
 
     // Sort by revenue (highest first)
     products.sort((a, b) => b.totalRevenue - a.totalRevenue);

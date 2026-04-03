@@ -125,23 +125,28 @@ export async function PATCH(request: NextRequest) {
     if (branchName || licenseKey) {
       const duplicateBranch = await db.branch.findFirst({
         where: {
-          AND: [
-            { id: { not: id } },
-            {
-              OR: [
-                branchName ? { branchName } : {},
-                licenseKey ? { licenseKey } : {},
-              ].filter(Boolean),
-            },
-          ],
+          id: { not: id },
+          OR: [
+            branchName ? { branchName } : {},
+            licenseKey ? { licenseKey } : {},
+          ].filter(Boolean),
         },
       });
 
       if (duplicateBranch) {
-        return NextResponse.json(
-          { success: false, error: 'Branch name or license key already exists' },
-          { status: 400 }
-        );
+        // Determine which field caused the duplicate
+        if (branchName && duplicateBranch.branchName === branchName) {
+          return NextResponse.json(
+            { success: false, error: 'Branch name already exists' },
+            { status: 400 }
+          );
+        }
+        if (licenseKey && duplicateBranch.licenseKey === licenseKey) {
+          return NextResponse.json(
+            { success: false, error: 'License key is already assigned to another branch' },
+            { status: 400 }
+          );
+        }
       }
     }
 

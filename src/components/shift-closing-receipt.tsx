@@ -351,6 +351,45 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
       console.log('[Shift Closing Receipt] Built category map for', menuItemCategoryMap.size, 'menu items');
 
+      // Helper functions for custom input items (weight-based)
+      const isCustomInputItem = (item: any): boolean => {
+        return !!(item.variantName && item.variantName.includes('وزن:'));
+      };
+
+      const extractWeight = (variantName: string): number => {
+        const match = variantName.match(/وزن:\s*([\d.]+)x/);
+        return match ? parseFloat(match[1]) : 0;
+      };
+
+      const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean } => {
+        const isCustom = isCustomInputItem(item);
+        if (!isCustom) {
+          // For regular items, use the full display name
+          const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
+          const itemName = item.menuItemVariant?.variantOption?.name
+            ? `${item.itemName || item.name} (${item.menuItemVariant.variantOption.name})`
+            : (item.itemName || item.name || 'Unknown Item');
+          return {
+            key: itemId,
+            baseName: itemName,
+            isCustomInput: false
+          };
+        }
+
+        // For custom input items, extract base name without weight
+        const baseName = item.itemName || item.name || 'Unknown Item';
+        const variant = item.variantName || '';
+        // Remove weight pattern to get the base variant name
+        const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x\s*\(\d+g\)/g, '');
+        const displayName = baseVariant ? `${baseName} - ${baseVariant}`.trim() : baseName;
+
+        return {
+          key: `custom_${item.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
+          baseName: displayName,
+          isCustomInput: true
+        };
+      };
+
       const allOrders = await indexedDBStorage.getAllOrders();
       const shiftOrders = allOrders.filter((order: any) => order.shiftId === shift.id);
 
@@ -365,6 +404,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
           itemName: string;
           quantity: number;
           totalPrice: number;
+          isCustomInput: boolean;
+          totalWeight?: number;
         }>;
       }>();
       shiftOrders.forEach((order: any) => {
@@ -402,23 +443,28 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
             catData.totalSales += item.subtotal || 0;
             totalSales += item.subtotal || 0;
 
-            const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
-            const itemName = item.menuItemVariant?.variantOption?.name
-              ? `${item.itemName || item.name} (${item.menuItemVariant.variantOption.name})`
-              : (item.itemName || item.name || 'Unknown Item');
+            const aggKey = getAggregationKey(item);
 
-            if (!catData.items.has(itemId)) {
-              catData.items.set(itemId, {
-                itemId,
-                itemName,
+            if (!catData.items.has(aggKey.key)) {
+              catData.items.set(aggKey.key, {
+                itemId: aggKey.key,
+                itemName: aggKey.baseName,
                 quantity: 0,
-                totalPrice: 0
+                totalPrice: 0,
+                isCustomInput: aggKey.isCustomInput,
+                totalWeight: aggKey.isCustomInput ? 0 : undefined
               });
             }
 
-            const itemData = catData.items.get(itemId)!;
+            const itemData = catData.items.get(aggKey.key)!;
             itemData.quantity += item.quantity || 0;
             itemData.totalPrice += item.subtotal || 0;
+
+            // For custom input items, accumulate weight
+            if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
+              const weight = extractWeight(item.variantName || '');
+              itemData.totalWeight += weight * (item.quantity || 0);
+            }
           });
         }
       });
@@ -433,7 +479,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
             itemId: item.itemId,
             itemName: item.itemName,
             quantity: item.quantity,
-            totalPrice: item.totalPrice
+            totalPrice: item.totalPrice,
+            isCustomInput: item.isCustomInput,
+            totalWeight: item.totalWeight
           }))
         }))
         .sort((a, b) => b.totalSales - a.totalSales);
@@ -577,7 +625,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         items: cat.items.map(item => ({
           itemName: item.itemName,
           quantity: item.quantity,
-          totalPrice: item.totalPrice
+          totalPrice: item.totalPrice,
+          isCustomInput: item.isCustomInput,
+          totalWeight: item.totalWeight
         }))
       })),
       fontSize: 'medium'
@@ -680,6 +730,45 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
     console.log('[Shift Closing Receipt] Built category map for', menuItemCategoryMap.size, 'menu items (offline)');
 
+    // Helper functions for custom input items (weight-based)
+    const isCustomInputItem = (item: any): boolean => {
+      return !!(item.variantName && item.variantName.includes('وزن:'));
+    };
+
+    const extractWeight = (variantName: string): number => {
+      const match = variantName.match(/وزن:\s*([\d.]+)x/);
+      return match ? parseFloat(match[1]) : 0;
+    };
+
+    const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean } => {
+      const isCustom = isCustomInputItem(item);
+      if (!isCustom) {
+        // For regular items, use the full display name
+        const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
+        const itemName = item.menuItemVariant?.variantOption?.name
+          ? `${item.itemName} (${item.menuItemVariant.variantOption.name})`
+          : item.itemName;
+        return {
+          key: itemId,
+          baseName: itemName,
+          isCustomInput: false
+        };
+      }
+
+      // For custom input items, extract base name without weight
+      const baseName = item.itemName;
+      const variant = item.variantName || '';
+      // Remove weight pattern to get the base variant name
+      const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x\s*\(\d+g\)/g, '');
+      const displayName = baseVariant ? `${baseName} - ${baseVariant}`.trim() : baseName;
+
+      return {
+        key: `custom_${item.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
+        baseName: displayName,
+        isCustomInput: true
+      };
+    };
+
     // Group items by category
     const categoryMap = new Map<string, {
       categoryName: string;
@@ -689,6 +778,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         itemName: string;
         quantity: number;
         totalPrice: number;
+        isCustomInput: boolean;
+        totalWeight?: number;
       }>;
     }>();
 
@@ -726,23 +817,28 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
           const catData = categoryMap.get(category)!;
           catData.totalSales += item.subtotal || 0;
 
-          const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
-          const itemName = item.menuItemVariant?.variantOption?.name
-            ? `${item.itemName} (${item.menuItemVariant.variantOption.name})`
-            : item.itemName;
+          const aggKey = getAggregationKey(item);
 
-          if (!catData.items.has(itemId)) {
-            catData.items.set(itemId, {
-              itemId,
-              itemName,
+          if (!catData.items.has(aggKey.key)) {
+            catData.items.set(aggKey.key, {
+              itemId: aggKey.key,
+              itemName: aggKey.baseName,
               quantity: 0,
-              totalPrice: 0
+              totalPrice: 0,
+              isCustomInput: aggKey.isCustomInput,
+              totalWeight: aggKey.isCustomInput ? 0 : undefined
             });
           }
 
-          const itemData = catData.items.get(itemId)!;
+          const itemData = catData.items.get(aggKey.key)!;
           itemData.quantity += item.quantity || 0;
           itemData.totalPrice += item.subtotal || 0;
+
+          // For custom input items, accumulate weight
+          if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
+            const weight = extractWeight(item.variantName || '');
+            itemData.totalWeight += weight * (item.quantity || 0);
+          }
         });
       }
     });
@@ -757,7 +853,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
           itemId: item.itemId,
           itemName: item.itemName,
           quantity: item.quantity,
-          totalPrice: item.totalPrice
+          totalPrice: item.totalPrice,
+          isCustomInput: item.isCustomInput,
+          totalWeight: item.totalWeight
         }))
       }))
       .sort((a, b) => b.totalSales - a.totalSales);
@@ -846,7 +944,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         items: cat.items.map(item => ({
           itemName: item.itemName,
           quantity: item.quantity,
-          totalPrice: item.totalPrice
+          totalPrice: item.totalPrice,
+          isCustomInput: item.isCustomInput,
+          totalWeight: item.totalWeight
         }))
       })),
       fontSize: 'medium'

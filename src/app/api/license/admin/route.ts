@@ -81,6 +81,44 @@ export async function POST(request: NextRequest) {
     // Generate license key
     const licenseKey = generateLicenseKey(licenseData);
 
+    // Check if a license already exists for this branch
+    const existingLicense = await db.branchLicense.findFirst({
+      where: { branchId }
+    });
+
+    if (existingLicense) {
+      // Update existing license
+      await db.branchLicense.update({
+        where: { id: existingLicense.id },
+        data: {
+          licenseKey,
+          expirationDate: new Date(expirationDate),
+          isRevoked: false,
+          revokedReason: null
+        }
+      });
+    } else {
+      // Create new license
+      await db.branchLicense.create({
+        data: {
+          branchId,
+          licenseKey,
+          expirationDate: new Date(expirationDate),
+          maxDevices: 5,
+          isRevoked: false
+        }
+      });
+    }
+
+    // Update branch's license key
+    await db.branch.update({
+      where: { id: branchId },
+      data: {
+        licenseKey,
+        licenseExpiresAt: new Date(expirationDate)
+      }
+    });
+
     return NextResponse.json({
       success: true,
       licenseKey,
