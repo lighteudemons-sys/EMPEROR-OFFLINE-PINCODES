@@ -96,8 +96,10 @@ export async function GET(request: NextRequest) {
         const key = menuItem.id;
         // Check if this is a weight-based item (custom input)
         // Primary indicator: customVariantValue exists and is > 0
-        // Fallback: variantName contains "وزن:"
-        const isCustomInput = (item.customVariantValue && item.customVariantValue > 0) || item.variantName?.includes('وزن:') || false;
+        // Fallback: variantName contains "وزن:" (Arabic for weight) or matches pattern like "Type: 0.125x"
+        const isCustomInput = (item.customVariantValue && item.customVariantValue > 0) ||
+                              item.variantName?.includes('وزن:') ||
+                              /:\s*[\d.]+x/.test(item.variantName || '') || false;
 
         if (!productStats.has(key)) {
           productStats.set(key, {
@@ -146,8 +148,16 @@ export async function GET(request: NextRequest) {
             });
           } else {
             // Fallback: extract weight from variantName
-            // Pattern: "Type - Option - وزن: 0.125x" or "- وزن: 0.125x"
-            const weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+            // Try multiple patterns:
+            // 1. Pattern with "وزن:" (Arabic for "weight:")
+            // 2. Pattern with just the multiplier (e.g., "Size: 0.125x" -> extract 0.125)
+            let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+
+            if (!weightMatch) {
+              // Fallback: extract multiplier from any pattern like "Type: 0.125x"
+              weightMatch = item.variantName?.match(/:\s*([\d.]+)x/);
+            }
+
             if (weightMatch) {
               const weightMultiplier = parseFloat(weightMatch[1]);
               // The weight multiplier represents the weight in KG per unit

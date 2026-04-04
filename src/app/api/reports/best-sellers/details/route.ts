@@ -126,8 +126,10 @@ export async function GET(request: NextRequest) {
 
         // Check if this is a weight-based item (custom input)
         // Primary indicator: customVariantValue exists and is > 0
-        // Fallback: variantName contains "وزن:"
-        const isCustomInput = (item.customVariantValue && item.customVariantValue > 0) || item.variantName?.includes('وزن:') || false;
+        // Fallback: variantName contains "وزن:" (Arabic for weight) or matches pattern like "Type: 0.125x"
+        const isCustomInput = (item.customVariantValue && item.customVariantValue > 0) ||
+                              item.variantName?.includes('وزن:') ||
+                              /:\s*[\d.]+x/.test(item.variantName || '') || false;
 
         // Calculate weight for custom input items
         let weight = 0;
@@ -136,7 +138,16 @@ export async function GET(request: NextRequest) {
             weight = item.customVariantValue;
           } else {
             // Extract weight from variantName
-            const weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+            // Try multiple patterns:
+            // 1. Pattern with "وزن:" (Arabic for "weight:")
+            // 2. Pattern with just the multiplier (e.g., "Size: 0.125x" -> extract 0.125)
+            let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+
+            if (!weightMatch) {
+              // Fallback: extract multiplier from any pattern like "Type: 0.125x"
+              weightMatch = item.variantName?.match(/:\s*([\d.]+)x/);
+            }
+
             if (weightMatch) {
               const weightMultiplier = parseFloat(weightMatch[1]);
               weight = item.quantity * weightMultiplier;
