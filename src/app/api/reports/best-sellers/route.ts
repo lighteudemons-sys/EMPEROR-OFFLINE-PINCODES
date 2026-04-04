@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const branchId = searchParams.get('branchId');
+    const category = searchParams.get('category');
 
     // Calculate date range based on period
     const now = new Date();
@@ -203,24 +204,30 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Sort by revenue (highest first)
-    products.sort((a, b) => b.totalRevenue - a.totalRevenue);
+    // Filter by category if specified
+    let filteredProducts = products;
+    if (category && category !== 'all') {
+      filteredProducts = products.filter(p => p.category === category);
+    }
 
-    // Calculate summary stats
-    const totalSales = products.reduce((sum, p) => sum + p.totalRevenue, 0);
-    const totalItems = products.reduce((sum, p) => sum + p.totalQuantity, 0);
-    const totalWeight = products.reduce((sum, p) => sum + p.totalWeight, 0);
-    const topProduct = products.length > 0 ? products[0] : null;
+    // Sort by revenue (highest first)
+    filteredProducts.sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    // Calculate summary stats (based on filtered products)
+    const totalSales = filteredProducts.reduce((sum, p) => sum + p.totalRevenue, 0);
+    const totalItems = filteredProducts.reduce((sum, p) => sum + p.totalQuantity, 0);
+    const totalWeight = filteredProducts.reduce((sum, p) => sum + p.totalWeight, 0);
+    const topProduct = filteredProducts.length > 0 ? filteredProducts[0] : null;
 
     return NextResponse.json({
       success: true,
       data: {
-        products,
+        products: filteredProducts,
         summary: {
           totalSales,
           totalItems,
           totalWeight,
-          totalProducts: products.length,
+          totalProducts: filteredProducts.length,
           topProduct: topProduct ? {
             name: topProduct.name,
             revenue: topProduct.totalRevenue,
