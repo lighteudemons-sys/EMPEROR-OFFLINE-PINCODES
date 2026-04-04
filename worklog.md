@@ -2797,3 +2797,22 @@ Stage Summary:
 - Example: if 1 KG = 560 EGP, and order = 70 EGP, then weight = 70/560 = 0.125 KG
 - All changes committed and pushed (commit: 53d0204)
 
+
+---
+Task ID: fix-menuitem-reference-error
+Agent: zai-web-dev
+Task: Fix ReferenceError in best-sellers details API
+
+Work Log:
+- User reported 500 Internal Server Error when viewing order details
+- Server logs showed: 'ReferenceError: menuItem is not defined'
+- Root cause: Used 'menuItem' instead of 'item.menuItem' in details route
+- Fixed all references to use correct variable path
+- Added optional chaining (?.) for safe access
+
+Stage Summary:
+- Fixed the 500 error in best-sellers details API
+- Now weight calculation will work correctly
+- All orders should show proper weight in order details
+- All changes committed and pushed (commit: 4f713ac)
+
