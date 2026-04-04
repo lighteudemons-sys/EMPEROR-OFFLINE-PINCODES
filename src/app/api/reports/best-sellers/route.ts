@@ -119,10 +119,46 @@ export async function GET(request: NextRequest) {
         stats.orders += 1;
 
         // Handle custom input items (weight-based)
-        if (isCustomInput && item.customVariantValue) {
+        if (isCustomInput) {
           stats.isCustomInput = true;
-          // customVariantValue is in KG, convert to KG
-          const weightInKG = item.quantity * item.customVariantValue;
+
+          // Extract weight from variantName if customVariantValue is not available
+          let weightInKG = 0;
+
+          if (item.customVariantValue && item.customVariantValue > 0) {
+            // customVariantValue should be the weight per order item (total weight for this line item)
+            // Don't multiply by quantity again - customVariantValue is already the total weight
+            weightInKG = item.customVariantValue;
+
+            // Debug logging for weight calculation
+            console.log('[Best Sellers] Custom Input Item:', {
+              name: menuItem.name,
+              variantName: item.variantName,
+              customVariantValue: item.customVariantValue,
+              quantity: item.quantity,
+              calculatedWeight: weightInKG,
+              subtotal: item.subtotal,
+              unitPrice: item.unitPrice
+            });
+          } else {
+            // Fallback: extract weight from variantName
+            // Pattern: "Type - Option - وزن: 0.125x" or "- وزن: 0.125x"
+            const weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+            if (weightMatch) {
+              const weightMultiplier = parseFloat(weightMatch[1]);
+              // The weight multiplier represents the weight in KG per unit
+              weightInKG = item.quantity * weightMultiplier;
+
+              console.log('[Best Sellers] Extracted weight from variantName:', {
+                name: menuItem.name,
+                variantName: item.variantName,
+                weightMultiplier,
+                quantity: item.quantity,
+                calculatedWeight: weightInKG
+              });
+            }
+          }
+
           stats.totalWeight += weightInKG;
         }
 

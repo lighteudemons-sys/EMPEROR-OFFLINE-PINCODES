@@ -186,33 +186,12 @@ export async function GET(
         };
       }
 
-      // For custom input items, extract base name without weight
+      // For custom input items, use ONLY the menu item name (without variant option)
       const baseName = orderItem.menuItem?.name || orderItem.itemName;
-      const variant = orderItem.variantName || '';
-
-      // Remove weight pattern to get the base variant name
-      // Matches both: "- وزن: 0.125x (125g)" and "- وزن: 0.125x"
-      const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x(\s*\(\d+g\))?/g, '').trim();
-
-      // Extract only the option name (last part after the last hyphen)
-      // Format: "Type - Option" -> extract "Option"
-      let optionOnly = baseVariant;
-      const lastHyphenIndex = baseVariant.lastIndexOf(' - ');
-      if (lastHyphenIndex !== -1) {
-        optionOnly = baseVariant.substring(lastHyphenIndex + 3).trim();
-      } else {
-        // Try to extract from "Type Option" format (space-separated)
-        const parts = baseVariant.trim().split(/\s+/);
-        if (parts.length > 1) {
-          optionOnly = parts[parts.length - 1];
-        }
-      }
-
-      const displayName = optionOnly && optionOnly !== baseVariant ? `${baseName} - ${optionOnly}`.trim() : baseName;
 
       return {
-        key: `custom_${orderItem.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
-        baseName: displayName,
+        key: `custom_${orderItem.menuItemId}`,
+        baseName: baseName,
         isCustomInput: true
       };
     };
