@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 // POST /api/eta/test-connection
-// Tests the ETA API connection (mock for now, will be real when credentials are available)
+// Tests the ETA OAuth connection by validating credentials
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -36,39 +36,56 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Check if certificate is uploaded
-    if (!settings.certificateFile) {
+    // Test credentials by calling the OAuth validation endpoint
+    const validationResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/eta/oauth/validate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branchId,
+          clientId: settings.clientId,
+          clientSecret: settings.clientSecret,
+          environment: settings.environment,
+        }),
+      }
+    );
+
+    const validationData = await validationResponse.json();
+
+    if (!validationResponse.ok) {
       return NextResponse.json({
         success: false,
-        message: 'Digital certificate not uploaded',
-        needsCertificate: true,
+        message: validationData.error || 'Failed to validate credentials',
+        details: validationData.details,
       });
     }
 
-    // TODO: When you have ETA credentials, implement real API connection test here
-    // For now, we'll return a mock success response
-    
-    // Determine which environment we're testing
-    const isProduction = settings.environment === 'PRODUCTION';
-    const mockResponse = isProduction
-      ? {
-          success: true,
-          message: 'Connection to production ETA API will be tested when credentials are active',
-          environment: 'PRODUCTION',
-          note: 'This is a placeholder - real API test will be implemented when production credentials are available',
-        }
-      : {
-          success: true,
-          message: 'Connection to ETA test API is ready (mock mode)',
-          environment: 'TEST',
-          note: 'This is a mock response - replace with real ETA API call when you have test credentials',
-        };
+    // Add additional information about certificate
+    const hasCertificate = !!settings.certificateFile;
+    const certificateStatus = hasCertificate
+      ? 'Digital certificate uploaded'
+      : 'Digital certificate not uploaded (required for production)';
 
-    return NextResponse.json(mockResponse);
+    return NextResponse.json({
+      success: true,
+      message: validationData.message,
+      environment: settings.environment,
+      certificateStatus,
+      hasCertificate,
+      additionalInfo: {
+        clientIdConfigured: !!settings.clientId,
+        clientSecretConfigured: !!settings.clientSecret,
+        tokenManagementReady: true,
+      },
+    });
   } catch (error) {
     console.error('[ETA Test Connection] Error:', error);
     return NextResponse.json(
-      { error: 'Connection test failed', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Connection test failed',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }

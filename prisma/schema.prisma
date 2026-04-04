@@ -181,7 +181,13 @@ model BranchETASettings {
   // Digital Certificate (stored securely)
   certificateFile       String?  // Path or encrypted content
   certificatePassword   String?  // Encrypted
-  
+
+  // OAuth Token Management
+  accessToken           String?  // Current OAuth access token
+  accessTokenExpiresAt  DateTime? // When the access token expires
+  lastTokenRefreshAt    DateTime? // Last time token was refreshed
+  tokenRefreshCount     Int      @default(0) // Number of token refreshes
+
   // Settings
   autoSubmit            Boolean  @default(true) // Auto-submit after order
   includeQR             Boolean  @default(true)

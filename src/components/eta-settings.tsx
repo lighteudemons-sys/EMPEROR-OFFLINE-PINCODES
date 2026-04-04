@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import { TooltipHelper } from '@/components/ui/tooltip-helper';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Settings,
@@ -745,7 +746,13 @@ export default function ETASettings() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="companyName">Company Name *</Label>
+                <Label htmlFor="companyName" className="flex items-center">
+                  Company Name *
+                  <TooltipHelper
+                    title="Legal Company Name"
+                    content="The exact legal name registered with the Egyptian Tax Authority. Must match your commercial register documents exactly."
+                  />
+                </Label>
                 <Input
                   id="companyName"
                   value={settings.companyName}
@@ -754,7 +761,13 @@ export default function ETASettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="taxRegistrationNumber">Tax Registration Number (TRN) *</Label>
+                <Label htmlFor="taxRegistrationNumber" className="flex items-center">
+                  Tax Registration Number (TRN) *
+                  <TooltipHelper
+                    title="Tax Registration Number (TRN)"
+                    content="Your 9-digit tax ID issued by the Egyptian Tax Authority. This is your unique identifier for all tax transactions. Format: 123456789 (9 digits only)"
+                  />
+                </Label>
                 <Input
                   id="taxRegistrationNumber"
                   value={settings.taxRegistrationNumber}
@@ -764,16 +777,28 @@ export default function ETASettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="branchCode">Branch Code *</Label>
+                <Label htmlFor="branchCode" className="flex items-center">
+                  Branch Code *
+                  <TooltipHelper
+                    title="Branch Code (Establishment Code)"
+                    content="The unique code for your branch/establishment from the ETA portal. For single-location companies: Use '000' or '01'. For multi-branch: Use codes like '001', '002' found in your ETA account."
+                  />
+                </Label>
                 <Input
                   id="branchCode"
                   value={settings.branchCode}
                   onChange={(e) => setSettings({ ...settings, branchCode: e.target.value })}
-                  placeholder="e.g., CAIRO-001"
+                  placeholder="e.g., 000 or 001"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="commercialRegister">Commercial Register Number</Label>
+                <Label htmlFor="commercialRegister" className="flex items-center">
+                  Commercial Register Number
+                  <TooltipHelper
+                    title="Commercial Register Number"
+                    content="Your company's commercial registration number from the Egyptian Commercial Registry. Required for legal verification of business documents."
+                  />
+                </Label>
                 <Input
                   id="commercialRegister"
                   value={settings.commercialRegister || ''}
@@ -794,7 +819,13 @@ export default function ETASettings() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="address">Address *</Label>
+                <Label htmlFor="address" className="flex items-center">
+                  Address *
+                  <TooltipHelper
+                    title="Business Address"
+                    content="The complete physical address of your branch/establishment as registered with the ETA. Include street name, building number, and any landmarks if applicable."
+                  />
+                </Label>
                 <Input
                   id="address"
                   value={settings.address}
@@ -803,7 +834,13 @@ export default function ETASettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="city">City *</Label>
+                <Label htmlFor="city" className="flex items-center">
+                  City *
+                  <TooltipHelper
+                    title="City"
+                    content="The city where your branch is located. Must match the city registered with the ETA. Examples: Cairo, Alexandria, Giza."
+                  />
+                </Label>
                 <Input
                   id="city"
                   value={settings.city}
@@ -812,7 +849,13 @@ export default function ETASettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="governorate">Governate *</Label>
+                <Label htmlFor="governorate" className="flex items-center">
+                  Governorate *
+                  <TooltipHelper
+                    title="Governorate (Province)"
+                    content="The governorate (province) of your branch. Egypt has 27 governorates. Examples: Cairo, Alexandria, Giza, Sharqia, Monufia."
+                  />
+                </Label>
                 <Input
                   id="governorate"
                   value={settings.governorate}
@@ -821,7 +864,13 @@ export default function ETASettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="postalCode">Postal Code</Label>
+                <Label htmlFor="postalCode" className="flex items-center">
+                  Postal Code
+                  <TooltipHelper
+                    title="Postal Code"
+                    content="The postal/ZIP code for your branch location. Example: 11511 for Maadi, Cairo. Optional but recommended for accurate addressing."
+                  />
+                </Label>
                 <Input
                   id="postalCode"
                   value={settings.postalCode || ''}
@@ -830,7 +879,13 @@ export default function ETASettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone *</Label>
+                <Label htmlFor="phone" className="flex items-center">
+                  Phone *
+                  <TooltipHelper
+                    title="Business Phone Number"
+                        content="Your branch's contact phone number. Use international format: +20 followed by 10 digits. This will appear on your receipts for customer inquiries."
+                  />
+                </Label>
                 <Input
                   id="phone"
                   type="tel"
@@ -840,7 +895,13 @@ export default function ETASettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="flex items-center">
+                  Email
+                  <TooltipHelper
+                    title="Business Email"
+                    content="Your branch's official email address. Used for ETA notifications and communications. Example: contact@yourcompany.com"
+                  />
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -868,7 +929,13 @@ export default function ETASettings() {
             </Alert>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="clientId">Client ID *</Label>
+                <Label htmlFor="clientId" className="flex items-center">
+                  Client ID *
+                  <TooltipHelper
+                    title="OAuth Client ID"
+                    content="Your unique application identifier from the ETA portal. Used along with Client Secret to authenticate and obtain access tokens. Format: alphanumeric string like abc123-def456."
+                  />
+                </Label>
                 <Input
                   id="clientId"
                   value={settings.clientId}
@@ -877,7 +944,13 @@ export default function ETASettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="clientSecret">Client Secret *</Label>
+                <Label htmlFor="clientSecret" className="flex items-center">
+                  Client Secret *
+                  <TooltipHelper
+                    title="OAuth Client Secret"
+                    content="A confidential key used with Client ID to authenticate with the ETA API. Keep this secret and never share it. Used to generate temporary access tokens for API calls."
+                  />
+                </Label>
                 <div className="relative">
                   <Input
                     id="clientSecret"
@@ -902,7 +975,13 @@ export default function ETASettings() {
                 </div>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="environment">Environment *</Label>
+                <Label htmlFor="environment" className="flex items-center">
+                  Environment *
+                  <TooltipHelper
+                    title="ETA API Environment"
+                    content="TEST: For testing and development. No actual documents are submitted to the tax authority. PRODUCTION: Live mode for real document submission. Always test thoroughly before switching to PRODUCTION."
+                  />
+                </Label>
                 <Select
                   value={settings.environment}
                   onValueChange={(value: 'TEST' | 'PRODUCTION') => setSettings({ ...settings, environment: value })}
@@ -938,7 +1017,13 @@ export default function ETASettings() {
             </Alert>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="certificate">Certificate File</Label>
+                <Label htmlFor="certificate" className="flex items-center">
+                  Certificate File
+                  <TooltipHelper
+                    title="Digital Certificate (PFX/P12)"
+                    content="Your digital certificate file from an authorized Egyptian Certificate Authority. Used to sign XML documents before submission to ETA. The certificate proves your identity to the tax authority."
+                  />
+                </Label>
                 <div className="flex items-center gap-2">
                   <Input
                     id="certificate"
@@ -956,7 +1041,13 @@ export default function ETASettings() {
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="certificatePassword">Certificate Password</Label>
+                <Label htmlFor="certificatePassword" className="flex items-center">
+                  Certificate Password
+                  <TooltipHelper
+                    title="Certificate Password"
+                    content="The password used to unlock your digital certificate. Required to access the private key for document signing. Keep this secure and never share it."
+                  />
+                </Label>
                 <Input
                   id="certificatePassword"
                   type="password"
@@ -976,7 +1067,13 @@ export default function ETASettings() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="autoSubmit">Auto-Submit Documents</Label>
+                  <Label htmlFor="autoSubmit" className="flex items-center">
+                    Auto-Submit Documents
+                    <TooltipHelper
+                      title="Automatic Document Submission"
+                      content="When enabled, every order/receipt is automatically submitted to the ETA API. Disable if you want to review and manually submit documents. Recommended: Enable for production use."
+                    />
+                  </Label>
                   <p className="text-sm text-slate-500">
                     Automatically submit receipts to ETA after each order
                   </p>
@@ -989,7 +1086,13 @@ export default function ETASettings() {
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="includeQR">Include QR Code on Receipts</Label>
+                  <Label htmlFor="includeQR" className="flex items-center">
+                    Include QR Code on Receipts
+                    <TooltipHelper
+                      title="ETA QR Code on Receipts"
+                      content="Adds a scannable QR code to printed receipts containing the document UUID and signed hash. Required for ETA compliance. Customers and tax officials can verify receipt authenticity by scanning this code."
+                    />
+                  </Label>
                   <p className="text-sm text-slate-500">
                     Add ETA-compliant QR code to printed receipts
                   </p>
@@ -1002,7 +1105,13 @@ export default function ETASettings() {
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="retryFailed">Retry Failed Submissions</Label>
+                  <Label htmlFor="retryFailed" className="flex items-center">
+                    Retry Failed Submissions
+                    <TooltipHelper
+                      title="Automatic Retry on Failure"
+                      content="When enabled, the system will automatically retry failed document submissions. Helps handle temporary network issues or ETA API downtime. Retries use exponential backoff strategy."
+                    />
+                  </Label>
                   <p className="text-sm text-slate-500">
                     Automatically retry failed submissions
                   </p>
@@ -1014,7 +1123,13 @@ export default function ETASettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="maxRetries">Maximum Retry Attempts</Label>
+                <Label htmlFor="maxRetries" className="flex items-center">
+                  Maximum Retry Attempts
+                  <TooltipHelper
+                    title="Retry Limit"
+                    content="Maximum number of retry attempts for failed submissions (1-10). After this limit is reached, the document is marked as FAILED and requires manual intervention. Recommended: 3-5 retries."
+                  />
+                </Label>
                 <Input
                   id="maxRetries"
                   type="number"
