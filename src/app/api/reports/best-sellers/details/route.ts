@@ -137,12 +137,27 @@ export async function GET(request: NextRequest) {
           // First try to get weight from customVariantValue if available
           if (item.customVariantValue && item.customVariantValue > 0) {
             weight = item.customVariantValue;
+            console.log('[Best Sellers Details] Using customVariantValue:', {
+              itemName: menuItem.name,
+              customVariantValue: item.customVariantValue,
+              calculatedWeight: weight
+            });
           } else {
             // Calculate weight from price
             // Weight (KG) = (Unit Price / Base Price per KG) * Quantity
             // Base price per KG is menuItem.price
             const basePricePerKG = menuItem.price;
             const unitPrice = item.unitPrice || (item.subtotal / item.quantity);
+
+            console.log('[Best Sellers Details] Attempting weight calculation:', {
+              itemName: menuItem.name,
+              basePricePerKG,
+              unitPrice,
+              subtotal: item.subtotal,
+              quantity: item.quantity,
+              unitPriceFallback: item.subtotal / item.quantity,
+              variantName: item.variantName
+            });
 
             if (basePricePerKG > 0 && unitPrice > 0) {
               // Calculate the multiplier (what fraction of 1 KG this order represents)
@@ -159,6 +174,12 @@ export async function GET(request: NextRequest) {
                 calculatedWeight: weight
               });
             } else {
+              console.log('[Best Sellers Details] Cannot calculate from price, trying variantName:', {
+                itemName: menuItem.name,
+                basePricePerKG,
+                unitPrice
+              });
+
               // Last resort: try to extract from variantName
               let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
               if (!weightMatch) {
@@ -167,6 +188,9 @@ export async function GET(request: NextRequest) {
               if (weightMatch) {
                 const weightMultiplier = parseFloat(weightMatch[1]);
                 weight = item.quantity * weightMultiplier;
+                console.log('[Best Sellers Details] Extracted from variantName:', { weight, weightMultiplier });
+              } else {
+                console.log('[Best Sellers Details] Could not extract weight, variantName:', item.variantName);
               }
             }
           }
