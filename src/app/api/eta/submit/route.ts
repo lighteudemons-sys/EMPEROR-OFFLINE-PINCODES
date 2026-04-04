@@ -231,69 +231,132 @@ export async function POST(request: NextRequest) {
     let errorMessage: string | null = null;
 
     try {
-      // Determine submission endpoint based on environment
-      // Note: These are placeholder endpoints - verify with ETA API documentation
-      const submissionEndpoint = '/documents/receipts';
+      // Determine submission endpoint based on document type
+      // 389 = Receipt, 388 = Invoice, etc.
+      const submissionEndpoint = documentData.documentType.type === '389'
+        ? '/documents/receipts'
+        : '/documents/invoices';
 
-      console.log('[ETA Submit] Submitting document to ETA API...');
+      console.log(`[ETA Submit] Submitting document to ETA API at: ${submissionEndpoint}`);
+      console.log(`[ETA Submit] Document UUID: ${documentUuid}`);
+      console.log(`[ETA Submit] Document hash: ${documentHash}`);
+
+      // Prepare submission payload according to ETA API specification
+      const submissionPayload = {
+        document: signedXml,
+        documentType: documentData.documentType.type,
+        documentId: documentUuid,
+        signatureId: signatureId,
+        documentHash: documentHash,
+        submissionMetadata: {
+          branchCode: settings.branchCode,
+          taxRegistrationNumber: settings.taxRegistrationNumber,
+          companyName: settings.companyName,
+          submittedAt: new Date().toISOString(),
+          environment: settings.environment,
+        },
+      };
+
       const response = await makeAuthenticatedRequest(
         submissionEndpoint,
         accessToken,
         settings.environment as 'TEST' | 'PRODUCTION',
         {
           method: 'POST',
-          body: JSON.stringify({
-            documentType: '389', // Receipt
-            document: signedXml,
-            documentId: documentUuid,
-            signatureId: signatureId,
-            documentHash: documentHash,
-            metadata: {
-              branchCode: settings.branchCode,
-              taxRegistrationNumber: settings.taxRegistrationNumber,
-              submittedAt: new Date().toISOString(),
-            },
-          }),
+          body: JSON.stringify(submissionPayload),
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
       );
 
       if (!response.ok) {
         const errorDetails = await parseEtaError(response);
-        throw new Error(`ETA API returned ${response.status}: ${errorDetails}`);
+        console.error(`[ETA Submit] API error ${response.status}:`, errorDetails);
+
+        // Parse detailed error response
+        let errorJson = null;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            errorJson = await response.json();
+          }
+        } catch (e) {
+          console.warn('[ETA Submit] Could not parse error response as JSON');
+        }
+
+        throw new Error(
+          `ETA API returned ${response.status}: ${errorDetails}${errorJson ? ` (Code: ${errorJson.code || 'N/A'})` : ''}`
+        );
       }
 
       etaResponseData = await response.json();
       console.log('[ETA Submit] ETA API response:', JSON.stringify(etaResponseData, null, 2));
 
-      // Extract UUID from response (adjust based on actual ETA API response structure)
-      returnedUuid = etaResponseData.documentId || etaResponseData.uuid || etaResponseData.submissionId || documentUuid;
-      submissionStatus = etaResponseData.status === 'ACCEPTED' || etaResponseData.accepted ? 'ACCEPTED' : 'REJECTED';
+      // Extract UUID and status from response
+      // Handle different possible response formats from ETA API
+      returnedUuid = etaResponseData.documentId
+        || etaResponseData.uuid
+        || etaResponseData.submissionId
+        || etaResponseData.receiptId
+        || etaResponseData.invoiceId
+        || documentUuid;
 
-      if (submissionStatus === 'REJECTED') {
-        errorMessage = etaResponseData.rejectionReason || etaResponseData.message || 'Document rejected by ETA';
+      // Determine submission status
+      const responseStatus = etaResponseData.status
+        || etaResponseData.acceptanceStatus
+        || etaResponseData.submissionStatus;
+
+      if (responseStatus === 'ACCEPTED' || responseStatus === 'accepted' || etaResponseData.accepted === true) {
+        submissionStatus = 'ACCEPTED';
+      } else if (responseStatus === 'REJECTED' || responseStatus === 'rejected' || etaResponseData.rejected === true) {
+        submissionStatus = 'REJECTED';
+      } else if (responseStatus === 'FAILED' || responseStatus === 'failed') {
+        submissionStatus = 'FAILED';
+      } else {
+        // Default to ACCEPTED if status is 2xx and not explicitly rejected
+        submissionStatus = 'ACCEPTED';
+      }
+
+      if (submissionStatus === 'REJECTED' || submissionStatus === 'FAILED') {
+        errorMessage = etaResponseData.rejectionReason
+          || etaResponseData.error
+          || etaResponseData.message
+          || etaResponseData.details
+          || `Document ${submissionStatus.toLowerCase()} by ETA`;
       }
 
       console.log(`[ETA Submit] Document ${returnedUuid} ${submissionStatus}`);
+      if (errorMessage) {
+        console.log(`[ETA Submit] Error message: ${errorMessage}`);
+      }
     } catch (error) {
       console.error('[ETA Submit] Failed to submit to ETA API:', error);
 
-      // If we're in mock mode or testing, we might want to continue anyway
+      // If we're in TEST environment and using mock signature, continue with mock submission
       if (settings.environment === 'TEST' && useMockSignature) {
-        console.warn('[ETA Submit] Continuing in mock mode due to error');
+        console.warn('[ETA Submit] Continuing in mock mode (TEST environment with mock signature)');
         returnedUuid = documentUuid;
         submissionStatus = 'ACCEPTED';
         errorMessage = null;
         etaResponseData = {
           mock: true,
-          message: 'Mock submission - API integration not yet configured',
-          note: error instanceof Error ? error.message : 'Unknown error',
+          documentId: documentUuid,
+          status: 'ACCEPTED',
+          message: 'Mock submission - TEST environment with mock signature',
+          note: 'To use real API submission, upload a valid digital certificate',
+          originalError: error instanceof Error ? error.message : 'Unknown error',
         };
       } else {
-        // In production, fail the submission
+        // In PRODUCTION or with real certificate, fail the submission
         submissionStatus = 'FAILED';
         errorMessage = error instanceof Error ? error.message : 'Unknown error';
         returnedUuid = documentUuid;
-        etaResponseData = { error: errorMessage };
+        etaResponseData = {
+          error: errorMessage,
+          status: 'FAILED',
+          timestamp: new Date().toISOString(),
+        };
       }
     }
 

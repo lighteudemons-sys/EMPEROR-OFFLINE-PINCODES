@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { ShoppingCart, LayoutDashboard, Utensils, Package, Store, BarChart3, Settings, Users, LogOut, Lock, Globe, Coffee, Clock, TrendingUp, MapPin, UserRound, DollarSign, AlertTriangle, ArrowRight, Trash2, Gift, RefreshCw, Menu, Receipt as ReceiptIcon, Building, Tag, LayoutGrid, FileText, Eye, Shield } from 'lucide-react';
+import { ShoppingCart, LayoutDashboard, Utensils, Package, Store, BarChart3, Settings, Users, LogOut, Lock, Globe, Coffee, Clock, TrendingUp, MapPin, UserRound, DollarSign, AlertTriangle, ArrowRight, Trash2, Gift, RefreshCw, Menu, Receipt as ReceiptIcon, Building, Tag, LayoutGrid, FileText, Eye, Shield, Activity } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { useI18n, Language } from '@/lib/i18n-context';
 import MenuManagement from '@/components/menu-management';
@@ -518,6 +518,7 @@ export default function POSDashboard() {
     { id: 'costs', label: t('costs.title'), icon: DollarSign, show: canAccessCosts },
     { id: 'receipt', label: t('receipt.title'), icon: ReceiptIcon, show: canAccessHQFeatures },
     { id: 'eta-settings', label: 'ETA Settings', icon: Shield, show: canAccessETA },
+    { id: 'eta-monitoring', label: 'ETA Monitoring', icon: Activity, show: canAccessETA },
   ].filter(item => item.show);
 
   return (
@@ -578,7 +579,11 @@ export default function POSDashboard() {
                               : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-900'
                           }`}
                           onClick={() => {
-                            setActiveTab(item.id);
+                            if (item.id === 'eta-monitoring') {
+                              router.push('/eta-monitoring');
+                            } else {
+                              setActiveTab(item.id);
+                            }
                             setMobileMenuOpen(false);
                           }}
                         >
@@ -616,6 +621,8 @@ export default function POSDashboard() {
                 <Select value={activeTab} onValueChange={(value) => {
                   if (value === 'logout') {
                     handleLogout();
+                  } else if (value === 'eta-monitoring') {
+                    router.push('/eta-monitoring');
                   } else {
                     setActiveTab(value);
                   }
