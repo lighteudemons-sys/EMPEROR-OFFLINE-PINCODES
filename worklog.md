@@ -2774,3 +2774,26 @@ Stage Summary:
 - All weight items display consistent format like '0.125 KG'
 - All changes committed and pushed (commit: b53667d)
 
+
+---
+Task ID: calculate-weight-from-price
+Agent: zai-web-dev
+Task: Calculate weight from price instead of parsing variantName
+
+Work Log:
+- User suggested calculating weight from price instead of parsing variantName
+- Formula: Weight (KG) = (Unit Price / Base Price per KG) * Quantity
+- Base price per KG is menuItem.price (the price for 1 KG)
+- Updated weight calculation logic:
+  1. First: use customVariantValue if available
+  2. Second: calculate from price (unitPrice / basePricePerKG * quantity)
+  3. Fallback: parse from variantName (only if above fail)
+- Applied to both best-sellers and best-sellers/details APIs
+
+Stage Summary:
+- Weight is now calculated mathematically from price
+- Works for ALL orders regardless of variantName format
+- Much more reliable than string parsing
+- Example: if 1 KG = 560 EGP, and order = 70 EGP, then weight = 70/560 = 0.125 KG
+- All changes committed and pushed (commit: 53d0204)
+
