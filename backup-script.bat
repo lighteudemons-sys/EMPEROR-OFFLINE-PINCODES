@@ -260,7 +260,7 @@ echo [OK] Cleanup complete!
 echo Cleanup: OK >> "%LOG_FILE%"
 
 REM ========================================
-SUMMARY
+REM SUMMARY
 REM ========================================
 echo.
 echo ========================================
