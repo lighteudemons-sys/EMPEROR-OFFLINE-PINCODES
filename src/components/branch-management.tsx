@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, LayoutDashboard, Key, AlertTriangle, CheckCircle, Clock, Search, Settings, Phone, MapPin, Shield } from 'lucide-react';
+import { Plus, Pencil, Trash2, LayoutDashboard, Key, AlertTriangle, CheckCircle, Clock, Search, Settings, Phone, MapPin, Shield, RefreshCw } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LicenseManagement } from '@/components/license-management';
@@ -44,6 +44,7 @@ export default function BranchManagement() {
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [activeTab, setActiveTab] = useState('branches');
   const [formData, setFormData] = useState<BranchFormData>({
     branchName: '',
     licenseKey: '',
@@ -85,6 +86,21 @@ export default function BranchManagement() {
   useEffect(() => {
     fetchBranches();
   }, []);
+
+  // Refetch branches when switching to branches tab
+  useEffect(() => {
+    if (activeTab === 'branches') {
+      fetchBranches();
+    }
+  }, [activeTab]);
+
+  // Format license key for display (truncate with dots in middle)
+  const formatLicenseKey = (key: string) => {
+    if (!key || key.length < 8) return key;
+    const start = key.substring(0, 4);
+    const end = key.substring(key.length - 4);
+    return `${start}••••••••${end}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -262,7 +278,7 @@ export default function BranchManagement() {
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="branches" className="w-full">
+      <Tabs defaultValue="branches" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="branches" className="flex items-center gap-2">
             <LayoutDashboard className="h-4 w-4" />
@@ -294,13 +310,19 @@ export default function BranchManagement() {
                   />
                 </div>
 
-                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button onClick={resetForm}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Branch
-                    </Button>
-                  </DialogTrigger>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={fetchBranches} disabled={loading}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+
+                  <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button onClick={resetForm}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Branch
+                      </Button>
+                    </DialogTrigger>
                   <DialogContent className="sm:max-w-[500px]">
                     <form onSubmit={handleSubmit}>
                       <DialogHeader>
@@ -415,8 +437,8 @@ export default function BranchManagement() {
                           <TableRow key={branch.id}>
                             <TableCell className="font-medium">{branch.branchName}</TableCell>
                             <TableCell>
-                              <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
-                                {branch.licenseKey}
+                              <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded max-w-[150px] block truncate" title={branch.licenseKey}>
+                                {formatLicenseKey(branch.licenseKey)}
                               </code>
                             </TableCell>
                             <TableCell>
