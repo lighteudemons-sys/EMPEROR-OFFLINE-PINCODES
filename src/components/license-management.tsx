@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Shield, Key, Smartphone, Monitor, Tablet, Trash2, AlertCircle, CheckCircle, Clock, RefreshCw, Copy } from 'lucide-react';
+import { Shield, Key, Smartphone, Monitor, Tablet, Trash2, AlertCircle, CheckCircle, Clock, RefreshCw, Copy, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface License {
@@ -65,6 +65,9 @@ export function LicenseManagement() {
   const [expirationDate, setExpirationDate] = useState<string>('');
   const [generatedKey, setGeneratedKey] = useState<string>('');
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [showUpdateExpirationDialog, setShowUpdateExpirationDialog] = useState(false);
+  const [selectedLicenseForUpdate, setSelectedLicenseForUpdate] = useState<License | null>(null);
+  const [newExpirationDate, setNewExpirationDate] = useState<string>('');
   const [branches, setBranches] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<string>('licenses');
 
@@ -185,6 +188,44 @@ export function LicenseManagement() {
     }
   };
 
+  const updateExpiration = async () => {
+    if (!selectedLicenseForUpdate || !newExpirationDate) {
+      toast.error('Please select a new expiration date');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/license/admin/update-expiration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branchId: selectedLicenseForUpdate.branchId,
+          expirationDate: newExpirationDate
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update expiration date');
+      }
+
+      toast.success('License expiration date updated successfully');
+      fetchLicenses();
+      setShowUpdateExpirationDialog(false);
+      setNewExpirationDate('');
+      setSelectedLicenseForUpdate(null);
+    } catch (error) {
+      console.error('Error updating expiration:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update expiration date');
+    }
+  };
+
+  const openUpdateExpirationDialog = (license: License) => {
+    setSelectedLicenseForUpdate(license);
+    setNewExpirationDate(license.expirationDate.split('T')[0]);
+    setShowUpdateExpirationDialog(true);
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard');
@@ -294,6 +335,43 @@ export function LicenseManagement() {
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Update Expiration Dialog */}
+          <Dialog open={showUpdateExpirationDialog} onOpenChange={setShowUpdateExpirationDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Update License Expiration Date</DialogTitle>
+                <DialogDescription>
+                  Update the expiration date for <strong>{selectedLicenseForUpdate?.branch.branchName}</strong>.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-expiration">New Expiration Date</Label>
+                  <Input
+                    id="new-expiration"
+                    type="date"
+                    value={newExpirationDate}
+                    onChange={(e) => setNewExpirationDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Note:</strong> This will extend the license validity without changing the license key.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowUpdateExpirationDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={updateExpiration} disabled={!newExpirationDate}>
+                  Update Expiration
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -389,6 +467,7 @@ export function LicenseManagement() {
                   license={license}
                   onRemoveDevice={removeDevice}
                   onRevokeLicense={revokeLicense}
+                  onUpdateExpiration={openUpdateExpirationDialog}
                   getDeviceIcon={getDeviceIcon}
                   isExpired={isExpired}
                   isExpiringSoon={isExpiringSoon}
@@ -409,6 +488,7 @@ interface LicenseCardProps {
   license: License;
   onRemoveDevice: (deviceId: string, licenseId: string) => void;
   onRevokeLicense: (branchId: string, reason: string) => void;
+  onUpdateExpiration: (license: License) => void;
   getDeviceIcon: (deviceType: string | null) => React.ReactNode;
   isExpired: (expirationDate: string) => boolean;
   isExpiringSoon: (expirationDate: string) => boolean;
@@ -421,6 +501,7 @@ function LicenseCard({
   license,
   onRemoveDevice,
   onRevokeLicense,
+  onUpdateExpiration,
   getDeviceIcon,
   isExpired,
   isExpiringSoon,
@@ -487,13 +568,23 @@ function LicenseCard({
             </div>
           </div>
           {!license.isRevoked && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => onRevokeLicense(license.branchId)}
-            >
-              Revoke License
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onUpdateExpiration(license)}
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Update Expiration
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => onRevokeLicense(license.branchId)}
+              >
+                Revoke License
+              </Button>
+            </div>
           )}
         </div>
       </div>
