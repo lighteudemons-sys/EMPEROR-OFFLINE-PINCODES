@@ -140,6 +140,15 @@ export async function GET(request: NextRequest) {
             const basePricePerKG = menuItem.price;
             const unitPrice = item.unitPrice || (item.subtotal / item.quantity);
 
+            console.log('[Best Sellers] Weight calculation attempt:', {
+              name: menuItem.name,
+              basePricePerKG,
+              unitPrice,
+              subtotal: item.subtotal,
+              quantity: item.quantity,
+              variantName: item.variantName
+            });
+
             if (basePricePerKG > 0 && unitPrice > 0) {
               // Calculate the multiplier (what fraction of 1 KG this order represents)
               const multiplier = unitPrice / basePricePerKG;
@@ -155,6 +164,11 @@ export async function GET(request: NextRequest) {
                 calculatedWeight: weightInKG
               });
             } else {
+              console.log('[Best Sellers] Cannot calculate from price, basePricePerKG or unitPrice is 0:', {
+                name: menuItem.name,
+                basePricePerKG,
+                unitPrice
+              });
               // Last resort: try to extract from variantName
               let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
               if (!weightMatch) {
@@ -170,6 +184,11 @@ export async function GET(request: NextRequest) {
                   weightMultiplier,
                   quantity: item.quantity,
                   calculatedWeight: weightInKG
+                });
+              } else {
+                console.log('[Best Sellers] Could not extract weight from variantName:', {
+                  name: menuItem.name,
+                  variantName: item.variantName
                 });
               }
             }
