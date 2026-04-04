@@ -2711,3 +2711,24 @@ Stage Summary:
 - Professional UI with summary stats and rankings
 - All components follow existing code style and TypeScript conventions
 
+
+---
+Task ID: fix-branches-revoked-ui
+Agent: zai-web-dev
+Task: Fix Branches tab to show revoked license status
+
+Work Log:
+- Identified issue: Branches tab was not showing revoked license status
+- Updated /api/branches to include isRevoked field from BranchLicense table
+- Updated Branch interface to include isRevoked field
+- Updated fetchBranches to map isRevoked from API response
+- Updated getLicenseStatus to check revoked status before expiration
+- Added Shield icon (red) for revoked licenses in the table
+- Added cache invalidation when license is revoked
+
+Stage Summary:
+- Branches tab now correctly shows 'Revoked' status for revoked licenses
+- Revoked licenses show red indicator with Shield icon
+- Cache invalidation ensures UI updates immediately after revocation
+- All changes committed and pushed (commit: b18b993)
+
