@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { revokeLicense } from '@/lib/license/manager';
+import { invalidateCachePattern } from '@/lib/cache';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest) {
     const success = await revokeLicense(branchId, reason || 'License revoked by admin');
 
     if (success) {
+      // Invalidate branches cache so the UI shows updated license status
+      invalidateCachePattern('^branches:');
+
       return NextResponse.json({
         success: true,
         message: 'License revoked successfully'

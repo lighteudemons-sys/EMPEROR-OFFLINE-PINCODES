@@ -13,17 +13,13 @@ export async function GET(request: NextRequest) {
       return await db.branch.findMany({
         where: includeInactive ? undefined : { isActive: true },
         orderBy: { branchName: 'asc' },
-        select: {
-          id: true,
-          branchName: true,
-          licenseKey: true,
-          isActive: true,
-          phone: true,
-          address: true,
-          licenseExpiresAt: true,
-          lastSyncAt: true,
-          menuVersion: true,
-          createdAt: true,
+        include: {
+          licenses: {
+            select: {
+              isRevoked: true,
+            },
+            take: 1,
+          },
         },
       });
     }, 300000); // 5 minute cache

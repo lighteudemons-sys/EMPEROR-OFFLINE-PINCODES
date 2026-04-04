@@ -22,6 +22,7 @@ interface Branch {
   licenseKey: string;
   licenseExpiresAt: Date;
   isActive: boolean;
+  isRevoked?: boolean;
   phone?: string;
   address?: string;
   lastSyncAt?: Date;
@@ -68,6 +69,7 @@ export default function BranchManagement() {
           licenseKey: branch.licenseKey,
           licenseExpiresAt: new Date(branch.licenseExpiresAt),
           isActive: branch.isActive,
+          isRevoked: branch.licenses?.[0]?.isRevoked || false,
           phone: branch.phone || undefined,
           address: branch.address || undefined,
           lastSyncAt: branch.lastSyncAt ? new Date(branch.lastSyncAt) : undefined,
@@ -250,6 +252,11 @@ export default function BranchManagement() {
   };
 
   const getLicenseStatus = (branch: Branch) => {
+    // Check if license is revoked first
+    if (branch.isRevoked) {
+      return { status: 'revoked', color: 'bg-red-600', text: 'Revoked' };
+    }
+
     const daysUntilExpiry = Math.ceil(
       (branch.licenseExpiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
     );
@@ -448,6 +455,9 @@ export default function BranchManagement() {
                                 <span className="text-sm truncate">{licenseStatus.text}</span>
                                 {licenseStatus.status === 'warning' && (
                                   <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                )}
+                                {licenseStatus.status === 'revoked' && (
+                                  <Shield className="h-4 w-4 text-red-600" />
                                 )}
                               </div>
                             </TableCell>
