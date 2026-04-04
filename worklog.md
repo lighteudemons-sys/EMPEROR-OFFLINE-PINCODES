@@ -2732,3 +2732,22 @@ Stage Summary:
 - Cache invalidation ensures UI updates immediately after revocation
 - All changes committed and pushed (commit: b18b993)
 
+
+---
+Task ID: fix-best-sellers-category-filter
+Agent: zai-web-dev
+Task: Fix category filter in Best Sellers Report
+
+Work Log:
+- Identified issue: Best Sellers API was not reading the category parameter
+- Added category parameter extraction from searchParams
+- Added category filter after product aggregation
+- Updated summary stats to use filtered products (totalSales, totalItems, totalWeight, totalProducts, topProduct)
+- Verified details route already had category filter implemented
+
+Stage Summary:
+- Best Sellers report now correctly filters by category
+- When a specific category is selected, only products from that category are shown
+- Summary stats accurately reflect filtered data
+- All changes committed and pushed (commit: fe0faf2)
+
