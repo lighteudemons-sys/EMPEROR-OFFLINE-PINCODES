@@ -134,23 +134,40 @@ export async function GET(request: NextRequest) {
         // Calculate weight for custom input items
         let weight = 0;
         if (isCustomInput) {
+          // First try to get weight from customVariantValue if available
           if (item.customVariantValue && item.customVariantValue > 0) {
             weight = item.customVariantValue;
           } else {
-            // Extract weight from variantName
-            // Try multiple patterns:
-            // 1. Pattern with "وزن:" (Arabic for "weight:")
-            // 2. Pattern with just the multiplier (e.g., "Size: 0.125x" -> extract 0.125)
-            let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+            // Calculate weight from price
+            // Weight (KG) = (Unit Price / Base Price per KG) * Quantity
+            // Base price per KG is menuItem.price
+            const basePricePerKG = menuItem.price;
+            const unitPrice = item.unitPrice || (item.subtotal / item.quantity);
 
-            if (!weightMatch) {
-              // Fallback: extract multiplier from any pattern like "Type: 0.125x"
-              weightMatch = item.variantName?.match(/:\s*([\d.]+)x/);
-            }
+            if (basePricePerKG > 0 && unitPrice > 0) {
+              // Calculate the multiplier (what fraction of 1 KG this order represents)
+              const multiplier = unitPrice / basePricePerKG;
+              // Total weight = multiplier * quantity
+              weight = multiplier * item.quantity;
 
-            if (weightMatch) {
-              const weightMultiplier = parseFloat(weightMatch[1]);
-              weight = item.quantity * weightMultiplier;
+              console.log('[Best Sellers Details] Calculated weight from price:', {
+                itemName: menuItem.name,
+                basePricePerKG,
+                unitPrice,
+                quantity: item.quantity,
+                multiplier,
+                calculatedWeight: weight
+              });
+            } else {
+              // Last resort: try to extract from variantName
+              let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+              if (!weightMatch) {
+                weightMatch = item.variantName?.match(/:\s*([\d.]+)x/);
+              }
+              if (weightMatch) {
+                const weightMultiplier = parseFloat(weightMatch[1]);
+                weight = item.quantity * weightMultiplier;
+              }
             }
           }
         }

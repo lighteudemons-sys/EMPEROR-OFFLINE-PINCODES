@@ -128,48 +128,50 @@ export async function GET(request: NextRequest) {
         if (isCustomInput) {
           stats.isCustomInput = true;
 
-          // Extract weight from variantName if customVariantValue is not available
+          // Extract weight from variantName or calculate from price
           let weightInKG = 0;
 
           if (item.customVariantValue && item.customVariantValue > 0) {
             // customVariantValue should be the weight per order item (total weight for this line item)
-            // Don't multiply by quantity again - customVariantValue is already the total weight
             weightInKG = item.customVariantValue;
-
-            // Debug logging for weight calculation
-            console.log('[Best Sellers] Custom Input Item:', {
-              name: menuItem.name,
-              variantName: item.variantName,
-              customVariantValue: item.customVariantValue,
-              quantity: item.quantity,
-              calculatedWeight: weightInKG,
-              subtotal: item.subtotal,
-              unitPrice: item.unitPrice
-            });
           } else {
-            // Fallback: extract weight from variantName
-            // Try multiple patterns:
-            // 1. Pattern with "وزن:" (Arabic for "weight:")
-            // 2. Pattern with just the multiplier (e.g., "Size: 0.125x" -> extract 0.125)
-            let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+            // Calculate weight from price
+            // Weight (KG) = (Unit Price / Base Price per KG) * Quantity
+            const basePricePerKG = menuItem.price;
+            const unitPrice = item.unitPrice || (item.subtotal / item.quantity);
 
-            if (!weightMatch) {
-              // Fallback: extract multiplier from any pattern like "Type: 0.125x"
-              weightMatch = item.variantName?.match(/:\s*([\d.]+)x/);
-            }
+            if (basePricePerKG > 0 && unitPrice > 0) {
+              // Calculate the multiplier (what fraction of 1 KG this order represents)
+              const multiplier = unitPrice / basePricePerKG;
+              // Total weight = multiplier * quantity
+              weightInKG = multiplier * item.quantity;
 
-            if (weightMatch) {
-              const weightMultiplier = parseFloat(weightMatch[1]);
-              // The weight multiplier represents the weight in KG per unit
-              weightInKG = item.quantity * weightMultiplier;
-
-              console.log('[Best Sellers] Extracted weight from variantName:', {
+              console.log('[Best Sellers] Calculated weight from price:', {
                 name: menuItem.name,
-                variantName: item.variantName,
-                weightMultiplier,
+                basePricePerKG,
+                unitPrice,
                 quantity: item.quantity,
+                multiplier,
                 calculatedWeight: weightInKG
               });
+            } else {
+              // Last resort: try to extract from variantName
+              let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+              if (!weightMatch) {
+                weightMatch = item.variantName?.match(/:\s*([\d.]+)x/);
+              }
+              if (weightMatch) {
+                const weightMultiplier = parseFloat(weightMatch[1]);
+                weightInKG = item.quantity * weightMultiplier;
+
+                console.log('[Best Sellers] Extracted weight from variantName:', {
+                  name: menuItem.name,
+                  variantName: item.variantName,
+                  weightMultiplier,
+                  quantity: item.quantity,
+                  calculatedWeight: weightInKG
+                });
+              }
             }
           }
 
