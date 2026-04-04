@@ -394,3 +394,154 @@ export async function getLicenseStats() {
     };
   }
 }
+
+/**
+ * Register or update a device during login (server-side)
+ * This function extracts device info from request headers/user-agent
+ * and does NOT enforce device limits (allows offline access)
+ */
+export async function registerDeviceOnLogin(
+  branchId: string,
+  licenseId: string,
+  userAgent: string,
+  deviceId?: string,
+  deviceName?: string,
+  deviceType?: string,
+  osInfo?: string
+): Promise<{ success: boolean; isNewDevice?: boolean }> {
+  try {
+    // If no device info provided, extract from user-agent
+    const parsedUA = userAgent ? parseUserAgent(userAgent) : null;
+
+    // Use provided values or fall back to parsed values
+    const finalDeviceId = deviceId || generateDeviceIdFromUA(userAgent);
+    const finalDeviceName = deviceName || parsedUA?.deviceName || 'Unknown Device';
+    const finalDeviceType = deviceType || parsedUA?.deviceType || 'pc';
+    const finalOSInfo = osInfo || parsedUA?.osInfo || 'Unknown OS';
+    const finalBrowserInfo = parsedUA?.browserInfo || 'Unknown Browser';
+
+    // Check if device is already registered
+    const existingDevice = await db.licenseDevice.findUnique({
+      where: {
+        licenseId_deviceId: {
+          licenseId,
+          deviceId: finalDeviceId
+        }
+      }
+    });
+
+    if (existingDevice) {
+      // Update last active time and mark as active
+      await db.licenseDevice.update({
+        where: { id: existingDevice.id },
+        data: {
+          lastActive: new Date(),
+          isActive: true,
+          deviceName: finalDeviceName,
+          osInfo: finalOSInfo,
+          browserInfo: finalBrowserInfo
+        }
+      });
+
+      console.log('[License] Device already registered, updated last active:', finalDeviceId);
+      return { success: true, isNewDevice: false };
+    }
+
+    // Register new device (no device limit check for login - allows offline access)
+    await db.licenseDevice.create({
+      data: {
+        branchId,
+        licenseId,
+        deviceId: finalDeviceId,
+        deviceName: finalDeviceName,
+        deviceType: finalDeviceType,
+        osInfo: finalOSInfo,
+        browserInfo: finalBrowserInfo,
+        lastActive: new Date(),
+        isActive: true,
+        registeredAt: new Date()
+      }
+    });
+
+    console.log('[License] New device registered on login:', finalDeviceId);
+    return { success: true, isNewDevice: true };
+  } catch (error) {
+    console.error('[License] Device registration on login error:', error);
+    // Don't fail login if device registration fails
+    return { success: false, isNewDevice: false };
+  }
+}
+
+/**
+ * Parse user agent string to extract device information
+ */
+function parseUserAgent(userAgent: string) {
+  let osInfo = 'Unknown OS';
+  let browserInfo = 'Unknown Browser';
+  let deviceType: 'pc' | 'mobile' | 'tablet' = 'pc';
+  let deviceName = 'Unknown Device';
+
+  // Parse OS
+  if (userAgent.indexOf('Win') !== -1) {
+    osInfo = 'Windows';
+    if (userAgent.indexOf('Windows NT 10.0') !== -1) osInfo = 'Windows 10/11';
+    else if (userAgent.indexOf('Windows NT 6.3') !== -1) osInfo = 'Windows 8.1';
+    else if (userAgent.indexOf('Windows NT 6.2') !== -1) osInfo = 'Windows 8';
+    else if (userAgent.indexOf('Windows NT 6.1') !== -1) osInfo = 'Windows 7';
+  } else if (userAgent.indexOf('Mac') !== -1 && userAgent.indexOf('iPhone') === -1 && userAgent.indexOf('iPad') === -1) {
+    osInfo = 'macOS';
+  } else if (userAgent.indexOf('Linux') !== -1) {
+    osInfo = 'Linux';
+  } else if (userAgent.indexOf('Android') !== -1) {
+    osInfo = 'Android';
+  } else if (userAgent.indexOf('iOS') !== -1 || userAgent.indexOf('iPhone') !== -1 || userAgent.indexOf('iPad') !== -1) {
+    osInfo = 'iOS';
+  }
+
+  // Parse browser
+  if (userAgent.indexOf('Chrome') !== -1 && userAgent.indexOf('Edg') === -1) {
+    browserInfo = 'Chrome';
+  } else if (userAgent.indexOf('Safari') !== -1 && userAgent.indexOf('Chrome') === -1) {
+    browserInfo = 'Safari';
+  } else if (userAgent.indexOf('Firefox') !== -1) {
+    browserInfo = 'Firefox';
+  } else if (userAgent.indexOf('Edg') !== -1) {
+    browserInfo = 'Edge';
+  } else if (userAgent.indexOf('MSIE') !== -1 || userAgent.indexOf('Trident') !== -1) {
+    browserInfo = 'Internet Explorer';
+  }
+
+  // Detect device type
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  const isTablet = /iPad|Android(?!.*Mobile)|Tablet/i.test(userAgent) ||
+                   (isMobile && userAgent.includes('Android') && userAgent.includes('Mobile') === false);
+
+  if (isTablet) {
+    deviceType = 'tablet';
+  } else if (isMobile) {
+    deviceType = 'mobile';
+  }
+
+  // Generate device name
+  if (deviceType === 'pc') {
+    deviceName = `${osInfo} ${browserInfo}`;
+  } else {
+    deviceName = `${osInfo} ${deviceType === 'mobile' ? 'Mobile' : 'Tablet'}`;
+  }
+
+  return { osInfo, browserInfo, deviceType, deviceName };
+}
+
+/**
+ * Generate a simple device ID from user agent
+ */
+function generateDeviceIdFromUA(userAgent: string): string {
+  // Create a simple hash from user agent
+  let hash = 0;
+  for (let i = 0; i < userAgent.length; i++) {
+    const char = userAgent.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16);
+}

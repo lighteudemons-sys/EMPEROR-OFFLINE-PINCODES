@@ -4,6 +4,7 @@ import { rateLimit, rateLimits } from '@/lib/rate-limit';
 import { createSession } from '@/lib/session-manager';
 import { validateRequest, formatZodErrors, loginSchema } from '@/lib/validators';
 import { logLogin } from '@/lib/audit-logger';
+import { registerDeviceOnLogin } from '@/lib/license/manager';
 
 // Dynamic import for bcryptjs to avoid build issues
 const getBcrypt = async () => {
@@ -171,6 +172,14 @@ export async function POST(request: NextRequest) {
             { status: 403 }
           );
         }
+
+        // Register or update the device for this license (fire and forget - don't block login)
+        const userAgent = request.headers.get('user-agent') || 'Unknown';
+        registerDeviceOnLogin(
+          user.branchId,
+          branchLicense.id,
+          userAgent
+        ).catch(err => console.error('[License] Failed to register device on login:', err));
 
         // Note: Device limit is enforced during activation, not on every login
         // This allows offline access for already-registered devices
