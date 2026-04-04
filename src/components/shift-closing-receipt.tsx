@@ -366,8 +366,17 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         if (!isCustom) {
           // For regular items, use only variant option name (excludes variant type name)
           const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
-          const itemName = item.menuItemVariant?.variantOption?.name
-            ? `${item.itemName || item.name} - ${item.menuItemVariant.variantOption.name}`
+
+          // Safely access variant option name
+          let optionName = null;
+          try {
+            optionName = item.menuItemVariant?.variantOption?.name;
+          } catch (e) {
+            // If accessing the nested property fails, continue with null
+          }
+
+          const itemName = optionName
+            ? `${item.itemName || item.name} - ${optionName}`
             : (item.itemName || item.name || 'Unknown Item');
           return {
             key: itemId,
@@ -381,7 +390,12 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         const variant = item.variantName || '';
 
         // Check if we have variantOption relation available
-        const optionName = item.menuItemVariant?.variantOption?.name;
+        let optionName = null;
+        try {
+          optionName = item.menuItemVariant?.variantOption?.name;
+        } catch (e) {
+          // If accessing the nested property fails, continue with null
+        }
 
         if (optionName) {
           // Use variantOption name directly if available (excludes variant type name)
@@ -437,57 +451,61 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
         if (order.items) {
           order.items.forEach((item: any) => {
-            // Get category from menu item map, fallback to itemName's category, then 'Uncategorized'
-            let category = menuItemCategoryMap.get(item.menuItemId);
+            try {
+              // Get category from menu item map, fallback to itemName's category, then 'Uncategorized'
+              let category = menuItemCategoryMap.get(item.menuItemId);
 
-            if (!category) {
-              // Try to get from item.menuItem.category (if available)
-              category = item.menuItem?.category;
-            }
+              if (!category) {
+                // Try to get from item.menuItem.category (if available)
+                category = item.menuItem?.category;
+              }
 
-            if (!category) {
-              // Try to get from item.categoryName (if available)
-              category = item.categoryName;
-            }
+              if (!category) {
+                // Try to get from item.categoryName (if available)
+                category = item.categoryName;
+              }
 
-            if (!category) {
-              // Fallback to 'Uncategorized'
-              category = 'Uncategorized';
-            }
+              if (!category) {
+                // Fallback to 'Uncategorized'
+                category = 'Uncategorized';
+              }
 
-            if (!categoryMap.has(category)) {
-              categoryMap.set(category, {
-                categoryName: category,
-                totalSales: 0,
-                items: new Map()
-              });
-            }
+              if (!categoryMap.has(category)) {
+                categoryMap.set(category, {
+                  categoryName: category,
+                  totalSales: 0,
+                  items: new Map()
+                });
+              }
 
-            const catData = categoryMap.get(category)!;
-            catData.totalSales += item.subtotal || 0;
-            totalSales += item.subtotal || 0;
+              const catData = categoryMap.get(category)!;
+              catData.totalSales += item.subtotal || 0;
+              totalSales += item.subtotal || 0;
 
-            const aggKey = getAggregationKey(item);
+              const aggKey = getAggregationKey(item);
 
-            if (!catData.items.has(aggKey.key)) {
-              catData.items.set(aggKey.key, {
-                itemId: aggKey.key,
-                itemName: aggKey.baseName,
-                quantity: 0,
-                totalPrice: 0,
-                isCustomInput: aggKey.isCustomInput,
-                totalWeight: aggKey.isCustomInput ? 0 : undefined
-              });
-            }
+              if (!catData.items.has(aggKey.key)) {
+                catData.items.set(aggKey.key, {
+                  itemId: aggKey.key,
+                  itemName: aggKey.baseName,
+                  quantity: 0,
+                  totalPrice: 0,
+                  isCustomInput: aggKey.isCustomInput,
+                  totalWeight: aggKey.isCustomInput ? 0 : undefined
+                });
+              }
 
-            const itemData = catData.items.get(aggKey.key)!;
-            itemData.quantity += item.quantity || 0;
-            itemData.totalPrice += item.subtotal || 0;
+              const itemData = catData.items.get(aggKey.key)!;
+              itemData.quantity += item.quantity || 0;
+              itemData.totalPrice += item.subtotal || 0;
 
-            // For custom input items, accumulate weight
-            if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
-              const weight = extractWeight(item.variantName || '');
-              itemData.totalWeight += weight * (item.quantity || 0);
+              // For custom input items, accumulate weight
+              if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
+                const weight = extractWeight(item.variantName || '');
+                itemData.totalWeight += weight * (item.quantity || 0);
+              }
+            } catch (error) {
+              console.error('[Shift Closing Receipt] Error processing item:', item, error);
             }
           });
         }
@@ -769,8 +787,17 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       if (!isCustom) {
         // For regular items, use only variant option name (excludes variant type name)
         const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
-        const itemName = item.menuItemVariant?.variantOption?.name
-          ? `${item.itemName} - ${item.menuItemVariant.variantOption.name}`
+
+        // Safely access variant option name
+        let optionName = null;
+        try {
+          optionName = item.menuItemVariant?.variantOption?.name;
+        } catch (e) {
+          // If accessing the nested property fails, continue with null
+        }
+
+        const itemName = optionName
+          ? `${item.itemName} - ${optionName}`
           : item.itemName;
         return {
           key: itemId,
@@ -784,7 +811,12 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       const variant = item.variantName || '';
 
       // Check if we have variantOption relation available
-      const optionName = item.menuItemVariant?.variantOption?.name;
+      let optionName = null;
+      try {
+        optionName = item.menuItemVariant?.variantOption?.name;
+      } catch (e) {
+        // If accessing the nested property fails, continue with null
+      }
 
       if (optionName) {
         // Use variantOption name directly if available (excludes variant type name)
