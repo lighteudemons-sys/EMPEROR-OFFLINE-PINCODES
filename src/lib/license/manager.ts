@@ -45,15 +45,15 @@ export async function activateLicense(
     }
 
     // Check if license already exists for this branch
-    const existingLicense = await db.branchLicense.findUnique({
+    const existingLicense = await db.branchLicense.findFirst({
       where: { branchId },
       include: { devices: true }
     });
 
     if (existingLicense) {
-      // Update existing license
+      // Update existing license using the unique id
       const updatedLicense = await db.branchLicense.update({
-        where: { branchId },
+        where: { id: existingLicense.id },
         data: {
           licenseKey,
           expirationDate,
@@ -220,7 +220,7 @@ async function registerDevice(
 export async function validateBranchLicense(branchId: string): Promise<LicenseInfo> {
   try {
     // Get license for branch
-    const license = await db.branchLicense.findUnique({
+    const license = await db.branchLicense.findFirst({
       where: { branchId },
       include: { devices: true }
     });
@@ -274,7 +274,7 @@ export async function validateBranchLicense(branchId: string): Promise<LicenseIn
  */
 export async function getLicenseDevices(branchId: string): Promise<DeviceRegistration[]> {
   try {
-    const license = await db.branchLicense.findUnique({
+    const license = await db.branchLicense.findFirst({
       where: { branchId },
       include: { devices: true }
     });
@@ -320,8 +320,19 @@ export async function removeDevice(deviceId: string, licenseId: string): Promise
  */
 export async function revokeLicense(branchId: string, reason: string): Promise<boolean> {
   try {
+    // First find the license by branchId
+    const license = await db.branchLicense.findFirst({
+      where: { branchId }
+    });
+
+    if (!license) {
+      console.error('[License] No license found for branch:', branchId);
+      return false;
+    }
+
+    // Update using the unique id
     await db.branchLicense.update({
-      where: { branchId },
+      where: { id: license.id },
       data: {
         isRevoked: true,
         revokedReason: reason
@@ -343,8 +354,19 @@ export async function updateLicenseExpiration(
   newExpirationDate: Date
 ): Promise<boolean> {
   try {
+    // First find the license by branchId
+    const license = await db.branchLicense.findFirst({
+      where: { branchId }
+    });
+
+    if (!license) {
+      console.error('[License] No license found for branch:', branchId);
+      return false;
+    }
+
+    // Update using the unique id
     await db.branchLicense.update({
-      where: { branchId },
+      where: { id: license.id },
       data: {
         expirationDate: newExpirationDate
       }
