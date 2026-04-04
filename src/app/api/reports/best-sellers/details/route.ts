@@ -130,18 +130,60 @@ export async function GET(request: NextRequest) {
       });
     });
 
+    // Calculate effective base price per KG from orders with explicit weight data
+    let effectiveBasePricePerKG = 0;
+    const itemsWithWeight = allOrderItems.filter(item =>
+      (item.customVariantValue && item.customVariantValue > 0) ||
+      /:\s*[\d.]+x/.test(item.variantName || '')
+    );
+
+    if (itemsWithWeight.length > 0) {
+      const totalRevenue = itemsWithWeight.reduce((sum: number, item: any) =>
+        sum + (item.subtotal || (item.quantity * item.unitPrice)), 0
+      );
+
+      let totalWeight = 0;
+      itemsWithWeight.forEach((item: any) => {
+        let weight = 0;
+        if (item.customVariantValue && item.customVariantValue > 0) {
+          weight = item.customVariantValue;
+        } else {
+          const weightMatch = item.variantName?.match(/:\s*([\d.]+)x/);
+          if (weightMatch) {
+            const weightMultiplier = parseFloat(weightMatch[1]);
+            weight = item.quantity * weightMultiplier;
+          }
+        }
+        totalWeight += weight;
+      });
+
+      if (totalWeight > 0) {
+        effectiveBasePricePerKG = totalRevenue / totalWeight;
+
+        console.log('[Best Sellers Details] Calculated effective base price per KG:', {
+          productId,
+          totalRevenue,
+          totalWeight,
+          effectivePrice: effectiveBasePricePerKG,
+          itemsWithWeightCount: itemsWithWeight.length
+        });
+      }
+    }
+
+    // If no effective price calculated, use the stored menu item price
+    const basePriceForComparison = effectiveBasePricePerKG || allOrderItems[0]?.menuItem?.price || 0;
+
     // Analyze pricing to detect if this is a weight-based item
     // If we see multiple different unit prices, it's likely weight-based
     const uniquePrices = [...new Set(allOrderItems.map(item => item.unitPrice))];
     const hasMultiplePrices = uniquePrices.length > 1;
-    const basePricePerKG = allOrderItems[0]?.menuItem?.price || 0;
 
     // Determine if this is a weight-based item based on:
     // 1. Has multiple different unit prices, OR
     // 2. Any order has unitPrice different from basePrice, OR
     // 3. Any order has customVariantValue or variantName matching pattern
     const isWeightBasedItem = hasMultiplePrices ||
-                               uniquePrices.some(price => price !== basePricePerKG && price < basePricePerKG) ||
+                               uniquePrices.some(price => price !== basePriceForComparison && price < basePriceForComparison) ||
                                allOrderItems.some(item =>
                                  (item.customVariantValue && item.customVariantValue > 0) ||
                                  item.variantName?.includes('وزن:') ||
@@ -152,7 +194,9 @@ export async function GET(request: NextRequest) {
       productId,
       uniquePrices,
       hasMultiplePrices,
-      basePricePerKG,
+      basePriceForComparison,
+      effectiveBasePricePerKG,
+      usingEffectivePrice: effectiveBasePricePerKG > 0,
       isWeightBasedItem
     });
 
@@ -164,7 +208,7 @@ export async function GET(request: NextRequest) {
       const isCustomInput = (item.customVariantValue && item.customVariantValue > 0) ||
                             item.variantName?.includes('وزن:') ||
                             /:\s*[\d.]+x/.test(item.variantName || '') ||
-                            (isWeightBasedItem && item.unitPrice < basePricePerKG);
+                            (isWeightBasedItem && item.unitPrice < basePriceForComparison);
 
       // Calculate weight for custom input items
       let weight = 0;
@@ -177,16 +221,16 @@ export async function GET(request: NextRequest) {
             customVariantValue: item.customVariantValue,
             calculatedWeight: weight
           });
-        } else if (basePricePerKG > 0 && item.unitPrice > 0 && item.unitPrice < basePricePerKG) {
-          // Calculate weight from price
-          // Weight (KG) = (Unit Price / Base Price per KG) * Quantity
+        } else if (basePriceForComparison > 0 && item.unitPrice > 0 && item.unitPrice < basePriceForComparison) {
+          // Calculate weight from price using the effective base price
           const unitPrice = item.unitPrice;
-          const multiplier = unitPrice / basePricePerKG;
+          const multiplier = unitPrice / basePriceForComparison;
           weight = multiplier * item.quantity;
 
           console.log('[Best Sellers Details] Calculated weight from price:', {
             itemName: item.menuItem?.name,
-            basePricePerKG,
+            basePriceForComparison,
+            usingEffectivePrice: effectiveBasePricePerKG > 0,
             unitPrice,
             quantity: item.quantity,
             multiplier,
@@ -195,7 +239,7 @@ export async function GET(request: NextRequest) {
         } else {
           console.log('[Best Sellers Details] Cannot calculate weight:', {
             itemName: item.menuItem?.name,
-            basePricePerKG,
+            basePriceForComparison,
             unitPrice: item.unitPrice,
             variantName: item.variantName
           });
@@ -211,6 +255,24 @@ export async function GET(request: NextRequest) {
             console.log('[Best Sellers Details] Extracted from variantName:', { weight, weightMultiplier });
           }
         }
+      } else {
+        // IMPORTANT: Even if not detected as custom input, check if price suggests weight-based
+        // This handles the case where prices were changed and variant data is missing
+        if (basePriceForComparison > 0 && item.unitPrice > 0 && item.unitPrice < basePriceForComparison * 0.9) {
+          // Price is less than 90% of base - likely weight-based even without variant data
+          const multiplier = item.unitPrice / basePriceForComparison;
+          weight = multiplier * item.quantity;
+
+          console.log('[Best Sellers Details] Inferred weight from price ratio:', {
+            itemName: item.menuItem?.name,
+            basePriceForComparison,
+            usingEffectivePrice: effectiveBasePricePerKG > 0,
+            unitPrice: item.unitPrice,
+            quantity: item.quantity,
+            multiplier,
+            calculatedWeight: weight
+          });
+        }
       }
 
       productOrders.push({
@@ -223,7 +285,7 @@ export async function GET(request: NextRequest) {
         branchName: item.branchName,
         cashierName: item.cashierName,
         variantName: item.variantName,
-        isCustomInput: isCustomInput,
+        isCustomInput: weight > 0 || isCustomInput, // Mark as custom input if weight was calculated
       });
     });
 
