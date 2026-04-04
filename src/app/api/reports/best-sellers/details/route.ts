@@ -113,101 +113,117 @@ export async function GET(request: NextRequest) {
       branchId
     });
 
-    // Process orders to extract product details
-    const productOrders: any[] = [];
-
+    // First, collect all order items for this product to analyze pricing patterns
+    const allOrderItems: any[] = [];
     orders.forEach(order => {
       order.items.forEach((item: any) => {
-        // Check if this item matches the product
         if (item.menuItemId !== productId) return;
-
-        // Check category filter
         if (category && category !== 'all' && item.menuItem?.category !== category) return;
-
-        // Check if this is a weight-based item (custom input)
-        // Primary indicator: customVariantValue exists and is > 0
-        // Fallback: variantName contains "وزن:" (Arabic for weight) or matches pattern like "Type: 0.125x"
-        const isCustomInput = (item.customVariantValue && item.customVariantValue > 0) ||
-                              item.variantName?.includes('وزن:') ||
-                              /:\s*[\d.]+x/.test(item.variantName || '') || false;
-
-        // Calculate weight for custom input items
-        let weight = 0;
-        if (isCustomInput) {
-          // First try to get weight from customVariantValue if available
-          if (item.customVariantValue && item.customVariantValue > 0) {
-            weight = item.customVariantValue;
-            console.log('[Best Sellers Details] Using customVariantValue:', {
-              itemName: item.menuItem?.name,
-              customVariantValue: item.customVariantValue,
-              calculatedWeight: weight
-            });
-          } else {
-            // Calculate weight from price
-            // Weight (KG) = (Unit Price / Base Price per KG) * Quantity
-            // Base price per KG is item.menuItem.price
-            const basePricePerKG = item.menuItem?.price || 0;
-            const unitPrice = item.unitPrice || (item.subtotal / item.quantity);
-
-            console.log('[Best Sellers Details] Attempting weight calculation:', {
-              itemName: item.menuItem?.name,
-              basePricePerKG,
-              unitPrice,
-              subtotal: item.subtotal,
-              quantity: item.quantity,
-              unitPriceFallback: item.subtotal / item.quantity,
-              variantName: item.variantName
-            });
-
-            if (basePricePerKG > 0 && unitPrice > 0) {
-              // Calculate the multiplier (what fraction of 1 KG this order represents)
-              const multiplier = unitPrice / basePricePerKG;
-              // Total weight = multiplier * quantity
-              weight = multiplier * item.quantity;
-
-              console.log('[Best Sellers Details] Calculated weight from price:', {
-                itemName: item.menuItem?.name,
-                basePricePerKG,
-                unitPrice,
-                quantity: item.quantity,
-                multiplier,
-                calculatedWeight: weight
-              });
-            } else {
-              console.log('[Best Sellers Details] Cannot calculate from price, trying variantName:', {
-                itemName: item.menuItem?.name,
-                basePricePerKG,
-                unitPrice
-              });
-
-              // Last resort: try to extract from variantName
-              let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
-              if (!weightMatch) {
-                weightMatch = item.variantName?.match(/:\s*([\d.]+)x/);
-              }
-              if (weightMatch) {
-                const weightMultiplier = parseFloat(weightMatch[1]);
-                weight = item.quantity * weightMultiplier;
-                console.log('[Best Sellers Details] Extracted from variantName:', { weight, weightMultiplier });
-              } else {
-                console.log('[Best Sellers Details] Could not extract weight, variantName:', item.variantName);
-              }
-            }
-          }
-        }
-
-        productOrders.push({
+        allOrderItems.push({
+          ...item,
           orderId: order.id,
           orderNumber: order.orderNumber,
           orderTimestamp: order.orderTimestamp,
-          quantity: item.quantity,
-          weight: weight,
-          subtotal: item.subtotal || (item.quantity * item.unitPrice),
           branchName: order.branch?.branchName,
           cashierName: order.cashier?.name,
-          variantName: item.variantName,
-          isCustomInput: isCustomInput,
         });
+      });
+    });
+
+    // Analyze pricing to detect if this is a weight-based item
+    // If we see multiple different unit prices, it's likely weight-based
+    const uniquePrices = [...new Set(allOrderItems.map(item => item.unitPrice))];
+    const hasMultiplePrices = uniquePrices.length > 1;
+    const basePricePerKG = allOrderItems[0]?.menuItem?.price || 0;
+
+    // Determine if this is a weight-based item based on:
+    // 1. Has multiple different unit prices, OR
+    // 2. Any order has unitPrice different from basePrice, OR
+    // 3. Any order has customVariantValue or variantName matching pattern
+    const isWeightBasedItem = hasMultiplePrices ||
+                               uniquePrices.some(price => price !== basePricePerKG && price < basePricePerKG) ||
+                               allOrderItems.some(item =>
+                                 (item.customVariantValue && item.customVariantValue > 0) ||
+                                 item.variantName?.includes('وزن:') ||
+                                 /:\s*[\d.]+x/.test(item.variantName || '')
+                               );
+
+    console.log('[Best Sellers Details] Weight-based detection:', {
+      productId,
+      uniquePrices,
+      hasMultiplePrices,
+      basePricePerKG,
+      isWeightBasedItem
+    });
+
+    // Process orders to extract product details
+    const productOrders: any[] = [];
+
+    allOrderItems.forEach(item => {
+      // Check if this specific order item is weight-based
+      const isCustomInput = (item.customVariantValue && item.customVariantValue > 0) ||
+                            item.variantName?.includes('وزن:') ||
+                            /:\s*[\d.]+x/.test(item.variantName || '') ||
+                            (isWeightBasedItem && item.unitPrice < basePricePerKG);
+
+      // Calculate weight for custom input items
+      let weight = 0;
+      if (isCustomInput) {
+        // First try to get weight from customVariantValue if available
+        if (item.customVariantValue && item.customVariantValue > 0) {
+          weight = item.customVariantValue;
+          console.log('[Best Sellers Details] Using customVariantValue:', {
+            itemName: item.menuItem?.name,
+            customVariantValue: item.customVariantValue,
+            calculatedWeight: weight
+          });
+        } else if (basePricePerKG > 0 && item.unitPrice > 0 && item.unitPrice < basePricePerKG) {
+          // Calculate weight from price
+          // Weight (KG) = (Unit Price / Base Price per KG) * Quantity
+          const unitPrice = item.unitPrice;
+          const multiplier = unitPrice / basePricePerKG;
+          weight = multiplier * item.quantity;
+
+          console.log('[Best Sellers Details] Calculated weight from price:', {
+            itemName: item.menuItem?.name,
+            basePricePerKG,
+            unitPrice,
+            quantity: item.quantity,
+            multiplier,
+            calculatedWeight: weight
+          });
+        } else {
+          console.log('[Best Sellers Details] Cannot calculate weight:', {
+            itemName: item.menuItem?.name,
+            basePricePerKG,
+            unitPrice: item.unitPrice,
+            variantName: item.variantName
+          });
+
+          // Last resort: try to extract from variantName
+          let weightMatch = item.variantName?.match(/وزن:\s*([\d.]+)x/);
+          if (!weightMatch) {
+            weightMatch = item.variantName?.match(/:\s*([\d.]+)x/);
+          }
+          if (weightMatch) {
+            const weightMultiplier = parseFloat(weightMatch[1]);
+            weight = item.quantity * weightMultiplier;
+            console.log('[Best Sellers Details] Extracted from variantName:', { weight, weightMultiplier });
+          }
+        }
+      }
+
+      productOrders.push({
+        orderId: item.orderId,
+        orderNumber: item.orderNumber,
+        orderTimestamp: item.orderTimestamp,
+        quantity: item.quantity,
+        weight: weight,
+        subtotal: item.subtotal || (item.quantity * item.unitPrice),
+        branchName: item.branchName,
+        cashierName: item.cashierName,
+        variantName: item.variantName,
+        isCustomInput: isCustomInput,
       });
     });
 

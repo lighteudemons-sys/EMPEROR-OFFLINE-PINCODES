@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
             variants: new Map<string, number>(),
             isCustomInput: false,
             orders: 0,
+            orderItems: [], // Store order items for later price calculation
           });
         }
 
@@ -123,6 +124,15 @@ export async function GET(request: NextRequest) {
         stats.totalQuantity += item.quantity;
         stats.totalRevenue += item.subtotal || (item.quantity * item.unitPrice);
         stats.orders += 1;
+
+        // Store order items for later analysis
+        stats.orderItems.push({
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+          variantName: item.variantName,
+          customVariantValue: item.customVariantValue,
+          subtotal: item.subtotal || (item.quantity * item.unitPrice),
+        });
 
         // Handle custom input items (weight-based)
         if (isCustomInput) {
@@ -209,9 +219,55 @@ export async function GET(request: NextRequest) {
     const products = Array.from(productStats.values()).map(p => {
       // Calculate price: for regular items, use average unit price, for custom input, calculate price per KG
       let price = p.price;
-      if (p.isCustomInput && p.totalWeight > 0) {
-        // For weight-based items, calculate price per KG
-        price = p.totalRevenue / p.totalWeight;
+
+      if (p.isCustomInput) {
+        if (p.totalWeight > 0) {
+          // For weight-based items, calculate price per KG
+          price = p.totalRevenue / p.totalWeight;
+        } else if (p.orderItems.length > 0) {
+          // If no weight data, try to infer price per KG from order items
+          // Find items with different unit prices - these likely represent different weights
+          const uniquePrices = [...new Set(p.orderItems.map(item => item.unitPrice))];
+
+          if (uniquePrices.length > 1) {
+            // We have multiple different prices, which suggests this is a weight-based item
+            // Find the highest price (likely full KG or largest portion)
+            const maxPrice = Math.max(...uniquePrices);
+
+            // Check if maxPrice is the menu item's base price
+            if (maxPrice === p.price) {
+              // The highest price matches the stored base price, so use it
+              price = p.price;
+            } else {
+              // Use the highest price as the base price per KG
+              price = maxPrice;
+            }
+
+            console.log('[Best Sellers] Inferred price per KG from multiple prices:', {
+              name: p.name,
+              uniquePrices,
+              maxPrice,
+              inferredPrice: price
+            });
+          } else if (uniquePrices.length === 1) {
+            // All orders have the same unit price
+            const unitPrice = uniquePrices[0];
+            if (unitPrice < p.price) {
+              // Unit price is less than stored base price, so stored base price is likely correct
+              price = p.price;
+            } else {
+              // Unit price equals or exceeds stored base price, use stored price
+              price = p.price;
+            }
+
+            console.log('[Best Sellers] Single price found:', {
+              name: p.name,
+              unitPrice,
+              storedPrice: p.price,
+              usingPrice: price
+            });
+          }
+        }
       } else if (p.totalQuantity > 0 && p.totalRevenue > 0) {
         // Use average unit price
         price = p.totalRevenue / p.totalQuantity;
