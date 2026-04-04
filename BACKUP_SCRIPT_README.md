@@ -1,92 +1,57 @@
-# Emperor POS - Comprehensive Backup Script
+# EMPEROR POS - Backup Script Documentation
 
-## 📋 What Was Missing From Your Original Script
+## Overview
 
-Your original script was good but missing several critical features for production-grade backups:
+This backup system provides comprehensive, automated backup for the Emperor POS system including:
+- PostgreSQL database backups (multiple formats)
+- Application source code backups
+- Automatic compression with 7-Zip
+- Optional cloud storage via Google Drive (rclone)
+- Automatic cleanup of old backups (30-day retention)
+- Detailed logging and error handling
+- Email notifications (optional)
 
-### ❌ Missing Features:
+## Files
 
-1. **Error Handling** - No error checking or recovery
-2. **Comprehensive Logging** - No detailed logs for troubleshooting
-3. **Backup Verification** - No verification that backups are valid
-4. **Email Notifications** - No alerts on success/failure
-5. **Disk Space Checks** - No pre-flight space validation
-6. **Database Connectivity Test** - No check if DB is accessible before backup
-7. **Backup Integrity Verification** - No verification of compressed archives
-8. **Progress Reporting** - No clear status updates
-9. **Service Health Checks** - No verification that PostgreSQL is running
-10. **Backup Size Reporting** - No information about backup sizes
-11. **Backup Summary** - No comprehensive report of what was backed up
-12. **Retry Logic** - No automatic retry on transient failures
-13. **Pre-flight Validation** - No checks before starting backup
-14. **Multiple Backup Formats** - Only one format (no SQL dump for portability)
-15. **Cloud Upload Verification** - No verification that upload succeeded
-16. **Tool Availability Checks** - No check if required tools exist
-17. **Detailed Error Messages** - Generic or no error messages
-18. **Clean Exit Codes** - No proper exit codes for automation
-19. **Configuration Separation** - Config mixed with logic
-20. **Backup Catalog** - No record of all backups
+### 1. `setup.bat`
+Initial setup script that verifies the environment and creates necessary directories.
 
----
+**What it checks:**
+- Creates backup directories (C:\backups\daily, temp, logs)
+- Detects PostgreSQL installation (versions 17, 15, 14)
+- Checks 7-Zip installation
+- Checks rclone installation (optional)
+- Checks available disk space
+- Tests database connectivity
 
-## ✅ What the Enhanced Script Includes
+**Usage:**
+```batch
+cd C:\backups
+setup.bat
+```
 
-### 🔒 Security & Reliability
-- ✅ Pre-flight validation (disk space, services, tools, connectivity)
-- ✅ Database backup in two formats (custom for fast restore, SQL for portability)
-- ✅ Backup integrity verification (dry-run restore test)
-- ✅ Archive integrity verification (7-Zip test)
-- ✅ Cloud upload verification
-- ✅ Proper exit codes for Task Scheduler integration
+### 2. `backup-script-fixed.bat`
+The main backup script that performs all backup operations.
 
-### 📊 Monitoring & Logging
-- ✅ Detailed timestamped logs
-- ✅ Backup summary report
-- ✅ Size reporting for all components
-- ✅ Progress indicators
-- ✅ Separate log files for each backup
-- ✅ Backup catalog/summary files
+**Features:**
+- ✅ Auto-detects PostgreSQL version
+- ✅ Pre-flight checks (disk space, connectivity, tool availability)
+- ✅ Database backup in two formats:
+  - Custom format (`.custom`) - Best for restoring
+  - SQL format (`.sql`) - Portable, can be edited
+- ✅ Application files backup (excludes node_modules, .git, .next, .env files)
+- ✅ Maximum compression with 7-Zip (LZMA2, 1.5GB dictionary)
+- ✅ Archive integrity verification
+- ✅ Backup integrity verification (pg_restore test)
+- ✅ Optional cloud upload to Google Drive via rclone
+- ✅ Automatic cleanup of old backups (configurable retention)
+- ✅ Detailed logging with timestamps
+- ✅ Optional email notifications on success/failure
+- ✅ Comprehensive error handling
 
-### 📧 Notifications
-- ✅ Email notifications on success/failure (optional)
-- ✅ Detailed error messages in notifications
-- ✅ Configurable SMTP settings
+**Configuration Options:**
 
-### 🔄 Backup Strategy
-- ✅ PostgreSQL backup with pg_dump (custom format + SQL)
-- ✅ Application files with robocopy (excludes node_modules, .git, .next)
-- ✅ Maximum compression (7-Zip level 9)
-- ✅ Multiple backup retention policies (daily, weekly, monthly options)
-- ✅ Local + Cloud backup (Google Drive via rclone)
-
-### 🛠️ Error Handling
-- ✅ Error checking at each step
-- ✅ Detailed error logging
-- ✅ Graceful failure handling
-- ✅ Cleanup on failure
-- ✅ Clear error messages
-
-### 🧹 Maintenance
-- ✅ Automatic cleanup of old backups
-- ✅ Automatic cleanup of old logs
-- ✅ Temporary file cleanup
-- ✅ Configurable retention periods
-
----
-
-## 🚀 Setup Instructions
-
-### 1. Prerequisites
-
-Ensure you have these installed:
-- ✅ PostgreSQL 17 (with pg_dump)
-- ✅ 7-Zip
-- ✅ rclone (for cloud backup, optional)
-- ✅ Windows Task Scheduler
-
-### 2. Configure the Script
-
-Edit the **CONFIGURATION** section at the top of the script:
+Edit the configuration section at the top of `backup-script-fixed.bat`:
 
 ```batch
 REM Backup Directories
@@ -107,20 +72,20 @@ set APP_DIR=C:\projects\EMPEROR-OFFLINE-PINCODES
 
 REM Backup Retention (days)
 set RETAIN_DAYS=30
-set RETAIN_WEEKLY=8
-set RETAIN_MONTHLY=12
 
-REM Backup Paths
+REM PostgreSQL Binary Path (auto-detected, but can be overridden)
 set POSTGRES_BIN=C:\Program Files\PostgreSQL\17\bin
+
+REM 7-Zip Path
 set SEVENZIP=C:\Program Files\7-Zip\7z.exe
-set RCLONE_EXE=rclone.exe
 
-REM Rclone Configuration (for Google Drive)
-set RCLONE_REMOTE=gdrive
-set RCLONE_PATH=POS_Backups
+REM Rclone Configuration (Optional)
+set RCLONE_ENABLED=0           [Set to 1 to enable]
+set RCLONE_REMOTE=gdrive       [Your rclone remote name]
+set RCLONE_PATH=POS_Backups    [Folder in cloud storage]
 
-REM Email Notifications (set to 1 to enable)
-set ENABLE_EMAIL=0
+REM Email Notifications (Optional)
+set ENABLE_EMAIL=0             [Set to 1 to enable]
 set SMTP_SERVER=smtp.gmail.com
 set SMTP_PORT=587
 set SMTP_USER=your-email@gmail.com
@@ -129,330 +94,374 @@ set EMAIL_TO=admin@yourcompany.com
 set EMAIL_FROM=backup@yourcompany.com
 ```
 
-### 3. Create Backup Directory
+## Installation Steps
 
+### Step 1: Copy Scripts
+Copy all backup scripts to `C:\backups\`:
+- `setup.bat`
+- `backup-script-fixed.bat`
+- `BACKUP_SCRIPT_README.md`
+
+### Step 2: Run Setup
 ```batch
-mkdir C:\backups
-mkdir C:\backups\logs
-mkdir C:\backups\daily
-mkdir C:\backups\temp
+cd C:\backups
+setup.bat
 ```
 
-### 4. Configure Rclone (for Google Drive Backup)
+This will:
+- Create necessary directories
+- Check your environment
+- Test database connectivity
+- Report any issues
 
-If you want cloud backup, configure rclone:
+### Step 3: Configure Backup Script
+Edit `backup-script-fixed.bat` and verify/update:
+- Database credentials
+- Application path
+- Backup retention period
+- (Optional) Rclone settings
+- (Optional) Email settings
 
+### Step 4: Test Manually
+```batch
+cd C:\backups
+backup-script-fixed.bat
+```
+
+Verify that:
+- Database backup completes successfully
+- Application files are copied
+- Archive is created
+- Log file shows "BACKUP COMPLETED SUCCESSFULLY"
+
+### Step 5: Schedule with Task Scheduler
+
+1. Open **Task Scheduler** (Run `taskschd.msc`)
+2. Click **Create Basic Task** in the right panel
+3. Name: `Emperor POS Daily Backup`
+4. Description: `Automated daily backup of Emperor POS database and files`
+5. Trigger: **Daily**
+   - Start date: Today
+   - Start time: 2:00 AM (or your preferred low-usage time)
+   - Recur every: 1 day
+6. Action: **Start a program**
+   - Program/script: `C:\backups\backup-script-fixed.bat`
+   - Start in (optional): `C:\backups`
+7. Finish and check "Open the Properties dialog for this task when I click Finish"
+8. In Properties:
+   - **General** tab:
+     - ✅ Run whether user is logged on or not
+     - ✅ Do not store password
+     - ✅ Run with highest privileges
+   - **Conditions** tab:
+     - ✅ Start the task only if the computer is on AC power
+     - ✅ Stop if the computer switches to battery power
+   - **Settings** tab:
+     - ✅ Allow task to be run on demand
+     - ✅ Run task as soon as possible after a scheduled start is missed
+     - ✅ Stop the task if it runs longer than: 4 hours
+9. Click OK and enter Windows account credentials when prompted
+10. Test by right-clicking the task and selecting **Run**
+
+## Optional: Enable Cloud Backup with Google Drive
+
+### Install rclone
+1. Download rclone from https://rclone.org/downloads/
+2. Extract to a folder in your PATH (e.g., `C:\Windows` or `C:\Program Files`)
+3. Verify installation: `rclone version`
+
+### Configure Google Drive
 ```batch
 rclone config
 ```
 
-Follow the prompts to set up Google Drive. Name your remote `gdrive`.
+Follow the prompts:
+1. **New remote**: `gdrive`
+2. **Type of storage**: `drive` (Google Drive)
+3. **client_id**: Press Enter (use default)
+4. **client_secret**: Press Enter (use default)
+5. **scope**: Choose `1` (Full access)
+6. **root_folder_id**: Press Enter
+7. **service_account_file**: Press Enter
+8. **Advanced config**: `n`
+9. **Auto config**: `y`
+10. Browser will open - sign in to Google and grant permissions
+11. **Configure this as a team drive**: `n`
+12. **y** to confirm
 
-Create a folder in Google Drive named `POS_Backups`.
-
-### 5. Setup Task Scheduler
-
-1. Open **Task Scheduler** (`taskschd.msc`)
-2. Right-click **Task Scheduler Library** → **Create Task**
-3. **General Tab**:
-   - Name: `Emperor POS Daily Backup`
-   - Description: Daily backup of Emperor POS database and files
-   - Run whether user is logged on or not: ✅
-   - Run with highest privileges: ✅
-   - Configure for: Windows Server 2019/2022 (or your Windows version)
-
-4. **Triggers Tab**:
-   - Click **New**
-   - Begin the task: On a schedule
-   - Settings: Daily
-   - Start time: 2:00 AM (or your preferred time)
-   - Repeat every: 1 day
-   - Enabled: ✅
-
-5. **Actions Tab**:
-   - Click **New**
-   - Action: Start a program
-   - Program/script: `C:\backups\backup-script-enhanced.bat`
-   - Start in: `C:\backups\`
-
-6. **Conditions Tab**:
-   - Start the task only if the computer is on AC power: ✅ (for laptops)
-   - Stop if the computer ceases to be on AC power: ❌
-   - Start only if the following network connection is available: Any
-
-7. **Settings Tab**:
-   - Allow task to be run on demand: ✅
-   - Run task as soon as possible after a scheduled start is missed: ✅
-   - Stop the task if it runs longer than: 2 hours
-   - If the running task does not end when requested, force it to stop: ✅
-
-8. Click **OK** to save
-
----
-
-## 🧪 Testing the Backup
-
-### Manual Test
-
-1. Open Command Prompt as Administrator
-2. Navigate to backup directory:
-   ```batch
-   cd C:\backups
-   ```
-3. Run the script:
-   ```batch
-   backup-script-enhanced.bat
-   ```
-4. Check the output and log file
-
-### Verify Backup
-
-1. Check that backup file was created:
-   ```batch
-   dir C:\backups\daily\*.7z /O-D
-   ```
-
-2. Test 7-Zip archive:
-   ```batch
-   "C:\Program Files\7-Zip\7z.exe" t C:\backups\daily\backup_YYYYMMDD_HHMMSS.7z
-   ```
-
-3. Test database restore (dry run):
-   ```batch
-   "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" -l C:\backups\temp\backup\emperor_pos_backup.custom
-   ```
-
-### Full Restore Test (on a test system)
-
-1. Extract backup:
-   ```batch
-   "C:\Program Files\7-Zip\7z.exe" x backup_YYYYMMDD_HHMMSS.7z -oC:\restore_test
-   ```
-
-2. Restore database:
-   ```batch
-   "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" -d emperor_pos_test -U postgres -v C:\restore_test\backup\emperor_pos_backup.custom
-   ```
-
----
-
-## 📈 Backup Strategy Recommendations
-
-### Backup Rotation
-
-Keep multiple backup types:
-
-1. **Daily Backups** - Last 30 days
-   ```batch
-   set RETAIN_DAYS=30
-   ```
-
-2. **Weekly Backups** - Last 8 weeks (manual)
-   - Copy Sunday backup to weekly folder once per week
-
-3. **Monthly Backups** - Last 12 months (manual)
-   - Copy first backup of month to monthly folder once per month
-
-### Backup Locations
-
-1. **Local Backup** - Fast restore, no internet needed
-   - Store on different drive than application
-   - Example: D:\backups or external hard drive
-
-2. **Cloud Backup** - Offsite protection
-   - Google Drive, Dropbox, AWS S3, etc.
-   - Protects against local disasters
-
-3. **Offsite Physical Backup** - Weekly/Monthly
-   - Copy to external hard drive
-   - Store in different physical location
-
-### Backup Testing
-
-1. **Weekly**: Test restore on test system
-2. **Monthly**: Full disaster recovery drill
-3. **Quarterly**: Update and review backup procedures
-
----
-
-## 📊 Monitoring Your Backups
-
-### Check Backup Logs
-
+### Enable in Backup Script
+Edit `backup-script-fixed.bat`:
 ```batch
-type C:\backups\logs\backup_latest.log
+set RCLONE_ENABLED=1
+set RCLONE_REMOTE=gdrive
+set RCLONE_PATH=POS_Backups
 ```
 
-### Check Backup Summary
+## Optional: Enable Email Notifications
 
-```batch
-type C:\backups\logs\backup_summary_latest.txt
-```
-
-### Review Backup History
-
-```batch
-dir C:\backups\daily\*.7z /O-D | find "backup_"
-```
-
-### Set Up Email Alerts
-
-Enable email notifications in the script:
-
+### For Gmail
+1. Enable 2-Factor Authentication on your Google Account
+2. Generate an App Password:
+   - Go to https://myaccount.google.com/apppasswords
+   - Select "Mail" and "Windows Computer"
+   - Generate and copy the 16-character password
+3. Edit `backup-script-fixed.bat`:
 ```batch
 set ENABLE_EMAIL=1
 set SMTP_SERVER=smtp.gmail.com
+set SMTP_PORT=587
 set SMTP_USER=your-email@gmail.com
-set SMTP_PASSWORD=your-app-password  <-- Use App Password!
+set SMTP_PASSWORD=your-16-char-app-password
 set EMAIL_TO=admin@yourcompany.com
+set EMAIL_FROM=backup@yourcompany.com
 ```
 
-**Gmail App Password Setup:**
-1. Go to Google Account → Security
-2. Enable 2-Step Verification
-3. Go to App Passwords
-4. Create new app password for "Mail"
-5. Use that 16-character password in the script
+## Backup Structure
 
----
+After running, your backups will be organized as follows:
 
-## 🔧 Troubleshooting
+```
+C:\backups\
+├── daily\                          # Compressed backup archives
+│   ├── backup_20260504_020000.7z
+│   ├── backup_20260503_020000.7z
+│   └── ...
+├── logs\                           # Log files and summaries
+│   ├── backup_20260504_020000.log
+│   ├── backup_summary_20260504_020000.txt
+│   └── ...
+└── temp\                           # Temporary files (cleared after backup)
+    └── (empty after backup completes)
+```
 
-### Issue: "pg_dump.exe not found"
+Each backup archive contains:
+```
+backup_YYYYMMDD_HHMMSS.7z
+├── 20260504_020000\
+│   ├── emperor_pos_backup.custom    # PostgreSQL custom format
+│   ├── emperor_pos_backup.sql      # PostgreSQL SQL dump
+│   └── app\                        # Application files
+│       ├── src\
+│       ├── public\
+│       ├── prisma\
+│       ├── components\
+│       ├── package.json
+│       ├── tsconfig.json
+│       └── ...
+```
 
-**Solution:**
-1. Verify PostgreSQL installation path
-2. Update `POSTGRES_BIN` variable
-3. Ensure PostgreSQL binaries are in the specified location
+## Restoring from Backup
 
-### Issue: "7-Zip not found"
+### Restore Database
 
-**Solution:**
-1. Install 7-Zip from https://www.7-zip.org/
-2. Update `SEVENZIP` variable if installed in different location
+**Option 1: Restore from Custom Format (Recommended)**
+```batch
+set PGPASSWORD=@Kako2010
+"C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" -h localhost -U postgres -d emperor_pos -v "C:\backups\temp\20260504_020000\emperor_pos_backup.custom"
+```
+
+**Option 2: Restore from SQL Dump**
+```batch
+set PGPASSWORD=@Kako2010
+"C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -U postgres -d emperor_pos -f "C:\backups\temp\20260504_020000\emperor_pos_backup.sql"
+```
+
+### Restore Application Files
+
+1. Extract the backup archive:
+```batch
+"C:\Program Files\7-Zip\7z.exe" x C:\backups\daily\backup_20260504_020000.7z -oC:\backups\temp\restore
+```
+
+2. Copy files to application directory:
+```batch
+robocopy C:\backups\temp\restore\20260504_020000\app C:\projects\EMPEROR-OFFLINE-PINCODES /E
+```
+
+3. Install dependencies:
+```batch
+cd C:\projects\EMPEROR-OFFLINE-PINCODES
+bun install
+```
+
+## Monitoring Backups
+
+### Check Last Backup Status
+View the latest log file:
+```
+C:\backups\logs\backup_YYYYMMDD_HHMMSS.log
+```
+
+Or view the summary:
+```
+C:\backups\logs\backup_summary_YYYYMMDD_HHMMSS.txt
+```
+
+### Check Disk Space
+```batch
+wmic logicaldisk get name,freespace,size
+```
+
+### List Recent Backups
+```batch
+dir C:\backups\daily\*.7z /O-D
+```
+
+## Troubleshooting
+
+### Issue: "PostgreSQL binaries not found"
+**Solution:** The script auto-detects PostgreSQL versions 17, 15, and 14. If you have a different version or installation path, manually set:
+```batch
+set POSTGRES_BIN=C:\path\to\postgresql\bin
+```
 
 ### Issue: "Insufficient disk space"
-
 **Solution:**
-1. Check available disk space: `wmic logicaldisk get name,freespace`
-2. Clean up old backups manually if needed
-3. Change backup location to a drive with more space
-4. Reduce retention period: `set RETAIN_DAYS=15`
+1. Clean up old backups manually: `del C:\backups\daily\*.7z`
+2. Reduce retention period: `set RETAIN_DAYS=15`
+3. Use a different drive: `set BACKUP_ROOT=D:\backups`
 
-### Issue: "Cannot connect to database"
+### Issue: "Database connection failed"
+**Solution:** Verify:
+1. PostgreSQL service is running: `sc query postgresql-x64-17`
+2. Database credentials are correct in the script
+3. Database exists: `"C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -l`
 
-**Solution:**
-1. Verify PostgreSQL service is running:
-   ```batch
-   sc query postgresql-x64-17
-   ```
-2. Check database credentials in script
-3. Test connection manually:
-   ```batch
-   "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -d emperor_pos
-   ```
+### Issue: "7-Zip not found"
+**Solution:** Install 7-Zip from https://www.7-zip.org/download.html
 
-### Issue: "rclone not found"
+### Issue: Backup fails with robocopy error
+**Solution:** This is usually not critical. Robocopy returns various exit codes:
+- 0 = No files copied (no changes)
+- 1 = Files copied successfully
+- 7 = No files to copy (source and destination are the same)
 
-**Solution:**
-1. Install rclone from https://rclone.org/downloads/
-2. Add rclone.exe to system PATH
-3. Or update `RCLONE_EXE` with full path
+Exit codes 0, 1, and 7 are all considered success.
 
-### Issue: "Cloud upload failed"
-
-**Solution:**
-1. Check rclone configuration:
-   ```batch
-   rclone listremotes
-   rclone ls gdrive:POS_Backups
-   ```
-2. Verify internet connectivity
-3. Check Google Drive storage space
-4. Script will continue - backup is saved locally
-
-### Issue: Task Scheduler not running
-
+### Issue: Task Scheduler doesn't run the backup
 **Solution:**
 1. Check Task Scheduler History for errors
-2. Verify user account has permissions
-3. Test task manually: Right-click → Run
-4. Check "Last Run Result" in Task Scheduler
-5. Ensure "Run whether user is logged on or not" is checked
+2. Ensure "Run whether user is logged on or not" is checked
+3. Verify account credentials are stored correctly
+4. Test by right-clicking the task and selecting "Run"
 
----
+## What's Included vs What's Missing
 
-## 📝 Maintenance
+### ✅ What IS Included
 
-### Monthly Checklist
+1. **Database Backup**
+   - Full PostgreSQL dump (custom format)
+   - SQL dump for portability
+   - Backup integrity verification
+   - Database connectivity pre-check
 
-- [ ] Review backup logs for errors
-- [ ] Test restore from latest backup
-- [ ] Verify cloud uploads are working
-- [ ] Check disk space on backup drive
-- [ ] Update backup script if needed
-- [ ] Review retention policy
+2. **Application Files**
+   - Source code
+   - Configuration files (except sensitive .env)
+   - Dependencies (package.json, lock files)
+   - Prisma schema
+   - Excludes: node_modules, .git, .next, logs
 
-### Quarterly Checklist
+3. **Compression**
+   - Maximum compression (LZMA2)
+   - Large dictionary (1.5GB)
+   - Archive integrity verification
 
-- [ ] Full disaster recovery test
-- [ ] Update backup script to latest version
-- [ ] Review backup size and adjust retention
-- [ ] Test email notifications
-- [ ] Update documentation
+4. **Cloud Backup** (Optional)
+   - Google Drive via rclone
+   - Upload verification
+   - Configurable remote and path
 
-### Yearly Checklist
+5. **Automation**
+   - Windows Task Scheduler compatible
+   - Pre-flight checks
+   - Automatic cleanup
+   - Configurable retention
 
-- [ ] Review backup strategy
-- [ ] Update backup software (PostgreSQL, 7-Zip, rclone)
-- [ ] Check backup hardware health
-- [ ] Review disaster recovery plan
-- [ ] Training new staff on backup procedures
+6. **Monitoring**
+   - Detailed logs
+   - Summary reports
+   - Email notifications (optional)
+   - Status tracking
 
----
+### ❌ What is NOT Included (And Why)
 
-## 🎯 Best Practices
+1. **Incremental Backups**
+   - Not included because:
+   - PostgreSQL dumps are typically full backups
+   - Simplifies restore process
+   - For large databases, consider PostgreSQL's native WAL archiving or pgBackRest
 
-1. **3-2-1 Backup Rule**:
-   - 3 copies of data (production, backup, offsite)
-   - 2 different storage types (disk, cloud, tape)
-   - 1 copy offsite (cloud or remote location)
+2. **Database Snapshots**
+   - Not included because:
+   - Requires PostgreSQL configuration changes
+   - More complex to set up and maintain
+   - Consider using PostgreSQL's pg_basebackup for snapshot-style backups
 
-2. **Test Your Backups**:
-   - A backup you can't restore is worthless
-   - Test at least monthly
+3. **Multiple Database Backup**
+   - Currently only backs up `emperor_pos` database
+   - To backup additional databases, add calls to pg_dump for each database
 
-3. **Monitor Backup Size**:
-   - Sudden increase may indicate issues
-   - Helps with capacity planning
+4. **Cloud Database (Neon) Backup**
+   - Neon has its own automated backup system
+   - Can use Neon's API or dashboard to export backups
+   - Consider separate script for cloud database
 
-4. **Keep Your Backup Script Versioned**:
-   - Track changes in Git
-   - Document why changes were made
+5. **Encryption**
+   - Not included because:
+   - 7-Zip archives can be password protected (add -p option)
+   - For sensitive data, consider encrypting at rest with BitLocker or similar
 
-5. **Encrypt Your Backups**:
-   - Especially for cloud storage
-   - Use 7-Zip encryption if needed
+6. **Version Control Sync**
+   - Not pushing to GitHub
+   - This is intentional - backups are for recovery, not version control
+   - Use `git push` separately for code versioning
 
-6. **Document Your Restore Procedure**:
-   - Keep step-by-step guide
-   - Update when infrastructure changes
+## Best Practices
 
----
+1. **Test Restores Regularly**
+   - Schedule monthly restore tests
+   - Verify database integrity after restore
+   - Test application functionality with restored data
 
-## 📞 Support
+2. **Monitor Backup Logs**
+   - Check logs weekly
+   - Look for warnings or errors
+   - Verify backup sizes are reasonable
 
-If you encounter issues:
+3. **Offsite Storage**
+   - Enable cloud backup (rclone + Google Drive)
+   - Consider multiple cloud providers (Dropbox, OneDrive, AWS S3)
+   - Keep at least one backup copy offsite
 
-1. Check the log file: `C:\backups\logs\backup_latest.log`
-2. Review the error message
-3. Consult this README
-4. Test components individually (pg_dump, 7-Zip, rclone)
-5. Verify system resources (disk space, memory, network)
+4. **Retention Strategy**
+   - Daily backups: 30 days
+   - Consider weekly/monthly archives for long-term retention
+   - Store critical monthly backups for 1 year
 
----
+5. **Security**
+   - Protect backup script with appropriate file permissions
+   - Use service account with minimum required permissions
+   - Don't store plain-text passwords if possible (use Windows Credential Manager)
 
-## 📄 License
+## Support
 
-This backup script is part of Emperor POS System.
-© 2024 Emperor POS. All rights reserved.
+For issues or questions:
+1. Check the log file: `C:\backups\logs\backup_*.log`
+2. Review this README
+3. Verify all prerequisites are installed
+4. Test the backup script manually before scheduling
+
+## Changelog
+
+### Version 2.0 (Fixed)
+- ✅ Fixed disk space detection
+- ✅ Auto-detects PostgreSQL version
+- ✅ Improved error handling
+- ✅ Better logging
+- ✅ Fixed variable expansion issues
+- ✅ Added comprehensive documentation
+
+### Version 1.0
+- Initial release
+- Basic backup functionality
