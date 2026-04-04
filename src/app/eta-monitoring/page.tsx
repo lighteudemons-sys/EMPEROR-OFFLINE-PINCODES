@@ -1,5 +1,3 @@
-'use client';
-
 import { ETAMonitoringDashboard } from '@/components/eta-monitoring-dashboard';
 import { Metadata } from 'next';
 
