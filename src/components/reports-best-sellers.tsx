@@ -9,9 +9,10 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
   Trophy, TrendingUp, Package, DollarSign, Search, RefreshCw,
-  Calendar as CalendarIcon, Award, Medal, Crown, Filter
+  Calendar as CalendarIcon, Award, Medal, Crown, Filter, X, Clock, Store, User
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -40,6 +41,17 @@ interface Product {
   isCustomInput: boolean;
   variants: ProductVariant[];
   orders: number;
+}
+
+interface OrderDetail {
+  orderId: string;
+  orderNumber: number;
+  orderTimestamp: string;
+  quantity: number;
+  weight: number;
+  subtotal: number;
+  branchName?: string;
+  cashierName?: string;
 }
 
 interface Summary {
@@ -73,12 +85,19 @@ export default function BestSellersReport() {
     }
     return 'all';
   });
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [period, setPeriod] = useState('last-7-days');
   const [products, setProducts] = useState<Product[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Product detail modal state
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [orderDetails, setOrderDetails] = useState<OrderDetail[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Custom date range state
   const [startDate, setStartDate] = useState<Date | undefined>();
@@ -125,7 +144,7 @@ export default function BestSellersReport() {
       return; // Don't fetch until both dates are selected
     }
     fetchData();
-  }, [selectedBranch, period, startDate, endDate]);
+  }, [selectedBranch, selectedCategory, period, startDate, endDate]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -134,6 +153,9 @@ export default function BestSellersReport() {
       params.append('period', period);
       if (selectedBranch && selectedBranch !== 'all') {
         params.append('branchId', selectedBranch);
+      }
+      if (selectedCategory && selectedCategory !== 'all') {
+        params.append('category', selectedCategory);
       }
       if (period === 'custom' && startDate && endDate) {
         params.append('startDate', startDate.toISOString());
@@ -146,6 +168,12 @@ export default function BestSellersReport() {
       if (data.success) {
         setProducts(data.data.products);
         setSummary(data.data.summary);
+
+        // Extract unique categories
+        const uniqueCategories = Array.from(
+          new Set(data.data.products.map((p: Product) => p.category))
+        ).sort();
+        setCategories(uniqueCategories);
       } else {
         console.error('API Error:', data.error);
       }
@@ -154,6 +182,45 @@ export default function BestSellersReport() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchOrderDetails = async (productId: string) => {
+    setLoadingOrders(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('productId', productId);
+      params.append('period', period);
+      if (selectedBranch && selectedBranch !== 'all') {
+        params.append('branchId', selectedBranch);
+      }
+      if (selectedCategory && selectedCategory !== 'all') {
+        params.append('category', selectedCategory);
+      }
+      if (period === 'custom' && startDate && endDate) {
+        params.append('startDate', startDate.toISOString());
+        params.append('endDate', endDate.toISOString());
+      }
+
+      const response = await fetch(`/api/reports/best-sellers/details?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setOrderDetails(data.data.orders);
+      } else {
+        console.error('API Error:', data.error);
+        setOrderDetails([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch order details:', error);
+      setOrderDetails([]);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const handleProductClick = (product: Product) => {
+    setSelectedProduct(product);
+    fetchOrderDetails(product.id);
   };
 
   // Filter products based on search query
@@ -243,6 +310,21 @@ export default function BestSellersReport() {
                   </SelectContent>
                 </Select>
               )}
+
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Filter className="h-4 w-4 mr-2 text-primary" />
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
               <Select value={period} onValueChange={setPeriod}>
                 <SelectTrigger className="w-full sm:w-[180px]">
@@ -396,7 +478,7 @@ export default function BestSellersReport() {
                         </span>
                         <span className="font-semibold text-slate-900">
                           {product.isCustomInput
-                            ? `${product.totalWeight.toFixed(2)} KG`
+                            ? `${product.totalWeight.toFixed(3)} KG`
                             : product.totalQuantity.toLocaleString()
                           }
                         </span>
@@ -433,7 +515,8 @@ export default function BestSellersReport() {
                 filteredProducts.map((product, index) => (
                   <Card
                     key={product.id}
-                    className="hover:shadow-md transition-all duration-200 border-2 hover:border-primary/20"
+                    className="hover:shadow-md transition-all duration-200 border-2 hover:border-primary/20 cursor-pointer"
+                    onClick={() => handleProductClick(product)}
                   >
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between mb-4">
@@ -465,7 +548,7 @@ export default function BestSellersReport() {
                           </p>
                           <p className="font-bold text-slate-900">
                             {product.isCustomInput
-                              ? `${product.totalWeight.toFixed(2)} KG`
+                              ? `${product.totalWeight.toFixed(3)} KG`
                               : product.totalQuantity.toLocaleString()
                             }
                           </p>
@@ -511,10 +594,16 @@ export default function BestSellersReport() {
                         <div className="mt-4 pt-4 border-t">
                           <p className="text-xs text-slate-600 mb-2">Weight-based Item</p>
                           <Badge variant="outline" className="text-amber-700 border-amber-700">
-                            {product.totalWeight.toFixed(2)} KG Total
+                            {product.totalWeight.toFixed(3)} KG Total
                           </Badge>
                         </div>
                       )}
+
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-xs text-slate-500 text-center">
+                          Click to view order details
+                        </p>
+                      </div>
                     </CardContent>
                   </Card>
                 ))
@@ -523,6 +612,141 @@ export default function BestSellersReport() {
           </ScrollArea>
         </CardContent>
       </Card>
+
+      {/* Product Detail Modal */}
+      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Trophy className="h-6 w-6 text-primary" />
+              {selectedProduct?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedProduct?.category} • {selectedProduct?.orders} orders • {formatCurrency(selectedProduct?.totalRevenue || 0, currency)} total
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-4">
+            {/* Product Summary */}
+            {selectedProduct && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                <div className="text-center">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Revenue</p>
+                  <p className="text-xl font-bold text-primary">
+                    {formatCurrency(selectedProduct.totalRevenue, currency)}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Orders</p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white">
+                    {selectedProduct.orders}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+                    {selectedProduct.isCustomInput ? 'Total Weight' : 'Total Quantity'}
+                  </p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white">
+                    {selectedProduct.isCustomInput
+                      ? `${selectedProduct.totalWeight.toFixed(3)} KG`
+                      : selectedProduct.totalQuantity.toLocaleString()
+                    }
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Price</p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(selectedProduct.price, currency)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Orders List */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Order Details
+              </h3>
+              <ScrollArea className="h-[400px] border rounded-lg">
+                {loadingOrders ? (
+                  <div className="flex items-center justify-center py-12">
+                    <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                    <span className="ml-2 text-slate-600">Loading orders...</span>
+                  </div>
+                ) : orderDetails.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500">
+                    <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No orders found for this product</p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {orderDetails.map((order, index) => (
+                      <div key={order.orderId || index} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-3">
+                            <Badge variant="outline" className="text-sm">
+                              #{order.orderNumber}
+                            </Badge>
+                            <div className="flex items-center gap-1 text-sm text-slate-600">
+                              <Clock className="h-3 w-3" />
+                              {new Date(order.orderTimestamp).toLocaleString()}
+                            </div>
+                          </div>
+                          <p className="font-bold text-primary">
+                            {formatCurrency(order.subtotal, currency)}
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <User className="h-4 w-4 text-slate-400" />
+                            <span className="text-slate-600 truncate">
+                              {order.cashierName || 'Unknown'}
+                            </span>
+                          </div>
+                          {order.branchName && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Store className="h-4 w-4 text-slate-400" />
+                              <span className="text-slate-600 truncate">
+                                {order.branchName}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 text-sm">
+                            <Package className="h-4 w-4 text-slate-400" />
+                            <span className="text-slate-900 font-semibold">
+                              Qty: {order.quantity}
+                            </span>
+                          </div>
+                          {selectedProduct?.isCustomInput && order.weight > 0 && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <TrendingUp className="h-4 w-4 text-slate-400" />
+                              <span className="text-slate-900 font-semibold">
+                                {order.weight.toFixed(3)} KG
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSelectedProduct(null)}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

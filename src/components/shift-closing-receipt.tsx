@@ -1394,7 +1394,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
         // For custom input items, show total weight instead of quantity
         if (item.isCustomInput && item.totalWeight !== undefined) {
-          const weightInKG = item.totalWeight.toFixed(2);
+          const weightInKG = item.totalWeight.toFixed(3);
           itemsHtml += `
             <div style="display: flex; align-items: center; margin: 1px 0; font-size: 12px;">
               <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayName}</span>
