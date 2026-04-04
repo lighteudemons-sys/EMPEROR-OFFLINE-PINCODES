@@ -13,6 +13,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { TooltipHelper } from '@/components/ui/tooltip-helper';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ETAMonitoringDashboard } from '@/components/eta-monitoring-dashboard';
 import {
   Settings,
   Save,
@@ -32,7 +34,8 @@ import {
   XCircle2,
   AlertOctagon,
   Building2,
-  TrendingUp
+  TrendingUp,
+  Activity
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
@@ -412,6 +415,7 @@ export default function ETASettings() {
   const [testResult, setTestResult] = useState<any>(null);
   const [showSecret, setShowSecret] = useState(false);
   const [isBranchUser, setIsBranchUser] = useState(false);
+  const [activeTab, setActiveTab] = useState<'settings' | 'monitoring' | 'admin'>('settings');
 
   // Admin Dashboard State
   const [adminData, setAdminData] = useState<any>(null);
@@ -654,7 +658,28 @@ export default function ETASettings() {
 
   // Show Admin Dashboard for users without a branch
   if (!isBranchUser) {
-    return <AdminDashboard data={adminData} loading={adminLoading} onRefresh={fetchAdminDashboard} />;
+    return (
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+        <TabsList>
+          <TabsTrigger value="admin">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Admin Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="monitoring">
+            <Activity className="h-4 w-4 mr-2" />
+            Monitoring
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="admin" className="mt-6">
+          <AdminDashboard data={adminData} loading={adminLoading} onRefresh={fetchAdminDashboard} />
+        </TabsContent>
+
+        <TabsContent value="monitoring" className="mt-6">
+          <ETAMonitoringDashboard />
+        </TabsContent>
+      </Tabs>
+    );
   }
 
   if (!settings) {
@@ -675,7 +700,20 @@ export default function ETASettings() {
   }
 
   return (
-    <div className="space-y-6">
+    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+      <TabsList>
+        <TabsTrigger value="settings">
+          <Settings className="h-4 w-4 mr-2" />
+          Settings
+        </TabsTrigger>
+        <TabsTrigger value="monitoring">
+          <Activity className="h-4 w-4 mr-2" />
+          Monitoring
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="settings" className="space-y-6 mt-6">
+        <div className="space-y-6">
       {/* Status Card */}
       <Card>
         <CardHeader>
@@ -1194,6 +1232,12 @@ export default function ETASettings() {
           )}
         </CardContent>
       </Card>
-    </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="monitoring" className="mt-6">
+        <ETAMonitoringDashboard />
+      </TabsContent>
+    </Tabs>
   );
 }
