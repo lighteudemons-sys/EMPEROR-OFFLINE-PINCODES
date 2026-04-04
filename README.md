@@ -139,3 +139,12 @@ This scaffold includes a comprehensive set of modern web development tools:
 ---
 
 Built with ❤️ for the developer community. Supercharged by [Z.ai](https://chat.z.ai) 🚀
+
+---
+
+## 📝 Deployment Notes
+
+- Last updated: April 5, 2026
+- Vercel deployment includes all ETA API routes
+- OAuth token management: `/api/eta/oauth/token`
+- Monitoring dashboard: ETA Settings > Monitoring tab
