@@ -416,17 +416,17 @@ export default function BranchManagement() {
               ) : (
                 <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
                   <div className="min-w-[800px] md:min-w-0">
-                  <Table>
+                  <Table className="w-full table-fixed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Branch Name</TableHead>
-                        <TableHead>License Key</TableHead>
-                        <TableHead>License Status</TableHead>
-                        <TableHead>Sync Status</TableHead>
-                        <TableHead>Last Sync</TableHead>
-                        <TableHead>Menu Version</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead className="w-[200px]">Branch Name</TableHead>
+                        <TableHead className="w-[200px]">License Key</TableHead>
+                        <TableHead className="w-[180px]">License Status</TableHead>
+                        <TableHead className="w-[120px]">Sync Status</TableHead>
+                        <TableHead className="w-[120px]">Last Sync</TableHead>
+                        <TableHead className="w-[100px]">Menu Version</TableHead>
+                        <TableHead className="w-[120px]">Status</TableHead>
+                        <TableHead className="w-[100px] text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -435,39 +435,39 @@ export default function BranchManagement() {
                         const licenseStatus = getLicenseStatus(branch);
                         return (
                           <TableRow key={branch.id}>
-                            <TableCell className="font-medium">{branch.branchName}</TableCell>
-                            <TableCell>
-                              <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded max-w-[150px] block truncate" title={branch.licenseKey}>
+                            <TableCell className="font-medium w-[200px]">{branch.branchName}</TableCell>
+                            <TableCell className="w-[200px]">
+                              <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded w-[200px] block truncate overflow-hidden text-ellipsis" title={branch.licenseKey}>
                                 {formatLicenseKey(branch.licenseKey)}
                               </code>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-[180px]">
                               <div className="flex items-center gap-2">
                                 <div className={`w-2 h-2 rounded-full ${licenseStatus.color}`} />
-                                <span className="text-sm">{licenseStatus.text}</span>
+                                <span className="text-sm truncate">{licenseStatus.text}</span>
                                 {licenseStatus.status === 'warning' && (
                                   <AlertTriangle className="h-4 w-4 text-amber-500" />
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-[120px]">
                               <div className="flex items-center gap-2">
                                 <div className={`w-2 h-2 rounded-full ${syncStatus.color}`} />
-                                <span className="text-sm capitalize">{syncStatus.status}</span>
+                                <span className="text-sm capitalize truncate">{syncStatus.status}</span>
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-[120px]">
                               {branch.lastSyncAt ? (
-                                <div className="flex items-center gap-1 text-sm">
-                                  <Clock className="h-3 w-3" />
+                                <div className="flex items-center gap-1 text-sm truncate">
+                                  <Clock className="h-3 w-3 flex-shrink-0" />
                                   {Math.floor((Date.now() - branch.lastSyncAt.getTime()) / 60000)}m ago
                                 </div>
                               ) : (
-                                <span className="text-sm text-slate-500">Never</span>
+                                <span className="text-sm text-slate-500 truncate">Never</span>
                               )}
                             </TableCell>
-                            <TableCell>v{branch.menuVersion}</TableCell>
-                            <TableCell>
+                            <TableCell className="w-[100px]">v{branch.menuVersion}</TableCell>
+                            <TableCell className="w-[120px]">
                               <div className="flex items-center gap-2">
                                 <Switch
                                   checked={branch.isActive}
@@ -478,7 +478,7 @@ export default function BranchManagement() {
                                 </Badge>
                               </div>
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="w-[100px] text-right">
                               <div className="flex justify-end gap-2">
                                 <Button variant="ghost" size="icon" onClick={() => handleEdit(branch)}>
                                   <Pencil className="h-4 w-4" />
