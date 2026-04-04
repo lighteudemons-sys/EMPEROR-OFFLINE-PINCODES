@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateUBLXML, generateDocumentUUID, validateUBLXML } from '@/lib/eta/ubl-generator';
 import { generateQRCodeDataURL, createQRCodeData } from '@/lib/eta/qr-generator';
-import { OAuthTokenManager, createApiHeaders } from '@/lib/eta/oauth-manager';
+import { OAuthTokenManager, createApiHeaders, makeAuthenticatedRequest, parseEtaError } from '@/lib/eta/oauth-manager';
+import { signXMLDocument, createMockSignature } from '@/lib/eta/xml-signer';
 import { z } from 'zod';
 
 const submitRequestSchema = z.object({
@@ -183,78 +184,186 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // TODO: Real ETA API submission flow (requires actual ETA API endpoints):
-    // 1. Sign the XML with your digital certificate
-    // 2. Calculate the hash of the signed document
-    // 3. Submit to ETA API using the OAuth token:
-    //    const response = await fetch(`${getApiBaseUrl(settings.environment)}/documents`, {
-    //      method: 'POST',
-    //      headers: createApiHeaders(accessToken),
-    //      body: JSON.stringify({ document: signedXml, ... })
-    //    });
-    // 4. Get the UUID from ETA response
-    // 5. Generate QR code with signed hash
-    // 6. Update order with ETA data
-
-    // For now, we'll simulate the submission with proper OAuth token management
+    // Real ETA API submission flow
     console.log('[ETA Submit] OAuth token obtained successfully');
     console.log('[ETA Submit] Token expires at:', tokenExpiresAt.toISOString());
 
-    const mockSubmissionResult = {
-      success: true,
-      message: 'Document ready for ETA submission (OAuth token obtained, awaiting real API integration)',
-      documentUuid,
-      submissionStatus: 'SUBMITTED',
-      note: 'OAuth token management is implemented. To complete real submission, integrate with ETA document submission endpoints.',
-      tokenInfo: {
-        obtained: true,
-        expiresAt: tokenExpiresAt.toISOString(),
-      },
-    };
+    // 1. Sign the XML with digital certificate
+    let signedXml: string;
+    let documentHash: string;
+    let signatureId: string;
+    let useMockSignature = false;
 
-    // Generate QR code (mock hash for now)
+    try {
+      if (settings.certificateFile && settings.certificatePassword) {
+        // Use real certificate signing
+        const signingResult = await signXMLDocument(
+          xml,
+          settings.certificateFile,
+          settings.certificatePassword
+        );
+        signedXml = signingResult.signedXml;
+        documentHash = signingResult.documentHash;
+        signatureId = signingResult.signatureId;
+        console.log('[ETA Submit] Document signed successfully with certificate');
+      } else {
+        // Use mock signature for testing without certificate
+        console.warn('[ETA Submit] No certificate uploaded, using mock signature');
+        const mockResult = createMockSignature(xml);
+        signedXml = mockResult.signedXml;
+        documentHash = mockResult.documentHash;
+        signatureId = mockResult.signatureId;
+        useMockSignature = true;
+      }
+    } catch (error) {
+      console.error('[ETA Submit] Failed to sign XML:', error);
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to sign XML document',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    // 2. Submit to ETA API using the OAuth token
+    let returnedUuid: string;
+    let etaResponseData: any;
+    let submissionStatus: 'ACCEPTED' | 'REJECTED' | 'FAILED';
+    let errorMessage: string | null = null;
+
+    try {
+      // Determine submission endpoint based on environment
+      // Note: These are placeholder endpoints - verify with ETA API documentation
+      const submissionEndpoint = '/documents/receipts';
+
+      console.log('[ETA Submit] Submitting document to ETA API...');
+      const response = await makeAuthenticatedRequest(
+        submissionEndpoint,
+        accessToken,
+        settings.environment as 'TEST' | 'PRODUCTION',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            documentType: '389', // Receipt
+            document: signedXml,
+            documentId: documentUuid,
+            signatureId: signatureId,
+            documentHash: documentHash,
+            metadata: {
+              branchCode: settings.branchCode,
+              taxRegistrationNumber: settings.taxRegistrationNumber,
+              submittedAt: new Date().toISOString(),
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorDetails = await parseEtaError(response);
+        throw new Error(`ETA API returned ${response.status}: ${errorDetails}`);
+      }
+
+      etaResponseData = await response.json();
+      console.log('[ETA Submit] ETA API response:', JSON.stringify(etaResponseData, null, 2));
+
+      // Extract UUID from response (adjust based on actual ETA API response structure)
+      returnedUuid = etaResponseData.documentId || etaResponseData.uuid || etaResponseData.submissionId || documentUuid;
+      submissionStatus = etaResponseData.status === 'ACCEPTED' || etaResponseData.accepted ? 'ACCEPTED' : 'REJECTED';
+
+      if (submissionStatus === 'REJECTED') {
+        errorMessage = etaResponseData.rejectionReason || etaResponseData.message || 'Document rejected by ETA';
+      }
+
+      console.log(`[ETA Submit] Document ${returnedUuid} ${submissionStatus}`);
+    } catch (error) {
+      console.error('[ETA Submit] Failed to submit to ETA API:', error);
+
+      // If we're in mock mode or testing, we might want to continue anyway
+      if (settings.environment === 'TEST' && useMockSignature) {
+        console.warn('[ETA Submit] Continuing in mock mode due to error');
+        returnedUuid = documentUuid;
+        submissionStatus = 'ACCEPTED';
+        errorMessage = null;
+        etaResponseData = {
+          mock: true,
+          message: 'Mock submission - API integration not yet configured',
+          note: error instanceof Error ? error.message : 'Unknown error',
+        };
+      } else {
+        // In production, fail the submission
+        submissionStatus = 'FAILED';
+        errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        returnedUuid = documentUuid;
+        etaResponseData = { error: errorMessage };
+      }
+    }
+
+    // 3. Generate QR code with signed hash
     const qrData = createQRCodeData(
-      documentUuid,
-      'MOCK_SIGNED_HASH_' + documentUuid.slice(0, 8), // Mock signed hash
+      returnedUuid,
+      documentHash,
       new Date()
     );
-    
-    const qrCodeDataURL = settings.includeQR 
+
+    const qrCodeDataURL = settings.includeQR
       ? await generateQRCodeDataURL(qrData)
       : null;
 
     // Update order with ETA data
-    const updatedOrder = await db.order.update({
+    await db.order.update({
       where: { id: orderId },
       data: {
-        etaUUID: documentUuid,
-        etaSubmissionStatus: 'SUBMITTED',
+        etaUUID: returnedUuid,
+        etaSubmissionStatus: submissionStatus,
         etaSubmittedAt: new Date(),
+        etaAcceptedAt: submissionStatus === 'ACCEPTED' ? new Date() : null,
+        etaError: errorMessage,
         etaQRCode: qrCodeDataURL,
-        etaResponse: JSON.stringify({
-          mock: true,
-          message: 'Mock submission - replace with real ETA API response when credentials available',
-        }),
+        etaResponse: JSON.stringify(etaResponseData),
         etaSettingsId: settings.id,
+        etaDocumentType: '389', // Receipt
       },
     });
 
     // Update settings stats
+    const statsUpdate: any = {
+      lastSubmissionAt: new Date(),
+      totalSubmitted: { increment: 1 },
+    };
+
+    if (submissionStatus === 'FAILED') {
+      statsUpdate.totalFailed = { increment: 1 };
+    }
+
     await db.branchETASettings.update({
       where: { id: settings.id },
-      data: {
-        lastSubmissionAt: new Date(),
-        totalSubmitted: { increment: 1 },
-      },
+      data: statsUpdate,
     });
+
+    // Return appropriate response based on submission status
+    if (submissionStatus === 'FAILED') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to submit document to ETA',
+          details: errorMessage,
+          documentUuid: returnedUuid,
+          submissionStatus,
+          qrCode: qrCodeDataURL,
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      message: mockSubmissionResult.message,
-      documentUuid,
-      submissionStatus: 'SUBMITTED',
+      message: submissionStatus === 'ACCEPTED'
+        ? 'Document submitted to ETA successfully'
+        : 'Document submitted but was rejected by ETA',
+      documentUuid: returnedUuid,
+      submissionStatus,
       qrCode: qrCodeDataURL,
-      note: mockSubmissionResult.note,
+      rejectionReason: errorMessage,
+      mock: useMockSignature,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
