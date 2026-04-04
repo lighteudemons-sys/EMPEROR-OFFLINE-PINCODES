@@ -138,19 +138,19 @@ export async function GET(request: NextRequest) {
           if (item.customVariantValue && item.customVariantValue > 0) {
             weight = item.customVariantValue;
             console.log('[Best Sellers Details] Using customVariantValue:', {
-              itemName: menuItem.name,
+              itemName: item.menuItem?.name,
               customVariantValue: item.customVariantValue,
               calculatedWeight: weight
             });
           } else {
             // Calculate weight from price
             // Weight (KG) = (Unit Price / Base Price per KG) * Quantity
-            // Base price per KG is menuItem.price
-            const basePricePerKG = menuItem.price;
+            // Base price per KG is item.menuItem.price
+            const basePricePerKG = item.menuItem?.price || 0;
             const unitPrice = item.unitPrice || (item.subtotal / item.quantity);
 
             console.log('[Best Sellers Details] Attempting weight calculation:', {
-              itemName: menuItem.name,
+              itemName: item.menuItem?.name,
               basePricePerKG,
               unitPrice,
               subtotal: item.subtotal,
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
               weight = multiplier * item.quantity;
 
               console.log('[Best Sellers Details] Calculated weight from price:', {
-                itemName: menuItem.name,
+                itemName: item.menuItem?.name,
                 basePricePerKG,
                 unitPrice,
                 quantity: item.quantity,
@@ -175,7 +175,7 @@ export async function GET(request: NextRequest) {
               });
             } else {
               console.log('[Best Sellers Details] Cannot calculate from price, trying variantName:', {
-                itemName: menuItem.name,
+                itemName: item.menuItem?.name,
                 basePricePerKG,
                 unitPrice
               });
