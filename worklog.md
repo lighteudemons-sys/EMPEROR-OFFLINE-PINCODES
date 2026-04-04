@@ -2751,3 +2751,26 @@ Stage Summary:
 - Summary stats accurately reflect filtered data
 - All changes committed and pushed (commit: fe0faf2)
 
+
+---
+Task ID: fix-weight-extraction-best-sellers
+Agent: zai-web-dev
+Task: Fix weight display for custom input items in Best Sellers order details
+
+Work Log:
+- Identified issue: Some weight-based items showed 'Qty: 1' instead of weight
+- Root cause: variantName format mismatch
+  - Order creation formats variantName as 'Size: 0.125x'
+  - Best Sellers API was looking for 'وزن: 0.125x' pattern
+- Updated isCustomInput detection to match both patterns
+- Added fallback weight extraction:
+  1. Try 'وزن: Xx' pattern (Arabic 'weight:')
+  2. Fallback to any ': Xx' pattern (e.g., 'Size: 0.125x')
+- Applied fix to both best-sellers and best-sellers/details APIs
+
+Stage Summary:
+- Weight-based items now correctly show weight in all order details
+- Works for both old orders (without customVariantValue) and new orders
+- All weight items display consistent format like '0.125 KG'
+- All changes committed and pushed (commit: b53667d)
+
