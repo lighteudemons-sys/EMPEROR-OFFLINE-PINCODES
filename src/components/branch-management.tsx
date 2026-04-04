@@ -400,6 +400,7 @@ export default function BranchManagement() {
                     </form>
                   </DialogContent>
                 </Dialog>
+                </div>
               </div>
             </CardContent>
           </Card>
