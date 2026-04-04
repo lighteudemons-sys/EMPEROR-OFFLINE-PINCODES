@@ -103,7 +103,7 @@ echo ========================================
 
 echo.
 echo [1/7] Checking disk space...
-for /f "skip=1 tokens=3" %%a in ('wmic logicaldisk where "name='C:'" get freespace 2^>nul') do (
+for /f "skip=1 tokens=3" %%a in ('wmic logicaldisk where "name='C:'" get freespace') do (
     set FREE_BYTES=%%a
     if defined FREE_BYTES (
         set /a FREE_MB=!FREE_BYTES! / 1048576
@@ -335,7 +335,7 @@ if %ROBOCOPY_EXIT% LEQ 7 (
 )
 
 REM Get backup size
-for /f "tokens=3" %%a in ('dir "%APP_BACKUP_DIR%" /s /-c 2^>nul ^| find "File(s)"') do set APP_SIZE=%%a
+for /f "tokens=3" %%a in ('dir "%APP_BACKUP_DIR%" /s /-c ^| find "File(s)"') do set APP_SIZE=%%a
 if defined APP_SIZE (
     set /a APP_MB=!APP_SIZE! / 1048576
     set /a APP_REM=!APP_SIZE! %% 1048576
