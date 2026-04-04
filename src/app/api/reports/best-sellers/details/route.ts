@@ -124,7 +124,10 @@ export async function GET(request: NextRequest) {
         // Check category filter
         if (category && category !== 'all' && item.menuItem?.category !== category) return;
 
-        const isCustomInput = item.variantName?.includes('وزن:') || false;
+        // Check if this is a weight-based item (custom input)
+        // Primary indicator: customVariantValue exists and is > 0
+        // Fallback: variantName contains "وزن:"
+        const isCustomInput = (item.customVariantValue && item.customVariantValue > 0) || item.variantName?.includes('وزن:') || false;
 
         // Calculate weight for custom input items
         let weight = 0;

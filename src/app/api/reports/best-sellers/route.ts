@@ -93,7 +93,10 @@ export async function GET(request: NextRequest) {
         if (!menuItem) return;
 
         const key = menuItem.id;
-        const isCustomInput = item.variantName?.includes('وزن:') || false;
+        // Check if this is a weight-based item (custom input)
+        // Primary indicator: customVariantValue exists and is > 0
+        // Fallback: variantName contains "وزن:"
+        const isCustomInput = (item.customVariantValue && item.customVariantValue > 0) || item.variantName?.includes('وزن:') || false;
 
         if (!productStats.has(key)) {
           productStats.set(key, {
