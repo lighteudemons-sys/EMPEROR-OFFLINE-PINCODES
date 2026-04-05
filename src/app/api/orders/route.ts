@@ -588,11 +588,6 @@ export async function POST(request: NextRequest) {
     const orderDetails = `Order #${order.order.orderNumber}, Total: ${totalAmount}, Payment: ${paymentMethod}`;
     await logOrderCreated(cashierId, order.order.id, orderDetails);
 
-    // Log promo code usage if applicable
-    if (promoCodeId && promoDiscount > 0) {
-      await logPromoCodeApplied(cashierId, promoCodeId, promoCode || '', promoDiscount);
-    }
-
     // Update table status to OCCUPIED when a dine-in order is created with a tableId
     if (tableId && orderType === 'dine-in') {
       try {
