@@ -846,7 +846,10 @@ export default function PromoCodesManagement() {
   const canProceedToNextStep = () => {
     switch (wizardStep) {
       case 1:
-        return formData.name.trim() !== '' && formData.discountType !== '';
+        if (formData.name.trim() === '' || formData.discountType === '') return false;
+        // For category-based discounts, require at least one category
+        if (formData.discountType.includes('CATEGORY') && formData.categoryIds.length === 0) return false;
+        return true;
       case 2:
         return formData.startDate !== '' && formData.endDate !== '';
       case 3:
@@ -1689,24 +1692,49 @@ export default function PromoCodesManagement() {
                       {formData.discountType.includes('PERCENTAGE') ? 'Enter percentage (e.g., 10 for 10%)' : 'Enter amount in EGP'}
                     </p>
                   </div>
-                  {(formData.discountType.includes('CATEGORY') || formData.categoryIds.length > 0) && (
+                  {formData.discountType.includes('CATEGORY') && (
                     <div className="space-y-2">
-                      <Label>Category</Label>
-                      <Select
-                        value={formData.categoryId}
-                        onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label>Categories *</Label>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setFormData({ ...formData, categoryIds: categories.map(c => c.id) })}
+                          >
+                            All
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setFormData({ ...formData, categoryIds: [] })}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto border rounded-md p-2">
+                        <div className="grid gap-2 md:grid-cols-2">
                           {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </SelectItem>
+                            <label key={cat.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer">
+                              <Checkbox
+                                checked={formData.categoryIds.includes(cat.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setFormData({ ...formData, categoryIds: [...formData.categoryIds, cat.id] });
+                                  } else {
+                                    setFormData({ ...formData, categoryIds: formData.categoryIds.filter((id) => id !== cat.id) });
+                                  }
+                                }}
+                              />
+                              <span className="text-sm">{cat.name}</span>
+                            </label>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </div>
+                      </div>
+                      {formData.categoryIds.length === 0 && (
+                        <p className="text-xs text-amber-600">⚠️ Please select at least one category</p>
+                      )}
                     </div>
                   )}
                 </div>
