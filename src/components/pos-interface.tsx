@@ -2833,6 +2833,74 @@ export default function POSInterface() {
     setPromoMessage('');
   };
 
+  // Auto-revalidate promo code when cart changes (critical for BOGO)
+  useEffect(() => {
+    const revalidatePromoCode = async () => {
+      // Only revalidate if a promo code is already applied
+      if (!promoCodeId || !promoCode.trim()) {
+        return;
+      }
+
+      // Use current cart (table cart for dine-in, regular cart otherwise)
+      const currentCart = (orderType === 'dine-in' && selectedTable) ? tableCart : cart;
+
+      // Don't revalidate if cart is empty
+      if (currentCart.length === 0) {
+        setPromoCodeId('');
+        setPromoDiscount(0);
+        setPromoMessage('Cart is empty - promo code removed');
+        return;
+      }
+
+      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+      if (!branchId) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/promo-codes/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: promoCode.trim(),
+            branchId,
+            customerId: selectedAddress?.customerId || undefined,
+            orderSubtotal: currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0),
+            orderItems: currentCart.map(item => {
+              const menuItem = menuItems.find(m => m.id === item.menuItemId);
+              return {
+                menuItemId: item.menuItemId,
+                categoryId: menuItem?.categoryId || null,
+                price: item.price,
+                quantity: item.quantity,
+              };
+            }),
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.valid) {
+          // Update discount amount based on new cart
+          setPromoDiscount(data.promo.discountAmount);
+          setPromoMessage(data.promo.message);
+        } else {
+          // Promo no longer valid (e.g., BOGO requirements not met)
+          setPromoCodeId('');
+          setPromoDiscount(0);
+          setPromoMessage(data.error || 'Promo code no longer valid');
+        }
+      } catch (error) {
+        console.error('Error revalidating promo code:', error);
+        // Don't show error to user on cart change, just keep existing state
+      }
+    };
+
+    // Add a small delay to avoid excessive API calls during rapid cart changes
+    const debounceTimer = setTimeout(revalidatePromoCode, 500);
+    return () => clearTimeout(debounceTimer);
+  }, [cart, tableCart, selectedTable, orderType, promoCodeId, promoCode, user, selectedBranch, selectedAddress, menuItems]);
+
   // Manual discount handlers
   const handleManualDiscountPercentChange = (percent: number) => {
     if (percent < 0 || percent > 100) return;
