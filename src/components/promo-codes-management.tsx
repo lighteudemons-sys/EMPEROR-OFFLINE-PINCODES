@@ -233,6 +233,15 @@ export default function PromoCodesManagement() {
   const [selectedPromotions, setSelectedPromotions] = useState<string[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
 
+  // Code edit dialog state
+  const [editingCode, setEditingCode] = useState<PromoCode | null>(null);
+  const [codeDialogOpen, setCodeDialogOpen] = useState(false);
+  const [codeFormData, setCodeFormData] = useState({
+    code: '',
+    isActive: true,
+    maxUses: null as number | null,
+  });
+
   // Form state
   const [formData, setFormData] = useState<formData>({
     name: '',
@@ -667,6 +676,90 @@ export default function PromoCodesManagement() {
 
   const handleExportPDF = async (promotionId?: string, campaignName?: string) => {
     showToast('error', 'PDF export not implemented - use CSV or JSON');
+  };
+
+  // Code edit handlers
+  const handleEditCode = (code: PromoCode & { promotionName?: string; promotion: any }) => {
+    setEditingCode(code);
+    setCodeFormData({
+      code: code.code,
+      isActive: code.isActive,
+      maxUses: code.maxUses,
+    });
+    setCodeDialogOpen(true);
+  };
+
+  const handleSaveCode = async () => {
+    if (!editingCode) return;
+
+    try {
+      const response = await fetch(`/api/promo-codes/${editingCode.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(codeFormData),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('success', 'Code updated successfully');
+        setCodeDialogOpen(false);
+        fetchCodes(); // Refresh the codes list
+      } else {
+        showToast('error', data.error || 'Failed to update code');
+      }
+    } catch (error) {
+      console.error('Error updating code:', error);
+      showToast('error', 'Failed to update code');
+    }
+  };
+
+  const handleDeleteCode = async (codeId: string) => {
+    if (!confirm('Are you sure you want to delete this promo code?')) return;
+
+    try {
+      const response = await fetch(`/api/promo-codes/${codeId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('success', 'Code deleted successfully');
+        fetchCodes(); // Refresh the codes list
+      } else {
+        showToast('error', data.error || 'Failed to delete code');
+      }
+    } catch (error) {
+      console.error('Error deleting code:', error);
+      showToast('error', 'Failed to delete code');
+    }
+  };
+
+  const handleToggleCodeActive = async (code: PromoCode & { promotionName?: string; promotion: any }) => {
+    try {
+      const response = await fetch(`/api/promo-codes/${code.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: code.code,
+          isActive: !code.isActive,
+          maxUses: code.maxUses,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('success', `Code ${code.isActive ? 'deactivated' : 'activated'}`);
+        fetchCodes();
+      } else {
+        showToast('error', data.error || 'Failed to update code');
+      }
+    } catch (error) {
+      console.error('Error updating code:', error);
+      showToast('error', 'Failed to update code');
+    }
   };
 
   const resetForm = () => {
@@ -1621,9 +1714,35 @@ export default function PromoCodesManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => handleToggleCodeActive(code)}
+                          title={code.isActive ? 'Deactivate' : 'Activate'}
+                        >
+                          {code.isActive ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => copyToClipboard(code.code)}
+                          title="Copy code"
                         >
                           <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditCode(code)}
+                          title="Edit code"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteCode(code.id)}
+                          title="Delete code"
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -2322,6 +2441,51 @@ export default function PromoCodesManagement() {
                 {editingPromotion ? 'Update' : 'Create'} Promotion
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Code Edit Dialog */}
+      <Dialog open={codeDialogOpen} onOpenChange={setCodeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Promo Code</DialogTitle>
+            <DialogDescription>Update the settings for this promo code</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Code</Label>
+              <Input
+                value={codeFormData.code}
+                onChange={(e) => setCodeFormData({ ...codeFormData, code: e.target.value.toUpperCase() })}
+                placeholder="PROMO123"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Max Uses (Optional)</Label>
+              <Input
+                type="number"
+                min="1"
+                placeholder="Unlimited"
+                value={codeFormData.maxUses || ''}
+                onChange={(e) => setCodeFormData({ ...codeFormData, maxUses: e.target.value ? parseInt(e.target.value) : null })}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={codeFormData.isActive}
+                onCheckedChange={(checked) => setCodeFormData({ ...codeFormData, isActive: checked })}
+              />
+              <Label>Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCodeDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveCode}>
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
