@@ -102,6 +102,12 @@ export function ETAMonitoringDashboard() {
           const tokenStatusesData: Record<string, TokenStatus> = {};
 
           for (const branch of data.branches) {
+            // Only include branches that have ETA settings configured
+            if (!branch.hasSettings) {
+              console.log(`Branch ${branch.id} (${branch.name}) has no ETA settings configured, skipping`);
+              continue;
+            }
+
             settingsData.push({
               id: branch.id,
               branchId: branch.id,
@@ -113,7 +119,7 @@ export function ETAMonitoringDashboard() {
               lastSubmissionAt: branch.lastSubmission?.etaSubmittedAt || null,
               totalSubmitted: branch.totalSubmissions,
               totalFailed: branch.stats.failed,
-              accessToken: null, // Would need to fetch from settings
+              accessToken: null,
               accessTokenExpiresAt: null,
               lastTokenRefreshAt: null,
               tokenRefreshCount: 0,
@@ -126,7 +132,7 @@ export function ETAMonitoringDashboard() {
               address: branch.location,
             };
 
-            // Load token status for each branch
+            // Load token status only for configured branches
             try {
               const tokenResponse = await fetch(
                 `/api/eta/oauth/token?branchId=${branch.id}`
@@ -134,9 +140,28 @@ export function ETAMonitoringDashboard() {
               if (tokenResponse.ok) {
                 const tokenData = await tokenResponse.json();
                 tokenStatusesData[branch.id] = tokenData;
+              } else if (tokenResponse.status === 404) {
+                // ETA settings exist but no token yet
+                console.log(`Branch ${branch.id} has ETA settings but no OAuth token yet`);
+                tokenStatusesData[branch.id] = {
+                  hasToken: false,
+                  tokenStatus: {
+                    isValid: false,
+                    isExpired: false,
+                    willExpireSoon: false,
+                    expiresIn: null,
+                    expiresInFormatted: null,
+                    message: 'No token yet - credentials not configured',
+                  },
+                  tokenInfo: {
+                    lastRefreshed: null,
+                    refreshCount: 0,
+                  },
+                };
               }
             } catch (error) {
               console.error(`Failed to load token status for branch ${branch.id}:`, error);
+              // Don't add anything - will show as unknown
             }
           }
 
@@ -154,6 +179,26 @@ export function ETAMonitoringDashboard() {
             if (tokenResponse.ok) {
               const tokenData = await tokenResponse.json();
               setTokenStatuses({ [user.branchId]: tokenData });
+            } else if (tokenResponse.status === 404) {
+              // ETA settings exist but no token yet
+              console.log(`Branch ${user.branchId} has ETA settings but no OAuth token yet`);
+              setTokenStatuses({
+                [user.branchId]: {
+                  hasToken: false,
+                  tokenStatus: {
+                    isValid: false,
+                    isExpired: false,
+                    willExpireSoon: false,
+                    expiresIn: null,
+                    expiresInFormatted: null,
+                    message: 'No token yet - credentials not configured',
+                  },
+                  tokenInfo: {
+                    lastRefreshed: null,
+                    refreshCount: 0,
+                  },
+                },
+              });
             }
           } catch (error) {
             console.error('Failed to load token status:', error);
@@ -408,7 +453,10 @@ export function ETAMonitoringDashboard() {
                               </Badge>
                             )
                           ) : (
-                            <Badge variant="outline">Unknown</Badge>
+                            <Badge variant="outline">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Not Configured
+                            </Badge>
                           )}
                         </TableCell>
                         <TableCell>
@@ -447,8 +495,31 @@ export function ETAMonitoringDashboard() {
                   })}
                   {settings.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-slate-600">
-                        No ETA settings configured
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2">
+                          <Server className="h-12 w-12 text-slate-400" />
+                          <p className="text-slate-600 font-medium">No ETA settings configured</p>
+                          <p className="text-slate-500 text-sm max-w-md">
+                            Go to the Settings tab to configure ETA credentials for your branch.
+                            You'll need your Client ID and Client Secret from the Egyptian Tax Authority portal.
+                          </p>
+                          {user?.branchId ? (
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                // Trigger tab change to settings
+                                const settingsTab = document.querySelector('[value="settings"]') as HTMLElement;
+                                settingsTab?.click();
+                              }}
+                            >
+                              Go to Settings
+                            </Button>
+                          ) : (
+                            <p className="text-xs text-slate-400">
+                              Contact your branch administrator to configure ETA settings.
+                            </p>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )}
@@ -535,8 +606,14 @@ export function ETAMonitoringDashboard() {
                   })}
                   {settings.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-slate-600">
-                        No ETA settings configured
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2">
+                          <FileText className="h-12 w-12 text-slate-400" />
+                          <p className="text-slate-600 font-medium">No submission data</p>
+                          <p className="text-slate-500 text-sm max-w-md">
+                            Configure ETA settings and start submitting invoices to see submission statistics here.
+                          </p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )}
@@ -601,8 +678,15 @@ export function ETAMonitoringDashboard() {
                   })}
                   {settings.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-slate-600">
-                        No ETA settings configured
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2">
+                          <Server className="h-12 w-12 text-slate-400" />
+                          <p className="text-slate-600 font-medium">No ETA settings configured</p>
+                          <p className="text-slate-500 text-sm max-w-md">
+                            Go to the Settings tab to configure ETA credentials for your branch.
+                            You'll need your Client ID and Client Secret from the Egyptian Tax Authority portal.
+                          </p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )}
