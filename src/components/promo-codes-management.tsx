@@ -76,6 +76,19 @@ interface MenuItem {
   name: string;
   price: number;
   categoryId: string | null;
+  variants?: Array<{
+    id: string;
+    priceModifier: number;
+    variantType: {
+      id: string;
+      name: string;
+      isCustomInput: boolean;
+    };
+    variantOption: {
+      id: string;
+      name: string;
+    };
+  }>;
 }
 
 interface Branch {
@@ -351,7 +364,7 @@ export default function PromoCodesManagement() {
       }
 
       // Fetch menu items for BOGO
-      const menuRes = await fetch('/api/menu-items');
+      const menuRes = await fetch('/api/menu-items?includeVariants=true');
       const menuData = await menuRes.json();
       if (menuData.menuItems) {
         setMenuItems(menuData.menuItems);
@@ -999,6 +1012,15 @@ export default function PromoCodesManagement() {
       startDate: startDate.toISOString().split('T')[0],
       endDate: endDate.toISOString().split('T')[0],
     });
+  };
+
+  // Helper function to format menu item display with variants
+  const formatMenuItemDisplay = (item: MenuItem) => {
+    if (item.variants && item.variants.length > 0) {
+      const variantList = item.variants.map(v => `${v.variantType.name}: ${v.variantOption.name}`).join(', ');
+      return `${item.name} (${variantList})`;
+    }
+    return `${item.name} - ${item.price} EGP`;
   };
 
   // Bulk Actions Handlers
@@ -2152,7 +2174,7 @@ export default function PromoCodesManagement() {
                             <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Products</div>
                             {menuItems.map((item) => (
                               <SelectItem key={item.id} value={`product-${item.id}`}>
-                                {item.name} - {item.price} EGP
+                                {formatMenuItemDisplay(item)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -2188,7 +2210,7 @@ export default function PromoCodesManagement() {
                             <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Products</div>
                             {menuItems.map((item) => (
                               <SelectItem key={item.id} value={`product-${item.id}`}>
-                                {item.name} - {item.price} EGP
+                                {formatMenuItemDisplay(item)}
                               </SelectItem>
                             ))}
                           </SelectContent>
