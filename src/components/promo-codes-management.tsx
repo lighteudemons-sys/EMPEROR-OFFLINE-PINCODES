@@ -402,6 +402,17 @@ export default function PromoCodesManagement() {
 
   // Quick Stats Calculations
   const stats = useMemo(() => {
+    if (!promotions || !Array.isArray(promotions)) {
+      return {
+        activePromotions: 0,
+        totalPromotions: 0,
+        totalCodes: 0,
+        totalUsage: 0,
+        successRate: 0,
+        totalMaxUses: 0,
+      };
+    }
+
     const activePromos = promotions.filter(p => p.isActive);
     const totalCodes = promotions.reduce((sum, p) => sum + (p._count?.codes || 0), 0);
     const totalUsage = promotions.reduce((sum, p) => sum + (p._count?.usageLogs || 0), 0);
@@ -420,14 +431,18 @@ export default function PromoCodesManagement() {
 
   // Filtered and Sorted Promotions
   const filteredPromotions = useMemo(() => {
+    if (!promotions || !Array.isArray(promotions)) {
+      return [];
+    }
+
     let filtered = [...promotions];
 
     // Search filter (search through promotion name and description only)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(p =>
-        p.name.toLowerCase().includes(query) ||
-        p.description?.toLowerCase().includes(query)
+        (p.name || '').toLowerCase().includes(query) ||
+        (p.description || '').toLowerCase().includes(query)
       );
     }
 
@@ -447,13 +462,13 @@ export default function PromoCodesManagement() {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'name':
-          return a.name.localeCompare(b.name);
+          return (a.name || '').localeCompare(b.name || '');
         case 'created':
-          return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+          return new Date(b.startDate || Date.now()).getTime() - new Date(a.startDate || Date.now()).getTime();
         case 'usage':
           return (b._count?.usageLogs || 0) - (a._count?.usageLogs || 0);
         case 'endDate':
-          return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
+          return new Date(a.endDate || Date.now()).getTime() - new Date(b.endDate || Date.now()).getTime();
         default:
           return 0;
       }
@@ -464,14 +479,18 @@ export default function PromoCodesManagement() {
 
   // Filtered Codes (for All Codes tab)
   const filteredCodes = useMemo(() => {
+    if (!allCodes || !Array.isArray(allCodes)) {
+      return [];
+    }
+
     let codes = [...allCodes];
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       codes = codes.filter(c =>
-        c.code.toLowerCase().includes(query) ||
-        c.campaignName?.toLowerCase().includes(query) ||
-        c.promotionName?.toLowerCase().includes(query)
+        (c.code || '').toLowerCase().includes(query) ||
+        (c.campaignName || '').toLowerCase().includes(query) ||
+        (c.promotionName || '').toLowerCase().includes(query)
       );
     }
 
@@ -488,7 +507,8 @@ export default function PromoCodesManagement() {
   useEffect(() => {
     const validation: { [key: number]: { isValid: boolean; message: string } } = {};
 
-    formData.codes.forEach((codeObj, index) => {
+    const codes = formData?.codes || [];
+    codes.forEach((codeObj, index) => {
       const code = (codeObj?.code || '').trim().toUpperCase();
 
       if (!code) {
@@ -499,7 +519,7 @@ export default function PromoCodesManagement() {
         validation[index] = { isValid: false, message: 'Only letters, numbers, hyphens, and underscores allowed' };
       } else {
         // Check for duplicates within the current form
-        const isDuplicate = formData.codes.some((c, i) => i !== index && (c?.code || '').trim().toUpperCase() === code);
+        const isDuplicate = codes.some((c, i) => i !== index && (c?.code || '').trim().toUpperCase() === code);
 
         if (isDuplicate) {
           validation[index] = { isValid: false, message: 'Duplicate code in this promotion' };
@@ -511,7 +531,7 @@ export default function PromoCodesManagement() {
 
     setCodeValidation(validation);
     setSimilarCodes([]); // Remove similar codes check for now
-  }, [formData.codes]);
+  }, [formData?.codes]);
 
   const levenshteinDistance = (str1: string, str2: string): number => {
     const matrix: number[][] = [];
@@ -1102,6 +1122,20 @@ export default function PromoCodesManagement() {
 
   // Reports Tab Data
   const reportsData = useMemo(() => {
+    if (!promotions || !Array.isArray(promotions)) {
+      return {
+        usageByPromotion: [],
+        usageByType: {
+          PERCENTAGE: 0,
+          FIXED_AMOUNT: 0,
+          CATEGORY_PERCENTAGE: 0,
+          CATEGORY_FIXED: 0,
+          BUY_X_GET_Y_FREE: 0,
+        },
+        totalRevenueImpact: 0,
+      };
+    }
+
     const usageByPromotion = promotions.map(p => {
       let discountDisplay = '';
       const discountType = p.discountType || 'PERCENTAGE';
