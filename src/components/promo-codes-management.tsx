@@ -489,7 +489,7 @@ export default function PromoCodesManagement() {
     const validation: { [key: number]: { isValid: boolean; message: string } } = {};
 
     formData.codes.forEach((codeObj, index) => {
-      const code = codeObj.code.trim().toUpperCase();
+      const code = (codeObj?.code || '').trim().toUpperCase();
 
       if (!code) {
         validation[index] = { isValid: false, message: 'Code is required' };
@@ -499,7 +499,7 @@ export default function PromoCodesManagement() {
         validation[index] = { isValid: false, message: 'Only letters, numbers, hyphens, and underscores allowed' };
       } else {
         // Check for duplicates within the current form
-        const isDuplicate = formData.codes.some((c, i) => i !== index && c.code.trim().toUpperCase() === code);
+        const isDuplicate = formData.codes.some((c, i) => i !== index && (c?.code || '').trim().toUpperCase() === code);
 
         if (isDuplicate) {
           validation[index] = { isValid: false, message: 'Duplicate code in this promotion' };
@@ -1104,14 +1104,15 @@ export default function PromoCodesManagement() {
   const reportsData = useMemo(() => {
     const usageByPromotion = promotions.map(p => {
       let discountDisplay = '';
-      if (p.discountType === 'BUY_X_GET_Y_FREE') {
-        discountDisplay = `Buy ${p.buyQuantity} Get ${p.getQuantity} Free`;
+      const discountType = p.discountType || 'PERCENTAGE';
+      if (discountType === 'BUY_X_GET_Y_FREE') {
+        discountDisplay = `Buy ${p.buyQuantity || 'X'} Get ${p.getQuantity || 'Y'} Free`;
       } else {
-        discountDisplay = `${p.discountValue}${p.discountType.includes('PERCENTAGE') ? '%' : ' EGP'}`;
+        discountDisplay = `${p.discountValue}${discountType.includes('PERCENTAGE') ? '%' : ' EGP'}`;
       }
 
       return {
-        name: p.name,
+        name: p.name || 'Unknown',
         usage: p._count?.usageLogs || 0,
         codes: p._count?.codes || 0,
         discount: discountDisplay,
@@ -1128,11 +1129,12 @@ export default function PromoCodesManagement() {
 
     const totalRevenueImpact = promotions.reduce((sum, p) => {
       const avgOrder = 100; // Estimated average
-      if (p.discountType === 'BUY_X_GET_Y_FREE') {
+      const discountType = p.discountType || 'PERCENTAGE';
+      if (discountType === 'BUY_X_GET_Y_FREE') {
         // For BOGO, estimate based on get quantity * avg price * usage
         return sum + ((p._count?.usageLogs || 0) * (p.getQuantity || 0) * avgOrder);
       }
-      return sum + ((p._count?.usageLogs || 0) * avgOrder * (p.discountType.includes('PERCENTAGE') ? p.discountValue / 100 : p.discountValue / avgOrder));
+      return sum + ((p._count?.usageLogs || 0) * avgOrder * (discountType.includes('PERCENTAGE') ? p.discountValue / 100 : p.discountValue / avgOrder));
     }, 0);
 
     return {
@@ -1405,12 +1407,12 @@ export default function PromoCodesManagement() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600 dark:text-slate-400">Discount</span>
                     <span className="font-semibold">
-                      {promo.discountType.includes('PERCENTAGE') ? `${promo.discountValue}%` : `${promo.discountValue} EGP`}
+                      {(promo.discountType || '').includes('PERCENTAGE') ? `${promo.discountValue}%` : `${promo.discountValue} EGP`}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600 dark:text-slate-400">Type</span>
-                    <span className="text-sm font-medium">{getDiscountTypeLabel(promo.discountType)}</span>
+                    <span className="text-sm font-medium">{getDiscountTypeLabel(promo.discountType || 'PERCENTAGE')}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600 dark:text-slate-400">Usage</span>
@@ -1420,11 +1422,11 @@ export default function PromoCodesManagement() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600 dark:text-slate-400">Codes</span>
-                    <span className="text-sm font-medium">{promo.codes.length}</span>
+                    <span className="text-sm font-medium">{promo.codes?.length || 0}</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     <Calendar className="h-3 w-3" />
-                    {new Date(promo.startDate).toLocaleDateString()} - {new Date(promo.endDate).toLocaleDateString()}
+                    {new Date(promo.startDate || Date.now()).toLocaleDateString()} - {new Date(promo.endDate || Date.now()).toLocaleDateString()}
                   </div>
                   <Separator />
                   <div className="flex gap-1 flex-wrap">
@@ -1444,11 +1446,11 @@ export default function PromoCodesManagement() {
                     >
                       {promo.isActive ? <Pause className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
                     </Button>
-                    {promo.codes.length === 1 && (
+                    {(promo.codes?.length || 0) === 1 && promo.codes?.[0] && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => copyToClipboard(promo.codes[0].code)}
+                        onClick={() => copyToClipboard(promo.codes[0].code || '')}
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
