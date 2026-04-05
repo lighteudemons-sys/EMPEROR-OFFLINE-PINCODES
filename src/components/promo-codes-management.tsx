@@ -329,7 +329,7 @@ export default function PromoCodesManagement() {
       // Fetch promotions with pagination
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: promotionsPagination.limit.toString(),
+        limit: (promotionsPagination?.limit || 50).toString(),
       });
 
       const promosRes = await fetch(`/api/promotions?${params.toString()}`);
@@ -624,7 +624,7 @@ export default function PromoCodesManagement() {
       if (data.success) {
         showToast('success', `Promotion ${promotion.isActive ? 'paused' : 'activated'}`);
         // Refresh without resetting pagination
-        fetchData(promotionsPagination.page, false);
+        fetchData(promotionsPagination?.page || 1, false);
       } else {
         showToast('error', data.error || 'Failed to update promotion');
       }
@@ -654,7 +654,7 @@ export default function PromoCodesManagement() {
         } else {
           setGeneratedCodes(data.codes);
           showToast('success', `Generated ${data.codes.length} promo codes`);
-          fetchData();
+          fetchData(1, false);
         }
       } else {
         showToast('error', data.error || 'Failed to generate vouchers');
@@ -993,7 +993,7 @@ export default function PromoCodesManagement() {
       showToast('success', `Activated ${selectedPromotions.length} promotions`);
       setSelectedPromotions([]);
       // Refresh without resetting pagination
-      fetchData(promotionsPagination.page, false);
+      fetchData(promotionsPagination?.page || 1, false);
     } catch (error) {
       showToast('error', 'Failed to activate promotions');
     }
@@ -1013,7 +1013,7 @@ export default function PromoCodesManagement() {
       showToast('success', `Deactivated ${selectedPromotions.length} promotions`);
       setSelectedPromotions([]);
       // Refresh without resetting pagination
-      fetchData(promotionsPagination.page, false);
+      fetchData(promotionsPagination?.page || 1, false);
     } catch (error) {
       showToast('error', 'Failed to deactivate promotions');
     }
@@ -1498,12 +1498,12 @@ export default function PromoCodesManagement() {
           </div>
 
           {/* Load More Button for Pagination */}
-          {promotionsPagination.hasMore && (
+          {promotionsPagination?.hasMore && (
             <div className="flex justify-center mt-6">
               <Button
                 variant="outline"
                 onClick={() => {
-                  const nextPage = promotionsPagination.page + 1;
+                  const nextPage = (promotionsPagination?.page || 0) + 1;
                   fetchData(nextPage, true);
                 }}
                 disabled={loadingMorePromotions}
@@ -1517,7 +1517,7 @@ export default function PromoCodesManagement() {
                 ) : (
                   <>
                     <ChevronRight className="h-4 w-4" />
-                    Load More ({promotionsPagination.total - promotions.length} remaining)
+                    Load More ({(promotionsPagination?.total || 0) - promotions.length} remaining)
                   </>
                 )}
               </Button>
