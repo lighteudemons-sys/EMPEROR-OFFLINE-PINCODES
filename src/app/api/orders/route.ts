@@ -608,6 +608,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Log promo code usage if applicable
+    let promoCodeString = null;
     if (promoCodeId && promoDiscount && promoDiscount > 0) {
       console.log('[Order] Processing promo code:', { promoCodeId, promoDiscount });
       try {
@@ -619,6 +620,7 @@ export async function POST(request: NextRequest) {
 
         if (promoCode) {
           console.log('[Order] Found promo code:', promoCode.code);
+          promoCodeString = promoCode.code; // Store for response
 
           // Create usage log
           await db.promotionUsageLog.create({
@@ -840,6 +842,7 @@ export async function POST(request: NextRequest) {
         loyaltyPointsRedeemed: loyaltyPointsRedeemed || null,
         loyaltyDiscount: loyaltyDiscount || null,
         promoCodeId: promoCodeId || null,
+        promoCode: promoCodeString,
         promoDiscount: promoDiscount || null,
         manualDiscountPercent: responseOrder.manualDiscountPercent,
         manualDiscountAmount: responseOrder.manualDiscountAmount,
