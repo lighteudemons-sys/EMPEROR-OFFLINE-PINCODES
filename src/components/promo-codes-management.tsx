@@ -28,7 +28,7 @@ interface Promotion {
   id: string;
   name: string;
   description: string | null;
-  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED';
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED' | 'BUY_X_GET_Y_FREE';
   discountValue: number;
   categoryId: string | null;
   maxUses: number | null;
@@ -39,6 +39,14 @@ interface Promotion {
   allowStacking: boolean;
   minOrderAmount: number | null;
   maxDiscountAmount: number | null;
+  // BOGO fields
+  buyQuantity: number | null;
+  getQuantity: number | null;
+  buyProductId: string | null;
+  buyCategoryId: string | null;
+  getProductId: string | null;
+  getCategoryId: string | null;
+  applyToCheapest: boolean;
   codes: PromoCode[];
   branchRestrictions: any[];
   categoryRestrictions: any[];
@@ -63,6 +71,13 @@ interface Category {
   name: string;
 }
 
+interface MenuItem {
+  id: string;
+  name: string;
+  price: number;
+  categoryId: string | null;
+}
+
 interface Branch {
   id: string;
   branchName: string;
@@ -72,12 +87,12 @@ interface PromotionTemplate {
   id: string;
   name: string;
   description: string;
-  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED';
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED' | 'BUY_X_GET_Y_FREE';
   discountValue: number;
   settings: Partial<{
     name: string;
     description: string;
-    discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED';
+    discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED' | 'BUY_X_GET_Y_FREE';
     discountValue: number;
     categoryId: string;
     maxUses: number | null;
@@ -88,6 +103,12 @@ interface PromotionTemplate {
     allowStacking: boolean;
     minOrderAmount: number | null;
     maxDiscountAmount: number | null;
+    // BOGO fields
+    buyQuantity: number;
+    getQuantity: number;
+    buyCategoryId: string | null;
+    getCategoryId: string | null;
+    applyToCheapest: boolean;
     branchIds: string[];
     categoryIds: string[];
     codes: { code: string; isSingleUse: boolean; maxUses: number | null }[];
@@ -175,7 +196,7 @@ const PROMOTION_TEMPLATES: PromotionTemplate[] = [
 interface formData {
   name: string;
   description: string;
-  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED';
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED' | 'BUY_X_GET_Y_FREE';
   discountValue: number;
   categoryId: string;
   maxUses: number | null;
@@ -186,6 +207,14 @@ interface formData {
   allowStacking: boolean;
   minOrderAmount: number | null;
   maxDiscountAmount: number | null;
+  // BOGO fields
+  buyQuantity: number | null;
+  getQuantity: number | null;
+  buyProductId: string | null;
+  buyCategoryId: string | null;
+  getProductId: string | null;
+  getCategoryId: string | null;
+  applyToCheapest: boolean;
   branchIds: string[];
   categoryIds: string[];
   codes: { code: string; isSingleUse: boolean; maxUses: number | null }[];
@@ -194,6 +223,7 @@ interface formData {
 export default function PromoCodesManagement() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -204,7 +234,7 @@ export default function PromoCodesManagement() {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
-  const [filterType, setFilterType] = useState<'all' | 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED' | 'BUY_X_GET_Y_FREE'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'created' | 'usage' | 'endDate'>('created');
 
   // Stats State
@@ -257,6 +287,14 @@ export default function PromoCodesManagement() {
     allowStacking: false,
     minOrderAmount: null,
     maxDiscountAmount: null,
+    // BOGO fields
+    buyQuantity: null,
+    getQuantity: null,
+    buyProductId: null,
+    buyCategoryId: null,
+    getProductId: null,
+    getCategoryId: null,
+    applyToCheapest: false,
     branchIds: [],
     categoryIds: [],
     codes: [],
@@ -292,6 +330,13 @@ export default function PromoCodesManagement() {
       const catsData = await catsRes.json();
       if (catsData.categories) {
         setCategories(catsData.categories);
+      }
+
+      // Fetch menu items for BOGO
+      const menuRes = await fetch('/api/menu-items');
+      const menuData = await menuRes.json();
+      if (menuData.menuItems) {
+        setMenuItems(menuData.menuItems);
       }
 
       // Fetch branches
@@ -777,6 +822,14 @@ export default function PromoCodesManagement() {
       allowStacking: false,
       minOrderAmount: null,
       maxDiscountAmount: null,
+      // BOGO fields
+      buyQuantity: null,
+      getQuantity: null,
+      buyProductId: null,
+      buyCategoryId: null,
+      getProductId: null,
+      getCategoryId: null,
+      applyToCheapest: false,
       branchIds: [],
       categoryIds: [],
       codes: [],
@@ -804,6 +857,14 @@ export default function PromoCodesManagement() {
       allowStacking: promotion.allowStacking,
       minOrderAmount: promotion.minOrderAmount,
       maxDiscountAmount: promotion.maxDiscountAmount,
+      // BOGO fields
+      buyQuantity: promotion.buyQuantity,
+      getQuantity: promotion.getQuantity,
+      buyProductId: promotion.buyProductId,
+      buyCategoryId: promotion.buyCategoryId,
+      getProductId: promotion.getProductId,
+      getCategoryId: promotion.getCategoryId,
+      applyToCheapest: promotion.applyToCheapest,
       branchIds: promotion.branchRestrictions.map((b) => b.branchId),
       categoryIds: promotion.categoryRestrictions.map((c) => c.categoryId),
       codes: promotion.codes.map((c) => ({
@@ -842,6 +903,8 @@ export default function PromoCodesManagement() {
         return <Package className="h-4 w-4" />;
       case 'CATEGORY_FIXED':
         return <Tag className="h-4 w-4" />;
+      case 'BUY_X_GET_Y_FREE':
+        return <Gift className="h-4 w-4" />;
       default:
         return <Gift className="h-4 w-4" />;
     }
@@ -857,6 +920,8 @@ export default function PromoCodesManagement() {
         return 'Category Percentage';
       case 'CATEGORY_FIXED':
         return 'Category Fixed';
+      case 'BUY_X_GET_Y_FREE':
+        return 'Buy X Get Y Free';
       default:
         return type;
     }
@@ -1009,22 +1074,36 @@ export default function PromoCodesManagement() {
 
   // Reports Tab Data
   const reportsData = useMemo(() => {
-    const usageByPromotion = promotions.map(p => ({
-      name: p.name,
-      usage: p._count?.usageLogs || 0,
-      codes: p._count?.codes || 0,
-      discount: `${p.discountValue}${p.discountType.includes('PERCENTAGE') ? '%' : ' EGP'}`,
-    })).sort((a, b) => b.usage - a.usage).slice(0, 10);
+    const usageByPromotion = promotions.map(p => {
+      let discountDisplay = '';
+      if (p.discountType === 'BUY_X_GET_Y_FREE') {
+        discountDisplay = `Buy ${p.buyQuantity} Get ${p.getQuantity} Free`;
+      } else {
+        discountDisplay = `${p.discountValue}${p.discountType.includes('PERCENTAGE') ? '%' : ' EGP'}`;
+      }
+
+      return {
+        name: p.name,
+        usage: p._count?.usageLogs || 0,
+        codes: p._count?.codes || 0,
+        discount: discountDisplay,
+      };
+    }).sort((a, b) => b.usage - a.usage).slice(0, 10);
 
     const usageByType = {
       PERCENTAGE: promotions.filter(p => p.discountType === 'PERCENTAGE').reduce((sum, p) => sum + (p._count?.usageLogs || 0), 0),
       FIXED_AMOUNT: promotions.filter(p => p.discountType === 'FIXED_AMOUNT').reduce((sum, p) => sum + (p._count?.usageLogs || 0), 0),
       CATEGORY_PERCENTAGE: promotions.filter(p => p.discountType === 'CATEGORY_PERCENTAGE').reduce((sum, p) => sum + (p._count?.usageLogs || 0), 0),
       CATEGORY_FIXED: promotions.filter(p => p.discountType === 'CATEGORY_FIXED').reduce((sum, p) => sum + (p._count?.usageLogs || 0), 0),
+      BUY_X_GET_Y_FREE: promotions.filter(p => p.discountType === 'BUY_X_GET_Y_FREE').reduce((sum, p) => sum + (p._count?.usageLogs || 0), 0),
     };
 
     const totalRevenueImpact = promotions.reduce((sum, p) => {
       const avgOrder = 100; // Estimated average
+      if (p.discountType === 'BUY_X_GET_Y_FREE') {
+        // For BOGO, estimate based on get quantity * avg price * usage
+        return sum + ((p._count?.usageLogs || 0) * (p.getQuantity || 0) * avgOrder);
+      }
       return sum + ((p._count?.usageLogs || 0) * avgOrder * (p.discountType.includes('PERCENTAGE') ? p.discountValue / 100 : p.discountValue / avgOrder));
     }, 0);
 
@@ -1807,6 +1886,7 @@ export default function PromoCodesManagement() {
                         <SelectItem value="FIXED_AMOUNT">Fixed Amount</SelectItem>
                         <SelectItem value="CATEGORY_PERCENTAGE">Category Percentage</SelectItem>
                         <SelectItem value="CATEGORY_FIXED">Category Fixed Amount</SelectItem>
+                        <SelectItem value="BUY_X_GET_Y_FREE">Buy X Get Y Free</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1880,6 +1960,126 @@ export default function PromoCodesManagement() {
                       {formData.categoryIds.length === 0 && (
                         <p className="text-xs text-amber-600">⚠️ Please select at least one category</p>
                       )}
+                    </div>
+                  )}
+
+                  {/* BOGO Configuration */}
+                  {formData.discountType === 'BUY_X_GET_Y_FREE' && (
+                    <div className="space-y-4 mt-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border-2 border-emerald-200 dark:border-emerald-900">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Gift className="h-5 w-5 text-emerald-600" />
+                        <h4 className="font-semibold text-emerald-900 dark:text-emerald-100">BOGO Configuration</h4>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Buy Quantity *</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={formData.buyQuantity || ''}
+                            onChange={(e) => setFormData({ ...formData, buyQuantity: parseInt(e.target.value) || null })}
+                            placeholder="e.g., 2"
+                          />
+                          <p className="text-xs text-slate-500">How many items must be purchased</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Get Quantity *</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={formData.getQuantity || ''}
+                            onChange={(e) => setFormData({ ...formData, getQuantity: parseInt(e.target.value) || null })}
+                            placeholder="e.g., 1"
+                          />
+                          <p className="text-xs text-slate-500">How many free items to give</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Buy From (Product or Category) *</Label>
+                        <Select
+                          value={formData.buyProductId || formData.buyCategoryId || ''}
+                          onValueChange={(value) => {
+                            // Check if it's a product (starts with 'product-') or category
+                            if (value.startsWith('product-')) {
+                              setFormData({ ...formData, buyProductId: value.replace('product-', ''), buyCategoryId: null });
+                            } else {
+                              setFormData({ ...formData, buyCategoryId: value, buyProductId: null });
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select product or category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Categories</div>
+                            {categories.map((cat) => (
+                              <SelectItem key={cat.id} value={cat.id}>
+                                Category: {cat.name}
+                              </SelectItem>
+                            ))}
+                            <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Products</div>
+                            {menuItems.map((item) => (
+                              <SelectItem key={item.id} value={`product-${item.id}`}>
+                                {item.name} - {item.price} EGP
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Get From (Product or Category) - Optional</Label>
+                        <p className="text-xs text-slate-500">Leave empty to get the same product(s)</p>
+                        <Select
+                          value={formData.getProductId || formData.getCategoryId || ''}
+                          onValueChange={(value) => {
+                            if (value.startsWith('product-')) {
+                              setFormData({ ...formData, getProductId: value.replace('product-', ''), getCategoryId: null });
+                            } else {
+                              setFormData({ ...formData, getCategoryId: value, getProductId: null });
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Same as buy (default)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Same as buy items</SelectItem>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Categories</div>
+                            {categories.map((cat) => (
+                              <SelectItem key={cat.id} value={cat.id}>
+                                Category: {cat.name}
+                              </SelectItem>
+                            ))}
+                            <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Products</div>
+                            {menuItems.map((item) => (
+                              <SelectItem key={item.id} value={`product-${item.id}`}>
+                                {item.name} - {item.price} EGP
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={formData.applyToCheapest}
+                          onCheckedChange={(checked) => setFormData({ ...formData, applyToCheapest: checked })}
+                        />
+                        <Label className="text-sm">Apply discount to cheapest item(s)</Label>
+                      </div>
+
+                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                          <strong>Example:</strong> Buy {formData.buyQuantity || 'X'}, Get {formData.getQuantity || 'Y'} Free
+                          {formData.buyCategoryId && ` from selected category`}
+                          {formData.buyProductId && ` from selected product`}
+                          {formData.applyToCheapest && ' (cheapest items get the discount)'}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

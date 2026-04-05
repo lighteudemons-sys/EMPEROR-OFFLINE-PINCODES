@@ -1071,6 +1071,14 @@ model Promotion {
   allowStacking        Boolean             @default(false)
   minOrderAmount       Float?
   maxDiscountAmount    Float?
+  // BOGO (Buy X Get Y Free) fields
+  buyQuantity          Int?
+  getQuantity          Int?
+  buyProductId         String?
+  buyCategoryId        String?
+  getProductId         String?
+  getCategoryId        String?
+  applyToCheapest      Boolean             @default(false)
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
   createdBy            String?
@@ -1083,6 +1091,10 @@ model Promotion {
   @@index([startDate, endDate])
   @@index([categoryId])
   @@index([discountType])
+  @@index([buyProductId])
+  @@index([buyCategoryId])
+  @@index([getProductId])
+  @@index([getCategoryId])
 }
 
 model PromotionCode {
@@ -1242,6 +1254,7 @@ enum PromoDiscountType {
   FIXED_AMOUNT
   CATEGORY_PERCENTAGE
   CATEGORY_FIXED
+  BUY_X_GET_Y_FREE
 }
 
 enum ExpenseCategory {

@@ -6,7 +6,7 @@ import { z } from 'zod';
 const promotionSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  discountType: z.enum(['PERCENTAGE', 'FIXED_AMOUNT', 'CATEGORY_PERCENTAGE', 'CATEGORY_FIXED']),
+  discountType: z.enum(['PERCENTAGE', 'FIXED_AMOUNT', 'CATEGORY_PERCENTAGE', 'CATEGORY_FIXED', 'BUY_X_GET_Y_FREE']),
   discountValue: z.number().min(0, 'Discount value must be positive'),
   categoryId: z.string().nullable().optional(),
   maxUses: z.number().int().positive().nullable().optional(),
@@ -17,6 +17,14 @@ const promotionSchema = z.object({
   allowStacking: z.boolean().default(false),
   minOrderAmount: z.number().min(0).nullable().optional(),
   maxDiscountAmount: z.number().min(0).nullable().optional(),
+  // BOGO fields
+  buyQuantity: z.number().int().positive().nullable().optional(),
+  getQuantity: z.number().int().positive().nullable().optional(),
+  buyProductId: z.string().nullable().optional(),
+  buyCategoryId: z.string().nullable().optional(),
+  getProductId: z.string().nullable().optional(),
+  getCategoryId: z.string().nullable().optional(),
+  applyToCheapest: z.boolean().default(false),
   branchIds: z.array(z.string()).optional().default([]),
   categoryIds: z.array(z.string()).optional().default([]),
   codes: z.array(z.object({
@@ -121,6 +129,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validate BOGO discounts
+    if (validatedData.discountType === 'BUY_X_GET_Y_FREE') {
+      if (!validatedData.buyQuantity || validatedData.buyQuantity < 1) {
+        return NextResponse.json(
+          { success: false, error: 'Buy quantity is required and must be at least 1' },
+          { status: 400 }
+        );
+      }
+      if (!validatedData.getQuantity || validatedData.getQuantity < 1) {
+        return NextResponse.json(
+          { success: false, error: 'Get quantity is required and must be at least 1' },
+          { status: 400 }
+        );
+      }
+      if (!validatedData.buyProductId && !validatedData.buyCategoryId) {
+        return NextResponse.json(
+          { success: false, error: 'Buy product or category is required for BOGO promotions' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Create promotion with codes in a transaction
     const promotion = await db.$transaction(async (tx) => {
       // Create promotion
@@ -139,6 +169,14 @@ export async function POST(request: NextRequest) {
           allowStacking: validatedData.allowStacking,
           minOrderAmount: validatedData.minOrderAmount,
           maxDiscountAmount: validatedData.maxDiscountAmount,
+          // BOGO fields
+          buyQuantity: validatedData.buyQuantity,
+          getQuantity: validatedData.getQuantity,
+          buyProductId: validatedData.buyProductId,
+          buyCategoryId: validatedData.buyCategoryId,
+          getProductId: validatedData.getProductId,
+          getCategoryId: validatedData.getCategoryId,
+          applyToCheapest: validatedData.applyToCheapest,
         },
       });
 

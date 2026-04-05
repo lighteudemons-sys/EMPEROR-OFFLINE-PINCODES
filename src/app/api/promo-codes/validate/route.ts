@@ -253,6 +253,100 @@ export async function POST(request: NextRequest) {
           .join(', ');
         message = `${promotion.discountValue} EGP off ${fixedCategoryNames} applied`;
         break;
+
+      case 'BUY_X_GET_Y_FREE':
+        // BOGO (Buy X Get Y Free) logic
+        const buyIds: string[] = [];
+        const getIds: string[] = [];
+
+        // Determine buy items
+        if (promotion.buyProductId) {
+          buyIds.push(promotion.buyProductId);
+        } else if (promotion.buyCategoryId) {
+          // Get all menu items in the category
+          const categoryMenuItems = await db.menuItem.findMany({
+            where: { categoryId: promotion.buyCategoryId },
+            select: { id: true },
+          });
+          buyIds.push(...categoryMenuItems.map(m => m.id));
+        }
+
+        // Determine get items
+        if (promotion.getProductId) {
+          getIds.push(promotion.getProductId);
+        } else if (promotion.getCategoryId) {
+          const categoryMenuItems = await db.menuItem.findMany({
+            where: { categoryId: promotion.getCategoryId },
+            select: { id: true },
+          });
+          getIds.push(...categoryMenuItems.map(m => m.id));
+        } else {
+          // If not specified, get items are same as buy items
+          getIds.push(...buyIds);
+        }
+
+        // Filter order items for buy products
+        const buyItems = orderItems.filter(item => buyIds.includes(item.menuItemId));
+        const totalBuyQuantity = buyItems.reduce((sum, item) => sum + item.quantity, 0);
+
+        if (totalBuyQuantity < (promotion.buyQuantity || 0)) {
+          return NextResponse.json<ValidateResponse>({
+            success: true,
+            valid: false,
+            error: `Need to buy ${promotion.buyQuantity} items to qualify for this promotion`,
+          });
+        }
+
+        // Calculate how many free items to give
+        const freeBundles = Math.floor(totalBuyQuantity / (promotion.buyQuantity || 1));
+        const totalFreeItems = freeBundles * (promotion.getQuantity || 1);
+
+        // Filter order items for get products
+        const getItems = orderItems.filter(item => getIds.includes(item.menuItemId));
+
+        // Calculate discount based on applyToCheapest setting
+        if (promotion.applyToCheapest) {
+          // Sort get items by price (ascending) and discount the cheapest ones
+          const sortedGetItems = [...getItems].sort((a, b) => a.price - b.price);
+          let remainingFreeItems = totalFreeItems;
+          let totalDiscount = 0;
+
+          for (const item of sortedGetItems) {
+            if (remainingFreeItems <= 0) break;
+
+            const freeQuantity = Math.min(item.quantity, remainingFreeItems);
+            totalDiscount += (item.price * freeQuantity);
+            remainingFreeItems -= freeQuantity;
+          }
+
+          discountAmount = totalDiscount;
+        } else {
+          // Apply discount proportionally or to first eligible items
+          let remainingFreeItems = totalFreeItems;
+          let totalDiscount = 0;
+
+          for (const item of getItems) {
+            if (remainingFreeItems <= 0) break;
+
+            const freeQuantity = Math.min(item.quantity, remainingFreeItems);
+            totalDiscount += (item.price * freeQuantity);
+            remainingFreeItems -= freeQuantity;
+          }
+
+          discountAmount = totalDiscount;
+        }
+
+        if (discountAmount === 0) {
+          return NextResponse.json<ValidateResponse>({
+            success: true,
+            valid: false,
+            error: 'No eligible items to apply free items discount',
+          });
+        }
+
+        message = `Buy ${promotion.buyQuantity} Get ${promotion.getQuantity} Free applied`;
+        applicableSubtotal = orderSubtotal;
+        break;
     }
 
     // Apply max discount cap if specified
