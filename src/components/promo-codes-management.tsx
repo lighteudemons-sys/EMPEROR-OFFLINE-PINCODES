@@ -2356,7 +2356,8 @@ export default function PromoCodesManagement() {
                         <p className="text-xs text-blue-700 dark:text-blue-300">
                           <strong>Example:</strong> Buy {formData.buyQuantity || 'X'}, Get {formData.getQuantity || 'Y'} Free
                           {formData.buyCategoryId && ` from selected category`}
-                          {formData.buyProductId && ` from selected product`}
+                          {formData.buyProductId && !formData.buyProductVariantId && ` from selected product`}
+                          {formData.buyProductVariantId && ` from selected product variant`}
                           {formData.applyToCheapest && ' (cheapest items get the discount)'}
                         </p>
                       </div>
