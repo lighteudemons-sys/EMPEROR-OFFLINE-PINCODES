@@ -5,7 +5,7 @@ import { randomBytes } from 'crypto';
 
 // Validation schema for batch generation
 const generateBatchSchema = z.object({
-  promotionId: z.string().min(1, 'Promotion ID is required').optional(),
+  promotionId: z.string().optional(),
   count: z.number().int().min(1).max(1000, 'Count must be between 1 and 1000'),
   prefix: z.string().optional(),
   isSingleUse: z.boolean().default(true),
@@ -27,6 +27,12 @@ function generateRandomCode(prefix: string = '', length: number): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    // Convert empty promotionId to undefined
+    if (body.promotionId === '') {
+      body.promotionId = undefined;
+    }
+
     const validatedData = generateBatchSchema.parse(body);
 
     const { promotionId, count, prefix, isSingleUse, codeLength, campaignName, preview } = validatedData;

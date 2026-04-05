@@ -164,6 +164,20 @@ export async function POST(request: NextRequest) {
 
       // Create codes if provided
       if (validatedData.codes && validatedData.codes.length > 0) {
+        // Check for duplicate codes in database
+        const codeList = validatedData.codes.map(c => c.code.toUpperCase());
+        const existingCodes = await tx.promotionCode.findMany({
+          where: {
+            code: { in: codeList },
+          },
+          select: { code: true },
+        });
+
+        if (existingCodes.length > 0) {
+          const duplicateCodes = existingCodes.map(c => c.code).join(', ');
+          throw new Error(`The following codes already exist: ${duplicateCodes}`);
+        }
+
         await tx.promotionCode.createMany({
           data: validatedData.codes.map((codeData) => ({
             promotionId: newPromotion.id,
