@@ -224,6 +224,11 @@ export default function PromoCodesManagement() {
   });
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
 
+  // Codes list state (for All Codes tab)
+  const [allCodes, setAllCodes] = useState<(PromoCode & { promotionName?: string; promotion: any })[]>([]);
+  const [codesPagination, setCodesPagination] = useState({ page: 1, limit: 100, totalCount: 0, totalPages: 0 });
+  const [loadingCodes, setLoadingCodes] = useState(false);
+
   // Bulk Actions State
   const [selectedPromotions, setSelectedPromotions] = useState<string[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
@@ -256,6 +261,13 @@ export default function PromoCodesManagement() {
     fetchData();
   }, [activeTab]);
 
+  // Fetch codes when switching to codes tab
+  useEffect(() => {
+    if (activeTab === 'codes') {
+      fetchCodes();
+    }
+  }, [activeTab, searchQuery, filterStatus]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -287,10 +299,38 @@ export default function PromoCodesManagement() {
     }
   };
 
+  const fetchCodes = async (page = 1) => {
+    setLoadingCodes(true);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: codesPagination.limit.toString(),
+      });
+      if (searchQuery) params.append('search', searchQuery);
+      if (filterStatus !== 'all') params.append('isActive', filterStatus);
+
+      const res = await fetch(`/api/promo-codes?${params.toString()}`);
+      const data = await res.json();
+      if (data.success) {
+        const codesWithNames = data.codes.map((c: any) => ({
+          ...c,
+          promotionName: c.promotion?.name,
+        }));
+        setAllCodes(codesWithNames);
+        setCodesPagination(data.pagination);
+      }
+    } catch (error) {
+      console.error('Error fetching codes:', error);
+      showToast('error', 'Failed to load codes');
+    } finally {
+      setLoadingCodes(false);
+    }
+  };
+
   // Quick Stats Calculations
   const stats = useMemo(() => {
     const activePromos = promotions.filter(p => p.isActive);
-    const totalCodes = promotions.reduce((sum, p) => sum + p.codes.length, 0);
+    const totalCodes = promotions.reduce((sum, p) => sum + (p._count?.codes || 0), 0);
     const totalUsage = promotions.reduce((sum, p) => sum + (p._count?.usageLogs || 0), 0);
     const totalMaxUses = promotions.reduce((sum, p) => sum + (p.maxUses || 0), 0);
     const successRate = totalMaxUses > 0 ? (totalUsage / totalMaxUses) * 100 : 0;
@@ -309,13 +349,12 @@ export default function PromoCodesManagement() {
   const filteredPromotions = useMemo(() => {
     let filtered = [...promotions];
 
-    // Search filter
+    // Search filter (search through promotion name and description only)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(p =>
         p.name.toLowerCase().includes(query) ||
-        p.description?.toLowerCase().includes(query) ||
-        p.codes.some(c => c.code.toLowerCase().includes(query))
+        p.description?.toLowerCase().includes(query)
       );
     }
 
@@ -352,12 +391,7 @@ export default function PromoCodesManagement() {
 
   // Filtered Codes (for All Codes tab)
   const filteredCodes = useMemo(() => {
-    let codes: (PromoCode & { promotionName?: string })[] = [];
-    promotions.forEach(p => {
-      p.codes.forEach(c => {
-        codes.push({ ...c, promotionName: p.name });
-      });
-    });
+    let codes = [...allCodes];
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -375,12 +409,11 @@ export default function PromoCodesManagement() {
     }
 
     return codes;
-  }, [promotions, searchQuery, filterStatus]);
+  }, [allCodes, searchQuery, filterStatus]);
 
   // Real-time code validation
   useEffect(() => {
     const validation: { [key: number]: { isValid: boolean; message: string } } = {};
-    const similar: string[] = [];
 
     formData.codes.forEach((codeObj, index) => {
       const code = codeObj.code.trim().toUpperCase();
@@ -392,31 +425,20 @@ export default function PromoCodesManagement() {
       } else if (!/^[A-Z0-9-_]+$/.test(code)) {
         validation[index] = { isValid: false, message: 'Only letters, numbers, hyphens, and underscores allowed' };
       } else {
-        // Check for duplicates
+        // Check for duplicates within the current form
         const isDuplicate = formData.codes.some((c, i) => i !== index && c.code.trim().toUpperCase() === code);
-        const existsInDb = promotions.some(p => p.codes.some(c => c.code === code));
 
         if (isDuplicate) {
           validation[index] = { isValid: false, message: 'Duplicate code in this promotion' };
-        } else if (existsInDb) {
-          validation[index] = { isValid: false, message: 'Code already exists' };
         } else {
-          // Check for similar codes (Levenshtein distance)
-          promotions.forEach(p => {
-            p.codes.forEach(c => {
-              if (c.code !== code && levenshteinDistance(c.code, code) <= 2) {
-                similar.push(c.code);
-              }
-            });
-          });
           validation[index] = { isValid: true, message: '' };
         }
       }
     });
 
     setCodeValidation(validation);
-    setSimilarCodes(Array.from(new Set(similar)));
-  }, [formData.codes, promotions]);
+    setSimilarCodes([]); // Remove similar codes check for now
+  }, [formData.codes]);
 
   const levenshteinDistance = (str1: string, str2: string): number => {
     const matrix: number[][] = [];
@@ -897,7 +919,7 @@ export default function PromoCodesManagement() {
     const usageByPromotion = promotions.map(p => ({
       name: p.name,
       usage: p._count?.usageLogs || 0,
-      codes: p.codes.length,
+      codes: p._count?.codes || 0,
       discount: `${p.discountValue}${p.discountType.includes('PERCENTAGE') ? '%' : ' EGP'}`,
     })).sort((a, b) => b.usage - a.usage).slice(0, 10);
 

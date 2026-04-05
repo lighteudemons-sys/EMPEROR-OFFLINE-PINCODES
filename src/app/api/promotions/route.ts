@@ -39,13 +39,11 @@ export async function GET(request: NextRequest) {
       where.isActive = isActive === 'true';
     }
 
+    // Don't include codes in list endpoint to avoid 5MB limit
+    // Use the single promotion endpoint to get codes
     const promotions = await db.promotion.findMany({
       where,
       include: {
-        codes: includeCodes ? {
-          take: 100, // Limit to 100 most recent codes to avoid response size limit
-          orderBy: { createdAt: 'desc' },
-        } : false,
         branchRestrictions: {
           include: {
             branch: true,
@@ -56,12 +54,12 @@ export async function GET(request: NextRequest) {
             category: true,
           },
         },
-        _count: includeUsage ? {
+        _count: {
           select: {
             codes: true,
             usageLogs: true,
           },
-        } : undefined,
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -184,7 +182,7 @@ export async function POST(request: NextRequest) {
       where: { id: promotion.id },
       include: {
         codes: {
-          take: 100, // Limit to 100 most recent codes to avoid response size limit
+          take: 50, // Limit to 50 most recent codes to avoid response size limit
           orderBy: { createdAt: 'desc' },
         },
         branchRestrictions: {
@@ -209,7 +207,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       promotion: completePromotion,
-      message: 'Promotion created successfully. Note: Only the 100 most recent codes are shown in the response.',
+      message: 'Promotion created successfully. Note: Only the 50 most recent codes are shown in the response.',
     });
   } catch (error) {
     console.error('Error creating promotion:', error);

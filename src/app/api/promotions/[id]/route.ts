@@ -37,13 +37,19 @@ export async function GET(
       );
     }
 
+    const { searchParams } = new URL(request.url);
+    const includeCodes = searchParams.get('includeCodes') === 'true';
+    const codesOffset = parseInt(searchParams.get('codesOffset') || '0');
+    const codesLimit = parseInt(searchParams.get('codesLimit') || '50');
+
     const promotion = await db.promotion.findUnique({
       where: { id },
       include: {
-        codes: {
-          take: 100, // Limit to 100 most recent codes to avoid response size limit
+        codes: includeCodes ? {
+          take: codesLimit,
+          skip: codesOffset,
           orderBy: { createdAt: 'desc' },
-        },
+        } : false,
         branchRestrictions: {
           include: {
             branch: true,
@@ -206,7 +212,7 @@ export async function PUT(
       where: { id: promotion.id },
       include: {
         codes: {
-          take: 100, // Limit to 100 most recent codes to avoid response size limit
+          take: 50, // Limit to 50 most recent codes to avoid response size limit
           orderBy: { createdAt: 'desc' },
         },
         branchRestrictions: {
