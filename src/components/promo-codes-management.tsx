@@ -909,9 +909,9 @@ export default function PromoCodesManagement() {
       getProductId: promotion.getProductId,
       getCategoryId: promotion.getCategoryId,
       applyToCheapest: promotion.applyToCheapest,
-      branchIds: promotion.branchRestrictions.map((b) => b.branchId),
-      categoryIds: promotion.categoryRestrictions.map((c) => c.categoryId),
-      codes: promotion.codes.map((c) => ({
+      branchIds: (promotion.branchRestrictions || []).map((b) => b.branchId),
+      categoryIds: (promotion.categoryRestrictions || []).map((c) => c.categoryId),
+      codes: (promotion.codes || []).map((c) => ({
         code: c.code,
         isSingleUse: c.isSingleUse,
         maxUses: c.maxUses,
@@ -1579,7 +1579,7 @@ export default function PromoCodesManagement() {
                       <SelectValue placeholder="Choose promotion" />
                     </SelectTrigger>
                     <SelectContent>
-                      {promotions.map((promo) => (
+                      {(promotions || []).map((promo) => (
                         <SelectItem key={promo.id} value={promo.id}>
                           {promo.name} - {getDiscountTypeLabel(promo.discountType)}
                         </SelectItem>
@@ -1788,9 +1788,9 @@ export default function PromoCodesManagement() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {promotions.slice(0, 5).map((promo) => {
+                  {(promotions || []).slice(0, 5).map((promo) => {
                     const used = promo._count?.usageLogs || 0;
-                    const total = promo.maxUses || promo.codes.reduce((sum, c) => sum + (c.maxUses || 0), 0) || 1;
+                    const total = promo.maxUses || (promo.codes || []).reduce((sum, c) => sum + (c.maxUses || 0), 0) || 1;
                     const rate = Math.round((used / total) * 100);
                     return (
                       <div key={promo.id} className="space-y-1">
