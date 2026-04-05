@@ -41,6 +41,8 @@ export async function GET(request: NextRequest) {
     const isActive = searchParams.get('isActive');
     const includeCodes = searchParams.get('includeCodes') === 'true';
     const includeUsage = searchParams.get('includeUsage') === 'true';
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '50');
 
     const where: any = {};
     if (isActive !== null) {
@@ -49,17 +51,38 @@ export async function GET(request: NextRequest) {
 
     // Don't include codes in list endpoint to avoid 5MB limit
     // Use the single promotion endpoint to get codes
+
+    // Get total count for pagination
+    const total = await db.promotion.count({ where });
+
+    // Get paginated promotions
     const promotions = await db.promotion.findMany({
       where,
+      skip: (page - 1) * limit,
+      take: limit,
       include: {
         branchRestrictions: {
-          include: {
-            branch: true,
+          select: {
+            id: true,
+            branchId: true,
+            branch: {
+              select: {
+                id: true,
+                branchName: true,
+              },
+            },
           },
         },
         categoryRestrictions: {
-          include: {
-            category: true,
+          select: {
+            id: true,
+            categoryId: true,
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         _count: {
@@ -77,6 +100,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       promotions,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      },
     });
   } catch (error) {
     console.error('Error fetching promotions:', error);
@@ -232,19 +262,66 @@ export async function POST(request: NextRequest) {
     // Fetch the complete promotion with relations (limit codes to avoid 5MB limit)
     const completePromotion = await db.promotion.findUnique({
       where: { id: promotion.id },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        discountType: true,
+        discountValue: true,
+        categoryId: true,
+        maxUses: true,
+        usesPerCustomer: true,
+        startDate: true,
+        endDate: true,
+        isActive: true,
+        allowStacking: true,
+        minOrderAmount: true,
+        maxDiscountAmount: true,
+        // BOGO fields
+        buyQuantity: true,
+        getQuantity: true,
+        buyProductId: true,
+        buyCategoryId: true,
+        getProductId: true,
+        getCategoryId: true,
+        applyToCheapest: true,
+        createdAt: true,
+        updatedAt: true,
         codes: {
+          select: {
+            id: true,
+            code: true,
+            isActive: true,
+            usageCount: true,
+            maxUses: true,
+            isSingleUse: true,
+            createdAt: true,
+          },
           take: 50, // Limit to 50 most recent codes to avoid response size limit
           orderBy: { createdAt: 'desc' },
         },
         branchRestrictions: {
-          include: {
-            branch: true,
+          select: {
+            id: true,
+            branchId: true,
+            branch: {
+              select: {
+                id: true,
+                branchName: true,
+              },
+            },
           },
         },
         categoryRestrictions: {
-          include: {
-            category: true,
+          select: {
+            id: true,
+            categoryId: true,
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         _count: {

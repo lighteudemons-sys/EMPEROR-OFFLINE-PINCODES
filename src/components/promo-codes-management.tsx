@@ -259,6 +259,10 @@ export default function PromoCodesManagement() {
   const [codesPagination, setCodesPagination] = useState({ page: 1, limit: 100, totalCount: 0, totalPages: 0 });
   const [loadingCodes, setLoadingCodes] = useState(false);
 
+  // Promotions pagination state
+  const [promotionsPagination, setPromotionsPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0, hasMore: false });
+  const [loadingMorePromotions, setLoadingMorePromotions] = useState(false);
+
   // Bulk Actions State
   const [selectedPromotions, setSelectedPromotions] = useState<string[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
@@ -315,14 +319,28 @@ export default function PromoCodesManagement() {
     }
   }, [activeTab, searchQuery, filterStatus]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (page = 1, append = false) => {
+    if (append) {
+      setLoadingMorePromotions(true);
+    } else {
+      setLoading(true);
+    }
     try {
-      // Fetch promotions with codes and usage
-      const promosRes = await fetch('/api/promotions?includeCodes=true&includeUsage=true');
+      // Fetch promotions with pagination
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: promotionsPagination.limit.toString(),
+      });
+
+      const promosRes = await fetch(`/api/promotions?${params.toString()}`);
       const promosData = await promosRes.json();
       if (promosData.success) {
-        setPromotions(promosData.promotions);
+        if (append) {
+          setPromotions(prev => [...prev, ...promosData.promotions]);
+        } else {
+          setPromotions(promosData.promotions);
+        }
+        setPromotionsPagination(promosData.pagination);
       }
 
       // Fetch categories
@@ -350,6 +368,7 @@ export default function PromoCodesManagement() {
       showToast('error', 'Failed to load data');
     } finally {
       setLoading(false);
+      setLoadingMorePromotions(false);
     }
   };
 
@@ -553,7 +572,9 @@ export default function PromoCodesManagement() {
         showToast('success', editingPromotion ? 'Promotion updated successfully' : 'Promotion created successfully');
         setDialogOpen(false);
         resetForm();
-        fetchData();
+        // Reset pagination and fetch fresh data
+        setPromotionsPagination({ page: 1, limit: 50, total: 0, totalPages: 0, hasMore: false });
+        fetchData(1, false);
       } else {
         showToast('error', data.error || 'Failed to save promotion');
       }
@@ -575,7 +596,9 @@ export default function PromoCodesManagement() {
 
       if (data.success) {
         showToast('success', 'Promotion deleted successfully');
-        fetchData();
+        // Reset pagination and fetch fresh data
+        setPromotionsPagination({ page: 1, limit: 50, total: 0, totalPages: 0, hasMore: false });
+        fetchData(1, false);
       } else {
         showToast('error', data.error || 'Failed to delete promotion');
       }
@@ -600,7 +623,8 @@ export default function PromoCodesManagement() {
 
       if (data.success) {
         showToast('success', `Promotion ${promotion.isActive ? 'paused' : 'activated'}`);
-        fetchData();
+        // Refresh without resetting pagination
+        fetchData(promotionsPagination.page, false);
       } else {
         showToast('error', data.error || 'Failed to update promotion');
       }
@@ -968,7 +992,8 @@ export default function PromoCodesManagement() {
       );
       showToast('success', `Activated ${selectedPromotions.length} promotions`);
       setSelectedPromotions([]);
-      fetchData();
+      // Refresh without resetting pagination
+      fetchData(promotionsPagination.page, false);
     } catch (error) {
       showToast('error', 'Failed to activate promotions');
     }
@@ -987,7 +1012,8 @@ export default function PromoCodesManagement() {
       );
       showToast('success', `Deactivated ${selectedPromotions.length} promotions`);
       setSelectedPromotions([]);
-      fetchData();
+      // Refresh without resetting pagination
+      fetchData(promotionsPagination.page, false);
     } catch (error) {
       showToast('error', 'Failed to deactivate promotions');
     }
@@ -1004,7 +1030,9 @@ export default function PromoCodesManagement() {
       );
       showToast('success', `Deleted ${selectedPromotions.length} promotions`);
       setSelectedPromotions([]);
-      fetchData();
+      // Reset pagination and fetch fresh data
+      setPromotionsPagination({ page: 1, limit: 50, total: 0, totalPages: 0, hasMore: false });
+      fetchData(1, false);
     } catch (error) {
       showToast('error', 'Failed to delete promotions');
     }
@@ -1468,6 +1496,33 @@ export default function PromoCodesManagement() {
               </Card>
             ))}
           </div>
+
+          {/* Load More Button for Pagination */}
+          {promotionsPagination.hasMore && (
+            <div className="flex justify-center mt-6">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const nextPage = promotionsPagination.page + 1;
+                  fetchData(nextPage, true);
+                }}
+                disabled={loadingMorePromotions}
+                className="gap-2"
+              >
+                {loadingMorePromotions ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <ChevronRight className="h-4 w-4" />
+                    Load More ({promotionsPagination.total - promotions.length} remaining)
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="vouchers" className="space-y-4">
@@ -2034,9 +2089,11 @@ export default function PromoCodesManagement() {
                         <Label>Get From (Product or Category) - Optional</Label>
                         <p className="text-xs text-slate-500">Leave empty to get the same product(s)</p>
                         <Select
-                          value={formData.getProductId || formData.getCategoryId || ''}
+                          value={formData.getProductId || formData.getCategoryId || 'same-as-buy'}
                           onValueChange={(value) => {
-                            if (value.startsWith('product-')) {
+                            if (value === 'same-as-buy') {
+                              setFormData({ ...formData, getProductId: null, getCategoryId: null });
+                            } else if (value.startsWith('product-')) {
                               setFormData({ ...formData, getProductId: value.replace('product-', ''), getCategoryId: null });
                             } else {
                               setFormData({ ...formData, getCategoryId: value, getProductId: null });
@@ -2047,7 +2104,7 @@ export default function PromoCodesManagement() {
                             <SelectValue placeholder="Same as buy (default)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Same as buy items</SelectItem>
+                            <SelectItem value="same-as-buy">Same as buy items</SelectItem>
                             <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Categories</div>
                             {categories.map((cat) => (
                               <SelectItem key={cat.id} value={cat.id}>
