@@ -595,12 +595,15 @@ export default function PromoCodesManagement() {
         // Reset pagination and fetch fresh data
         setPromotionsPagination({ page: 1, limit: 50, total: 0, totalPages: 0, hasMore: false });
         fetchData(1, false);
+        return data;
       } else {
         showToast('error', data.error || 'Failed to save promotion');
+        return null;
       }
     } catch (error) {
       console.error('Error saving promotion:', error);
       showToast('error', 'Failed to save promotion');
+      return null;
     }
   };
 
@@ -1106,8 +1109,8 @@ export default function PromoCodesManagement() {
   };
 
   const handleWizardFinish = async () => {
+    // If preview codes exist, save them to form
     if (previewGenerated.length > 0) {
-      // Save preview codes to form
       setFormData({
         ...formData,
         codes: previewGenerated.map(code => ({
@@ -1117,7 +1120,42 @@ export default function PromoCodesManagement() {
         })),
       });
     }
-    await handleSavePromotion();
+
+    // Save the promotion
+    const result = await handleSavePromotion();
+
+    if (result && result.promotion) {
+      // If no preview codes were saved, but voucher form has count, generate codes now
+      if (previewGenerated.length === 0 && voucherForm.count > 0 && !editingPromotion) {
+        try {
+          const generateResponse = await fetch('/api/promo-codes/generate-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              promotionId: result.promotion.id,
+              count: voucherForm.count,
+              prefix: voucherForm.prefix,
+              codeLength: voucherForm.codeLength,
+              campaignName: voucherForm.campaignName,
+              preview: false,
+            }),
+          });
+
+          const generateData = await generateResponse.json();
+
+          if (generateData.success) {
+            showToast('success', `Promotion created with ${generateData.codes.length} codes. Check "All Codes" tab to view them.`);
+          } else {
+            showToast('success', `Promotion created. Codes generation failed: ${generateData.error}`);
+          }
+        } catch (error) {
+          console.error('Error generating codes after promotion creation:', error);
+          showToast('success', `Promotion created. Go to "All Codes" tab to generate codes.`);
+        }
+      } else if (previewGenerated.length > 0) {
+        showToast('success', `Promotion created with ${previewGenerated.length} codes. Check "All Codes" tab to view them.`);
+      }
+    }
   };
 
   // Reports Tab Data
@@ -2091,7 +2129,7 @@ export default function PromoCodesManagement() {
                       <div className="space-y-2">
                         <Label>Buy From (Product or Category) *</Label>
                         <Select
-                          value={formData.buyProductId || formData.buyCategoryId || ''}
+                          value={formData.buyProductId ? `product-${formData.buyProductId}` : formData.buyCategoryId || ''}
                           onValueChange={(value) => {
                             // Check if it's a product (starts with 'product-') or category
                             if (value.startsWith('product-')) {
@@ -2125,7 +2163,7 @@ export default function PromoCodesManagement() {
                         <Label>Get From (Product or Category) - Optional</Label>
                         <p className="text-xs text-slate-500">Leave empty to get the same product(s)</p>
                         <Select
-                          value={formData.getProductId || formData.getCategoryId || 'same-as-buy'}
+                          value={formData.getProductId ? `product-${formData.getProductId}` : formData.getCategoryId || 'same-as-buy'}
                           onValueChange={(value) => {
                             if (value === 'same-as-buy') {
                               setFormData({ ...formData, getProductId: null, getCategoryId: null });
