@@ -40,7 +40,10 @@ export async function GET(
     const promotion = await db.promotion.findUnique({
       where: { id },
       include: {
-        codes: true,
+        codes: {
+          take: 100, // Limit to 100 most recent codes to avoid response size limit
+          orderBy: { createdAt: 'desc' },
+        },
         branchRestrictions: {
           include: {
             branch: true,
@@ -53,6 +56,7 @@ export async function GET(
         },
         _count: {
           select: {
+            codes: true,
             usageLogs: true,
           },
         },
@@ -197,11 +201,14 @@ export async function PUT(
       return updatedPromotion;
     });
 
-    // Fetch the complete promotion with relations
+    // Fetch the complete promotion with relations (limit codes to avoid 5MB limit)
     const completePromotion = await db.promotion.findUnique({
       where: { id: promotion.id },
       include: {
-        codes: true,
+        codes: {
+          take: 100, // Limit to 100 most recent codes to avoid response size limit
+          orderBy: { createdAt: 'desc' },
+        },
         branchRestrictions: {
           include: {
             branch: true,
@@ -210,6 +217,12 @@ export async function PUT(
         categoryRestrictions: {
           include: {
             category: true,
+          },
+        },
+        _count: {
+          select: {
+            codes: true,
+            usageLogs: true,
           },
         },
       },

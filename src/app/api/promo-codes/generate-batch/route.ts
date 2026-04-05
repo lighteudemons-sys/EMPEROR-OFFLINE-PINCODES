@@ -5,12 +5,13 @@ import { randomBytes } from 'crypto';
 
 // Validation schema for batch generation
 const generateBatchSchema = z.object({
-  promotionId: z.string().min(1, 'Promotion ID is required'),
+  promotionId: z.string().min(1, 'Promotion ID is required').optional(),
   count: z.number().int().min(1).max(1000, 'Count must be between 1 and 1000'),
   prefix: z.string().optional(),
   isSingleUse: z.boolean().default(true),
   codeLength: z.number().int().min(8).max(16).default(12),
   campaignName: z.string().optional(),
+  preview: z.boolean().default(false),
 });
 
 // Helper function to generate random code
@@ -28,30 +29,35 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = generateBatchSchema.parse(body);
 
-    const { promotionId, count, prefix, isSingleUse, codeLength, campaignName } = validatedData;
+    const { promotionId, count, prefix, isSingleUse, codeLength, campaignName, preview } = validatedData;
 
-    // Check if promotion exists
-    const promotion = await db.promotion.findUnique({
-      where: { id: promotionId },
-    });
+    // For preview mode, skip promotion check and database insertion
+    if (!preview) {
+      // Check if promotion exists
+      const promotion = await db.promotion.findUnique({
+        where: { id: promotionId },
+      });
 
-    if (!promotion) {
-      return NextResponse.json(
-        { success: false, error: 'Promotion not found' },
-        { status: 404 }
-      );
+      if (!promotion) {
+        return NextResponse.json(
+          { success: false, error: 'Promotion not found' },
+          { status: 404 }
+        );
+      }
+    }
+
+    // Fetch existing codes only if we have a promotionId
+    let existingCodes = new Set<string>();
+    if (promotionId) {
+      const existingCodeRecords = await db.promotionCode.findMany({
+        where: { promotionId },
+        select: { code: true },
+      });
+      existingCodes = new Set(existingCodeRecords.map((pc) => pc.code));
     }
 
     // Generate codes
     const codes: string[] = [];
-    const codeData = [];
-    const existingCodes = new Set(
-      (await db.promotionCode.findMany({
-        where: { promotionId },
-        select: { code: true },
-      })).map((pc) => pc.code)
-    );
-
     let attempts = 0;
     const maxAttempts = count * 10; // Allow 10x attempts for uniqueness
 
@@ -62,13 +68,6 @@ export async function POST(request: NextRequest) {
       // Check for uniqueness
       if (!existingCodes.has(newCode) && !codes.includes(newCode)) {
         codes.push(newCode);
-        codeData.push({
-          promotionId,
-          code: newCode,
-          isSingleUse,
-          maxUses: isSingleUse ? 1 : null,
-          campaignName,
-        });
       }
     }
 
@@ -82,14 +81,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert codes in batch
-    await db.promotionCode.createMany({
-      data: codeData,
-    });
+    // Insert codes in batch (only if not preview mode and promotionId exists)
+    if (!preview && promotionId) {
+      const codeData = codes.map((code) => ({
+        promotionId,
+        code,
+        isSingleUse,
+        maxUses: isSingleUse ? 1 : null,
+        campaignName,
+      }));
+
+      await db.promotionCode.createMany({
+        data: codeData,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully generated ${codes.length} promo codes`,
+      message: preview
+        ? `Generated ${codes.length} preview codes`
+        : `Successfully generated ${codes.length} promo codes`,
       codes,
       promotionId,
       campaignName,

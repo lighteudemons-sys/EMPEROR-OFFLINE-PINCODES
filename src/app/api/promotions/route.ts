@@ -42,7 +42,10 @@ export async function GET(request: NextRequest) {
     const promotions = await db.promotion.findMany({
       where,
       include: {
-        codes: includeCodes,
+        codes: includeCodes ? {
+          take: 100, // Limit to 100 most recent codes to avoid response size limit
+          orderBy: { createdAt: 'desc' },
+        } : false,
         branchRestrictions: {
           include: {
             branch: true,
@@ -55,6 +58,7 @@ export async function GET(request: NextRequest) {
         },
         _count: includeUsage ? {
           select: {
+            codes: true,
             usageLogs: true,
           },
         } : undefined,
@@ -175,11 +179,14 @@ export async function POST(request: NextRequest) {
       return newPromotion;
     });
 
-    // Fetch the complete promotion with relations
+    // Fetch the complete promotion with relations (limit codes to avoid 5MB limit)
     const completePromotion = await db.promotion.findUnique({
       where: { id: promotion.id },
       include: {
-        codes: true,
+        codes: {
+          take: 100, // Limit to 100 most recent codes to avoid response size limit
+          orderBy: { createdAt: 'desc' },
+        },
         branchRestrictions: {
           include: {
             branch: true,
@@ -190,12 +197,19 @@ export async function POST(request: NextRequest) {
             category: true,
           },
         },
+        _count: {
+          select: {
+            codes: true,
+            usageLogs: true,
+          },
+        },
       },
     });
 
     return NextResponse.json({
       success: true,
       promotion: completePromotion,
+      message: 'Promotion created successfully. Note: Only the 100 most recent codes are shown in the response.',
     });
   } catch (error) {
     console.error('Error creating promotion:', error);

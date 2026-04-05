@@ -539,7 +539,10 @@ export default function PromoCodesManagement() {
       const response = await fetch('/api/promo-codes/generate-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(voucherForm),
+        body: JSON.stringify({
+          ...voucherForm,
+          preview: isPreview,
+        }),
       });
 
       const data = await response.json();
@@ -570,6 +573,7 @@ export default function PromoCodesManagement() {
         body: JSON.stringify({
           ...voucherForm,
           count: 1,
+          preview: true,
         }),
       });
 
