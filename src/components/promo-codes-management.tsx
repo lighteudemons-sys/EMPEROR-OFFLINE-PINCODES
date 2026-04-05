@@ -225,8 +225,10 @@ interface formData {
   getQuantity: number | null;
   buyProductId: string | null;
   buyCategoryId: string | null;
+  buyProductVariantId: string | null;  // New field for variant selection
   getProductId: string | null;
   getCategoryId: string | null;
+  getProductVariantId: string | null;  // New field for variant selection
   applyToCheapest: boolean;
   branchIds: string[];
   categoryIds: string[];
@@ -309,8 +311,10 @@ export default function PromoCodesManagement() {
     getQuantity: null,
     buyProductId: null,
     buyCategoryId: null,
+    buyProductVariantId: null,
     getProductId: null,
     getCategoryId: null,
+    getProductVariantId: null,
     applyToCheapest: false,
     branchIds: [],
     categoryIds: [],
@@ -887,12 +891,21 @@ export default function PromoCodesManagement() {
       getQuantity: null,
       buyProductId: null,
       buyCategoryId: null,
+      buyProductVariantId: null,
       getProductId: null,
       getCategoryId: null,
+      getProductVariantId: null,
       applyToCheapest: false,
       branchIds: [],
       categoryIds: [],
       codes: [],
+    });
+    setVoucherForm({
+      promotionId: '',
+      count: 100,
+      prefix: '',
+      codeLength: 12,
+      campaignName: '',
     });
     setEditingPromotion(null);
     setWizardStep(1);
@@ -1023,6 +1036,37 @@ export default function PromoCodesManagement() {
     return `${item.name} - ${item.price} EGP`;
   };
 
+  // Helper function to get selectable product items (including individual variants)
+  const getSelectableProductItems = () => {
+    const items: Array<{
+      id: string;
+      name: string;
+      isVariant: boolean;
+    }> = [];
+
+    menuItems.forEach((item) => {
+      if (item.variants && item.variants.length > 0) {
+        // Add each variant as a separate selectable item
+        item.variants.forEach((variant) => {
+          items.push({
+            id: `variant-${variant.id}`,
+            name: `${item.name} (${variant.variantType.name}: ${variant.variantOption.name})`,
+            isVariant: true,
+          });
+        });
+      } else {
+        // Add the product itself
+        items.push({
+          id: `product-${item.id}`,
+          name: `${item.name} - ${item.price} EGP`,
+          isVariant: false,
+        });
+      }
+    });
+
+    return items;
+  };
+
   // Bulk Actions Handlers
   const handleBulkActivate = async () => {
     try {
@@ -1131,24 +1175,24 @@ export default function PromoCodesManagement() {
   };
 
   const handleWizardFinish = async () => {
-    // If preview codes exist, save them to form
-    if (previewGenerated.length > 0) {
-      setFormData({
-        ...formData,
-        codes: previewGenerated.map(code => ({
-          code,
-          isSingleUse: true,
-          maxUses: 1,
-        })),
-      });
-    }
+    // Prepare the final form data with any preview codes
+    const finalFormData = {
+      ...formData,
+      codes: previewGenerated.length > 0
+        ? previewGenerated.map(code => ({
+            code,
+            isSingleUse: true,
+            maxUses: 1,
+          }))
+        : formData.codes,
+    };
 
     // Save the promotion
-    const result = await handleSavePromotion();
+    const result = await handleSavePromotionWithCodes(finalFormData);
 
     if (result && result.promotion) {
-      // If no preview codes were saved, but voucher form has count, generate codes now
-      if (previewGenerated.length === 0 && voucherForm.count > 0 && !editingPromotion) {
+      // If no codes were saved (neither preview nor manual), but voucher form has count, generate codes now
+      if (finalFormData.codes.length === 0 && voucherForm.count > 0 && !editingPromotion) {
         try {
           const generateResponse = await fetch('/api/promo-codes/generate-batch', {
             method: 'POST',
@@ -1174,9 +1218,51 @@ export default function PromoCodesManagement() {
           console.error('Error generating codes after promotion creation:', error);
           showToast('success', `Promotion created. Go to "All Codes" tab to generate codes.`);
         }
-      } else if (previewGenerated.length > 0) {
-        showToast('success', `Promotion created with ${previewGenerated.length} codes. Check "All Codes" tab to view them.`);
+      } else if (finalFormData.codes.length > 0) {
+        showToast('success', `Promotion created with ${finalFormData.codes.length} codes. Check "All Codes" tab to view them.`);
+      } else {
+        showToast('success', 'Promotion created successfully. Go to "All Codes" tab to generate codes.');
       }
+    }
+  };
+
+  const handleSavePromotionWithCodes = async (formDataWithCodes: any) => {
+    try {
+      const url = editingPromotion
+        ? `/api/promotions/${editingPromotion.id}`
+        : '/api/promotions';
+      const method = editingPromotion ? 'PUT' : 'POST';
+
+      // Convert dates to ISO datetime format
+      const submissionData = {
+        ...formDataWithCodes,
+        startDate: formDataWithCodes.startDate ? new Date(formDataWithCodes.startDate).toISOString() : '',
+        endDate: formDataWithCodes.endDate ? new Date(formDataWithCodes.endDate).toISOString() : '',
+      };
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(submissionData),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setDialogOpen(false);
+        resetForm();
+        // Reset pagination and fetch fresh data
+        setPromotionsPagination({ page: 1, limit: 50, total: 0, totalPages: 0, hasMore: false });
+        fetchData(1, false);
+        return data;
+      } else {
+        showToast('error', data.error || 'Failed to save promotion');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error saving promotion:', error);
+      showToast('error', 'Failed to save promotion');
+      return null;
     }
   };
 
@@ -2151,13 +2237,34 @@ export default function PromoCodesManagement() {
                       <div className="space-y-2">
                         <Label>Buy From (Product or Category) *</Label>
                         <Select
-                          value={formData.buyProductId ? `product-${formData.buyProductId}` : formData.buyCategoryId || ''}
+                          value={formData.buyProductVariantId ? `variant-${formData.buyProductVariantId}` : formData.buyProductId ? `product-${formData.buyProductId}` : formData.buyCategoryId || ''}
                           onValueChange={(value) => {
-                            // Check if it's a product (starts with 'product-') or category
-                            if (value.startsWith('product-')) {
-                              setFormData({ ...formData, buyProductId: value.replace('product-', ''), buyCategoryId: null });
+                            // Check if it's a variant (starts with 'variant-')
+                            if (value.startsWith('variant-')) {
+                              const variantId = value.replace('variant-', '');
+                              // Find the variant to get its parent product
+                              const allVariants = menuItems.flatMap(item => item.variants || []);
+                              const variant = allVariants.find(v => v.id === variantId);
+                              setFormData({
+                                ...formData,
+                                buyProductVariantId: variantId,
+                                buyProductId: variant ? variant.id : null, // Store variant ID as product ID for compatibility
+                                buyCategoryId: null,
+                              });
+                            } else if (value.startsWith('product-')) {
+                              setFormData({
+                                ...formData,
+                                buyProductId: value.replace('product-', ''),
+                                buyProductVariantId: null,
+                                buyCategoryId: null,
+                              });
                             } else {
-                              setFormData({ ...formData, buyCategoryId: value, buyProductId: null });
+                              setFormData({
+                                ...formData,
+                                buyCategoryId: value,
+                                buyProductId: null,
+                                buyProductVariantId: null,
+                              });
                             }
                           }}
                         >
@@ -2171,10 +2278,10 @@ export default function PromoCodesManagement() {
                                 Category: {cat.name}
                               </SelectItem>
                             ))}
-                            <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Products</div>
-                            {menuItems.map((item) => (
-                              <SelectItem key={item.id} value={`product-${item.id}`}>
-                                {formatMenuItemDisplay(item)}
+                            <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Products & Variants</div>
+                            {getSelectableProductItems().map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -2185,14 +2292,34 @@ export default function PromoCodesManagement() {
                         <Label>Get From (Product or Category) - Optional</Label>
                         <p className="text-xs text-slate-500">Leave empty to get the same product(s)</p>
                         <Select
-                          value={formData.getProductId ? `product-${formData.getProductId}` : formData.getCategoryId || 'same-as-buy'}
+                          value={formData.getProductVariantId ? `variant-${formData.getProductVariantId}` : formData.getProductId ? `product-${formData.getProductId}` : formData.getCategoryId || 'same-as-buy'}
                           onValueChange={(value) => {
                             if (value === 'same-as-buy') {
-                              setFormData({ ...formData, getProductId: null, getCategoryId: null });
+                              setFormData({ ...formData, getProductId: null, getProductVariantId: null, getCategoryId: null });
+                            } else if (value.startsWith('variant-')) {
+                              const variantId = value.replace('variant-', '');
+                              const allVariants = menuItems.flatMap(item => item.variants || []);
+                              const variant = allVariants.find(v => v.id === variantId);
+                              setFormData({
+                                ...formData,
+                                getProductVariantId: variantId,
+                                getProductId: variant ? variant.id : null,
+                                getCategoryId: null,
+                              });
                             } else if (value.startsWith('product-')) {
-                              setFormData({ ...formData, getProductId: value.replace('product-', ''), getCategoryId: null });
+                              setFormData({
+                                ...formData,
+                                getProductId: value.replace('product-', ''),
+                                getProductVariantId: null,
+                                getCategoryId: null,
+                              });
                             } else {
-                              setFormData({ ...formData, getCategoryId: value, getProductId: null });
+                              setFormData({
+                                ...formData,
+                                getCategoryId: value,
+                                getProductId: null,
+                                getProductVariantId: null,
+                              });
                             }
                           }}
                         >
@@ -2207,10 +2334,10 @@ export default function PromoCodesManagement() {
                                 Category: {cat.name}
                               </SelectItem>
                             ))}
-                            <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Products</div>
-                            {menuItems.map((item) => (
-                              <SelectItem key={item.id} value={`product-${item.id}`}>
-                                {formatMenuItemDisplay(item)}
+                            <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Products & Variants</div>
+                            {getSelectableProductItems().map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
