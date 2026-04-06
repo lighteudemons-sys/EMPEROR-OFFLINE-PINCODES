@@ -161,11 +161,43 @@ export function MobileMore() {
   ];
 
   const handleFeatureClick = (feature: Feature) => {
-    // Show toast message for now - features need to be implemented as mobile views
-    showSuccessToast('Opening', `Opening ${feature.name}...`);
+    // Map feature IDs to desktop tab IDs
+    const featureToTabMap: Record<string, string> = {
+      'menu': 'menu',
+      'tables': 'tables',
+      'inventory': 'ingredients',
+      'delivery': 'delivery',
+      'suppliers': 'suppliers',
+      'purchase-orders': 'purchase-orders',
+      'customers': 'customers',
+      'loyalty': 'loyalty',
+      'promo-codes': 'promo-codes',
+      'reports': 'reports',
+      'analytics': 'reports',
+      'audit-logs': 'audit-logs',
+      'users': 'users',
+      'branches': 'branches',
+      'receipt': 'receipt',
+      'delivery-areas': 'delivery',
+      'couriers': 'delivery',
+      'eta-settings': 'eta-settings',
+    };
+
+    const targetTab = featureToTabMap[feature.id];
     
-    // For now, just show a message - you can implement individual mobile views later
-    // The desktop views will still work when switching to desktop mode
+    if (targetTab) {
+      // Dispatch event to switch to desktop view
+      window.dispatchEvent(new CustomEvent('mobile-feature-click', { detail: targetTab }));
+      // Switch to desktop view by triggering resize or directly changing state
+      showSuccessToast('Opening', `Opening ${feature.name}...`);
+      
+      // Force switch to desktop view by dispatching a resize event
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+    } else {
+      showSuccessToast('Coming Soon', `${feature.name} will be available soon`);
+    }
   };
 
   const FeatureButton = ({ feature }: { feature: Feature }) => {

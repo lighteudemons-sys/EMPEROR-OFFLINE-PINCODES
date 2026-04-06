@@ -83,32 +83,26 @@ export function MobileMoney() {
   const [expenseCategory, setExpenseCategory] = useState('OTHER');
   const [submittingExpense, setSubmittingExpense] = useState(false);
   
-  // Expense categories from database
+  // Expense categories matching desktop POS
   const [expenseCategories, setExpenseCategories] = useState<any[]>([
-    { value: 'OTHER', label: 'General', icon: DollarSign },
     { value: 'INVENTORY', label: 'Inventory', icon: Package },
-    { value: 'UTILITIES', label: 'Utilities', icon: Wrench },
-    { value: 'SUPPLIES', label: 'Supplies', icon: Building2 },
+    { value: 'EQUIPMENT', label: 'Equipment', icon: Wrench },
+    { value: 'REPAIRS', label: 'Repairs', icon: Wrench },
+    { value: 'UTILITIES', label: 'Utilities', icon: Building2 },
+    { value: 'RENT', label: 'Rent', icon: Building2 },
+    { value: 'MARKETING', label: 'Marketing', icon: Tag },
+    { value: 'SALARIES', label: 'Salaries', icon: DollarSign },
+    { value: 'TRANSPORTATION', label: 'Transportation', icon: MoreHorizontal },
+    { value: 'SUPPLIES', label: 'Supplies', icon: Package },
+    { value: 'MAINTENANCE', label: 'Maintenance', icon: Wrench },
+    { value: 'INSURANCE', label: 'Insurance', icon: Shield },
+    { value: 'TAXES', label: 'Taxes', icon: FileText },
+    { value: 'OTHER', label: 'Other', icon: DollarSign },
   ]);
 
-  // Fetch expense categories from database
+  // Set default category on mount
   useEffect(() => {
-    const fetchExpenseCategories = async () => {
-      try {
-        const response = await fetch('/api/expense-categories');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.categories && data.categories.length > 0) {
-            setExpenseCategories(data.categories);
-            // Set default category to first one
-            setExpenseCategory(data.categories[0].value);
-          }
-        }
-      } catch (error) {
-        console.log('Using default expense categories');
-      }
-    };
-    fetchExpenseCategories();
+    setExpenseCategory('OTHER');
   }, []);
 
   // Listen for add expense event from Dashboard
