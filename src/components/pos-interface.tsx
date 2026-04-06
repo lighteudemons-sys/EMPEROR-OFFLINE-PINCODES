@@ -754,6 +754,11 @@ export default function POSInterface() {
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [loadingIngredients, setLoadingIngredients] = useState(false);
 
+  // View Shift Expenses dialog state
+  const [showViewExpensesDialog, setShowViewExpensesDialog] = useState(false);
+  const [shiftExpenses, setShiftExpenses] = useState<any[]>([]);
+  const [loadingShiftExpenses, setLoadingShiftExpenses] = useState(false);
+
   // Hold Orders state
   const [heldOrders, setHeldOrders] = useState<any[]>([]);
   const [showHeldOrdersDialog, setShowHeldOrdersDialog] = useState(false);
@@ -3314,6 +3319,58 @@ export default function POSInterface() {
     }
   };
 
+  // Load expenses for the current shift
+  const loadShiftExpenses = async () => {
+    if (!currentShift) {
+      alert('No shift currently open');
+      return;
+    }
+
+    setLoadingShiftExpenses(true);
+    try {
+      console.log('[Shift Expenses] Loading expenses for shift:', currentShift.id);
+
+      // Try to fetch from API first (online mode)
+      let expenses: any[] = [];
+      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+
+      try {
+        const response = await fetch(`/api/daily-expenses?shiftId=${currentShift.id}&branchId=${branchId}`);
+        if (response.ok) {
+          const data = await response.json();
+          expenses = data.expenses || [];
+          console.log('[Shift Expenses] Loaded from API:', expenses.length, 'expenses');
+        }
+      } catch (apiError) {
+        console.log('[Shift Expenses] API failed, trying IndexedDB:', apiError);
+      }
+
+      // If API failed or no expenses, try IndexedDB (offline mode)
+      if (expenses.length === 0) {
+        try {
+          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+          const indexedDBStorage = getIndexedDBStorage();
+          await indexedDBStorage.init();
+
+          const allExpenses = await indexedDBStorage.getAllDailyExpenses();
+          expenses = allExpenses.filter((expense: any) => expense.shiftId === currentShift.id);
+          console.log('[Shift Expenses] Loaded from IndexedDB:', expenses.length, 'expenses');
+        } catch (dbError) {
+          console.error('[Shift Expenses] Failed to load from IndexedDB:', dbError);
+        }
+      }
+
+      setShiftExpenses(expenses);
+      console.log('[Shift Expenses] Total loaded:', expenses.length, 'expenses for shift:', currentShift.id);
+    } catch (error) {
+      console.error('[Shift Expenses] Failed to load shift expenses:', error);
+      setShiftExpenses([]);
+      alert('Failed to load shift expenses');
+    } finally {
+      setLoadingShiftExpenses(false);
+    }
+  };
+
   // View order details
   const handleViewOrder = async (order: any) => {
     setLoadingOrderDetails(true);
@@ -4724,6 +4781,19 @@ export default function POSInterface() {
               >
                 <Wallet className="h-3 w-3" />
                 <span className="font-black">{t('pos.exp')}</span>
+              </Button>
+              {/* View Shift Expenses Button */}
+              <Button
+                onClick={() => {
+                  setShowViewExpensesDialog(true);
+                  loadShiftExpenses();
+                }}
+                variant="outline"
+                className="h-8 px-2 border-blue-500 dark:border-blue-500 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/50 text-xs font-bold rounded-md gap-0.5 shadow-sm"
+                title="View Shift Expenses"
+              >
+                <ListOrdered className="h-3 w-3" />
+                <span className="font-black">Expenses</span>
               </Button>
               {/* Alerts Button - Behind Held Orders */}
               {lowStockAlerts.length > 0 && (
@@ -6342,6 +6412,125 @@ export default function POSInterface() {
                   {expenseCategory === 'INVENTORY' ? t('expense.restock.inventory') : t('pos.submit.expense')}
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Shift Expenses Dialog */}
+      <Dialog open={showViewExpensesDialog} onOpenChange={setShowViewExpensesDialog}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                <ListOrdered className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold">Shift Expenses</DialogTitle>
+                <DialogDescription>
+                  {currentShift ? `Expenses for shift started at ${new Date(currentShift.startTime).toLocaleString()}` : 'No shift currently open'}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="py-4">
+            {loadingShiftExpenses ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <RefreshCw className="h-8 w-8 text-blue-500 animate-spin mb-3" />
+                <p className="text-sm text-slate-600 dark:text-slate-400">Loading expenses...</p>
+              </div>
+            ) : shiftExpenses.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                  <Wallet className="h-8 w-8 text-slate-400" />
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400">No expenses recorded for this shift</p>
+                <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Click the "Add Expense" button to record expenses</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Summary Cards */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Total Expenses</div>
+                      <div className="text-xl font-bold text-blue-700 dark:text-blue-300">
+                        {formatCurrency(
+                          shiftExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0),
+                          currency
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border-emerald-200 dark:border-emerald-800">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Number of Entries</div>
+                      <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
+                        {shiftExpenses.length}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Expenses List */}
+                <ScrollArea className="h-96">
+                  <div className="space-y-2">
+                    {shiftExpenses.map((expense, index) => (
+                      <Card key={expense.id || index} className="border-slate-200 dark:border-slate-800">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              {expense.category === 'INVENTORY' ? (
+                                <Package className="h-4 w-4 text-emerald-600" />
+                              ) : (
+                                <Wallet className="h-4 w-4 text-amber-600" />
+                              )}
+                              <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
+                                {expense.category || 'OTHER'}
+                              </span>
+                            </div>
+                            <span className="text-sm font-bold text-slate-900 dark:text-white">
+                              {formatCurrency(expense.amount || 0, currency)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
+                            {expense.reason || 'No reason provided'}
+                          </p>
+                          {expense.category === 'INVENTORY' && expense.ingredientId && (
+                            <div className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-2 rounded">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Package className="h-3 w-3" />
+                                <span>Ingredient: {expense.ingredient?.name || 'Unknown'}</span>
+                              </div>
+                              <div>
+                                Quantity: {expense.quantity} {expense.quantityUnit} @ {formatCurrency(expense.unitPrice || 0, currency)}/{expense.quantityUnit}
+                              </div>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <div className="text-xs text-slate-500 dark:text-slate-500">
+                              {new Date(expense.createdAt).toLocaleString()}
+                            </div>
+                            {expense.recorder?.name && (
+                              <span className="text-xs text-slate-600 dark:text-slate-400">
+                                By: {expense.recorder.name}
+                              </span>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setShowViewExpensesDialog(false)}
+              className="flex-1 rounded-xl h-11 font-semibold"
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
