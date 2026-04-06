@@ -9,6 +9,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100');
     const promotionId = searchParams.get('promotionId');
     const isActive = searchParams.get('isActive');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     const offset = (page - 1) * limit;
 
@@ -18,6 +20,15 @@ export async function GET(request: NextRequest) {
     }
     if (isActive !== null) {
       where.isActive = isActive === 'true';
+    }
+    if (startDate) {
+      where.createdAt = { ...where.createdAt, gte: new Date(startDate) };
+    }
+    if (endDate) {
+      // Include the entire end date by setting it to the end of the day
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      where.createdAt = { ...where.createdAt, lte: endOfDay };
     }
 
     const [codes, totalCount] = await Promise.all([

@@ -256,6 +256,11 @@ export default function PromoCodesManagement() {
   const [filterType, setFilterType] = useState<'all' | 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED' | 'BUY_X_GET_Y_FREE'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'created' | 'usage' | 'endDate'>('created');
 
+  // Time filter state for codes
+  const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom'>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
   // Stats State
   const [statsExpanded, setStatsExpanded] = useState(false);
 
@@ -370,7 +375,7 @@ export default function PromoCodesManagement() {
     if (activeTab === 'codes') {
       fetchCodes();
     }
-  }, [activeTab, searchQuery, filterStatus]);
+  }, [activeTab, searchQuery, filterStatus, timeFilter, customStartDate, customEndDate]);
 
   // Fetch stats when a promotion is selected for stats view
   useEffect(() => {
@@ -480,6 +485,91 @@ export default function PromoCodesManagement() {
       });
       if (searchQuery) params.append('search', searchQuery);
       if (filterStatus !== 'all') params.append('isActive', filterStatus);
+
+      // Handle date filtering
+      let startDate: Date | null = null;
+      let endDate: Date | null = null;
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      // Helper to get start of week (Sunday)
+      const getStartOfWeek = (date: Date) => {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day;
+        return new Date(d.setDate(diff));
+      };
+
+      // Helper to get end of week (Saturday)
+      const getEndOfWeek = (date: Date) => {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + 6;
+        return new Date(d.setDate(diff));
+      };
+
+      // Helper to get start of month
+      const getStartOfMonth = (date: Date) => {
+        return new Date(date.getFullYear(), date.getMonth(), 1);
+      };
+
+      // Helper to get end of month
+      const getEndOfMonth = (date: Date) => {
+        return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      };
+
+      switch (timeFilter) {
+        case 'today':
+          startDate = today;
+          endDate = new Date(today);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case 'yesterday':
+          startDate = yesterday;
+          endDate = new Date(yesterday);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case 'thisWeek':
+          startDate = getStartOfWeek(now);
+          endDate = getEndOfWeek(now);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case 'lastWeek':
+          const lastWeekStart = new Date(getStartOfWeek(now));
+          lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+          const lastWeekEnd = new Date(getEndOfWeek(now));
+          lastWeekEnd.setDate(lastWeekEnd.getDate() - 7);
+          startDate = lastWeekStart;
+          endDate = lastWeekEnd;
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case 'thisMonth':
+          startDate = getStartOfMonth(now);
+          endDate = getEndOfMonth(now);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case 'lastMonth':
+          const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          startDate = getStartOfMonth(lastMonthDate);
+          endDate = getEndOfMonth(lastMonthDate);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case 'custom':
+          if (customStartDate) startDate = new Date(customStartDate);
+          if (customEndDate) {
+            endDate = new Date(customEndDate);
+            endDate.setHours(23, 59, 59, 999);
+          }
+          break;
+        default:
+          break;
+      }
+
+      if (startDate) params.append('startDate', startDate.toISOString());
+      if (endDate) params.append('endDate', endDate.toISOString());
 
       const res = await fetch(`/api/promo-codes?${params.toString()}`);
       const data = await res.json();
@@ -1607,6 +1697,42 @@ export default function PromoCodesManagement() {
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
+            {activeTab === 'codes' && (
+              <>
+                <Select value={timeFilter} onValueChange={(value: any) => setTimeFilter(value)}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="Generated Time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="yesterday">Yesterday</SelectItem>
+                    <SelectItem value="thisWeek">This Week</SelectItem>
+                    <SelectItem value="lastWeek">Last Week</SelectItem>
+                    <SelectItem value="thisMonth">This Month</SelectItem>
+                    <SelectItem value="lastMonth">Last Month</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
+                {timeFilter === 'custom' && (
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="w-36"
+                    />
+                    <span className="text-slate-400">to</span>
+                    <Input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="w-36"
+                    />
+                  </div>
+                )}
+              </>
+            )}
             <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
               <SelectTrigger className="w-40">
                 <SelectValue />

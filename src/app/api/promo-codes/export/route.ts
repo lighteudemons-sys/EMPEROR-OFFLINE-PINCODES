@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const promotionId = searchParams.get('promotionId');
     const campaignName = searchParams.get('campaignName');
+    const codes = searchParams.get('codes');
 
     const where: any = {};
     if (promotionId) {
@@ -14,6 +15,11 @@ export async function GET(request: NextRequest) {
     }
     if (campaignName) {
       where.campaignName = campaignName;
+    }
+    if (codes) {
+      // Export only selected codes
+      const codeList = codes.split(',').map(c => c.trim());
+      where.id = { in: codeList };
     }
 
     const promoCodes = await db.promotionCode.findMany({
