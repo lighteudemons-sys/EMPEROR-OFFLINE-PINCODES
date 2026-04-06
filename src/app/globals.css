@@ -120,3 +120,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Safe area support for mobile devices */
+@supports (padding: max(0px)) {
+  .safe-area-inset-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+  .safe-area-inset-top {
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+  .safe-area-inset-left {
+    padding-left: max(env(safe-area-inset-left), 0px);
+  }
+  .safe-area-inset-right {
+    padding-right: max(env(safe-area-inset-right), 0px);
+  }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  }
+}

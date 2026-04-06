@@ -38,6 +38,12 @@ import { OfflineStatusIndicator } from '@/components/offline-status-indicator';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { SyncOperationsViewer } from '@/components/sync-operations-viewer';
 import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
+import { MobileBottomNav } from '@/components/mobile-bottom-nav';
+import { MobileDashboard } from '@/components/mobile-dashboard';
+import { MobilePOS } from '@/components/mobile-pos';
+import { MobileOrders } from '@/components/mobile-orders';
+import { MobileMoney } from '@/components/mobile-money';
+import { MobileMore } from '@/components/mobile-more';
 import { offlineManager } from '@/lib/offline/offline-manager';
 import storageMonitor from '@/lib/storage/storage-monitor';
 import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
@@ -59,6 +65,8 @@ export default function POSDashboard() {
   const [storageAlert, setStorageAlert] = useState<any>(null);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [syncConflicts, setSyncConflicts] = useState<any[]>([]);
+  const [mobileActiveTab, setMobileActiveTab] = useState('mobile-dashboard');
+  const [isMobileView, setIsMobileView] = useState(false);
 
   // Start storage monitoring
   useEffect(() => {
@@ -424,6 +432,38 @@ export default function POSDashboard() {
     })();
   }, []);
 
+  // Check if mobile view based on screen size
+  useEffect(() => {
+    const checkMobileView = () => {
+      setIsMobileView(window.innerWidth < 1024);
+    };
+
+    checkMobileView();
+    window.addEventListener('resize', checkMobileView);
+
+    return () => window.removeEventListener('resize', checkMobileView);
+  }, []);
+
+  // Listen for mobile tab change events
+  useEffect(() => {
+    const handleMobileTabChange = (e: any) => {
+      setMobileActiveTab(e.detail);
+    };
+
+    const handleMobileFeatureClick = (e: any) => {
+      // Switch to desktop tab when feature is clicked from mobile
+      setActiveTab(e.detail);
+    };
+
+    window.addEventListener('mobile-tab-change', handleMobileTabChange);
+    window.addEventListener('mobile-feature-click', handleMobileFeatureClick);
+
+    return () => {
+      window.removeEventListener('mobile-tab-change', handleMobileTabChange);
+      window.removeEventListener('mobile-feature-click', handleMobileFeatureClick);
+    };
+  }, []);
+
   // Check authentication on mount
   useEffect(() => {
     if (!user) {
@@ -544,9 +584,9 @@ export default function POSDashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col h-screen overflow-hidden">
-        {/* Glassmorphism Header - Compact */}
-        <header className="flex-shrink-0 sticky top-0 z-50 backdrop-blur-xl backdrop-saturate-150 bg-white/85 backdrop-filter shadow-md">
+      <div className={`relative z-10 flex flex-col h-screen overflow-hidden ${isMobileView ? 'lg:hidden' : ''}`}>
+        {/* Glassmorphism Header - Compact (Desktop Only) */}
+        <header className={`flex-shrink-0 sticky top-0 z-50 backdrop-blur-xl backdrop-saturate-150 bg-white/85 backdrop-filter shadow-md ${isMobileView ? 'hidden lg:flex' : ''}`}>
         <div className="px-2 sm:px-3 py-1 sm:py-1.5">
           <div className="flex items-center justify-between gap-2">
             {/* Mobile Menu Button & Logo */}
@@ -750,10 +790,31 @@ export default function POSDashboard() {
         </div>
       </header>
 
-      {/* Main Content Area - Full Height */}
-      <main className="flex-1 px-2 sm:px-4 py-2 overflow-auto min-h-0">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full flex flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto">
+      {/* Mobile Layout */}
+      {isMobileView ? (
+        <>
+          {/* Mobile Views */}
+          <div className="flex-1 overflow-hidden">
+            {mobileActiveTab === 'mobile-dashboard' && <MobileDashboard />}
+            {mobileActiveTab === 'mobile-pos' && <MobilePOS />}
+            {mobileActiveTab === 'mobile-orders' && <MobileOrders />}
+            {mobileActiveTab === 'mobile-money' && <MobileMoney />}
+            {mobileActiveTab === 'mobile-more' && <MobileMore />}
+          </div>
+
+          {/* Mobile Bottom Navigation */}
+          <MobileBottomNav
+            activeTab={mobileActiveTab}
+            onTabChange={setMobileActiveTab}
+          />
+        </>
+      ) : (
+        /* Desktop Layout */
+        <>
+          {/* Main Content Area - Full Height */}
+          <main className="flex-1 px-2 sm:px-4 py-2 overflow-auto min-h-0">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full flex flex-col">
+              <div className="flex-1 min-h-0 overflow-y-auto">
             <TabsContent value="pos" className="h-full m-0 p-0">
               {canAccessPOS ? (
                 <POSInterface />
@@ -939,9 +1000,11 @@ export default function POSDashboard() {
                 <AccessDenied />
               )}
             </TabsContent>
-          </div>
-        </Tabs>
-      </main>
+              </div>
+            </Tabs>
+          </main>
+        </>
+      )}
 
       <SyncOperationsViewer
         open={showSyncViewer}
