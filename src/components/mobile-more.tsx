@@ -161,7 +161,11 @@ export function MobileMore() {
   ];
 
   const handleFeatureClick = (feature: Feature) => {
-    // Map feature IDs to desktop tab IDs
+    // Show message that this feature is available on desktop
+    showSuccessToast('Desktop Feature', `${feature.name} is available on desktop view. Rotate your device or use a larger screen.`);
+
+    // Optionally, still try to switch to desktop view
+    // Note: This may not work well on actual mobile devices due to screen size
     const featureToTabMap: Record<string, string> = {
       'menu': 'menu',
       'tables': 'tables',
@@ -186,18 +190,13 @@ export function MobileMore() {
     const targetTab = featureToTabMap[feature.id];
 
     if (targetTab) {
-      // Switch to desktop view and navigate to the tab
-      showSuccessToast('Opening', `Opening ${feature.name}...`);
-
-      // Dispatch event to switch to desktop view
+      // Dispatch event to switch to desktop view and navigate to the tab
       window.dispatchEvent(new Event('switch-to-desktop'));
 
-      // Then navigate to the target tab
+      // Small delay to ensure desktop view is loaded before switching tab
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('mobile-feature-click', { detail: targetTab }));
-      }, 200);
-    } else {
-      showSuccessToast('Coming Soon', `${feature.name} will be available soon`);
+      }, 300);
     }
   };
 
