@@ -33,6 +33,7 @@ import {
   Layers,
   Lock,
   Clock,
+  Store,
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-context';
 import { formatCurrency } from '@/lib/utils';
@@ -42,6 +43,7 @@ import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import CustomerSearch from '@/components/customer-search';
 import { MobilePaymentDialog } from '@/components/mobile-payment-dialog';
+import { useOfflineData, offlineDataFetchers } from '@/hooks/use-offline-data';
 
 const storage = getIndexedDBStorage();
 
@@ -132,6 +134,79 @@ export function MobilePOS() {
   const [customVariantValue, setCustomVariantValue] = useState<string>('');
   const [customPriceMode, setCustomPriceMode] = useState<'weight' | 'price'>('weight');
   const [customPriceValue, setCustomPriceValue] = useState<string>('');
+
+  // Branch selection for admins (same as desktop)
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+
+  // Use the SAME data fetching as desktop
+  const { data: categoriesData, loading: categoriesLoading } = useOfflineData(
+    '/api/categories?active=true',
+    {
+      fetchFromDB: offlineDataFetchers.categories,
+      useCache: true,
+    }
+  );
+
+  const { data: menuItemsData, loading: menuItemsLoading, refetch: refetchMenuItems } = useOfflineData(
+    // SAME LOGIC AS DESKTOP
+    (() => {
+      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+      if (!branchId) return null; // Don't fetch if no branchId
+      return `/api/menu-items/pos?branchId=${branchId}`;
+    })(),
+    {
+      fetchFromDB: offlineDataFetchers.menuItems,
+      deps: [selectedBranch, user?.branchId, user?.role],
+      useCache: true,
+    }
+  );
+
+  const { data: branchesData } = useOfflineData(
+    '/api/branches',
+    {
+      fetchFromDB: offlineDataFetchers.branches,
+    }
+  );
+
+  // Update local state when data changes (SAME AS DESKTOP)
+  useEffect(() => {
+    if (categoriesData && Array.isArray(categoriesData)) {
+      setCategories(categoriesData);
+    }
+  }, [categoriesData]);
+
+  useEffect(() => {
+    if (menuItemsData && Array.isArray(menuItemsData)) {
+      setMenuItems(menuItemsData);
+      setLoading(false);
+    } else if (!menuItemsLoading) {
+      setLoading(false);
+    }
+  }, [menuItemsData, menuItemsLoading]);
+
+  // Set selected branch for admins (same as desktop)
+  useEffect(() => {
+    if (user && branchesData) {
+      const branchesList = Array.isArray(branchesData) 
+        ? branchesData.map((branch: any) => ({
+            id: branch.id,
+            name: branch.branchName,
+          }))
+        : (branchesData.branches || []).map((branch: any) => ({
+            id: branch.id,
+            name: branch.branchName,
+          }));
+      
+      if (user.role === 'ADMIN') {
+        // For admins, set first branch if none selected
+        if (!selectedBranch && branchesList.length > 0) {
+          setSelectedBranch(branchesList[0].id);
+        }
+      } else if (user.branchId) {
+        setSelectedBranch(user.branchId);
+      }
+    }
+  }, [user, branchesData, selectedBranch]);
 
   // Shift/Business Day access check (same as desktop)
   const [hasOpenShift, setHasOpenShift] = useState(false);
@@ -281,80 +356,23 @@ export function MobilePOS() {
     };
   }, []);
 
-  // Fetch data
+  // Load saved cart (keep this separate)
   useEffect(() => {
-    const fetchData = async () => {
+    const loadCart = async () => {
       try {
         const storage = getIndexedDBStorage();
         await storage.init();
-
-        // Fetch categories - try API first, then IndexedDB
-        let categoriesData: any[] = [];
-        try {
-          const response = await fetch('/api/categories?active=true');
-          if (response.ok) {
-            const data = await response.json();
-            categoriesData = data.categories || data || [];
-          }
-        } catch (error) {
-          console.log('Failed to fetch categories from API, using IndexedDB');
-        }
-        
-        // Fallback to IndexedDB if API failed or returned no data
-        if (categoriesData.length === 0) {
-          const catsData = await storage.getAllCategories();
-          categoriesData = catsData.filter((c: any) => c.isActive).sort((a: any, b: any) => a.sortOrder - b.sortOrder);
-        }
-        
-        const activeCats = categoriesData.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
-        setCategories(activeCats);
-
-        // Fetch menu items - try API first, then IndexedDB
-        const branchId = user?.role === 'ADMIN' ? (user.branchId || 'all') : user?.branchId;
-        let menuItemsData: any[] = [];
-        
-        try {
-          const url = branchId && branchId !== 'all' 
-            ? `/api/menu-items/pos?branchId=${branchId}`
-            : '/api/menu-items';
-          const response = await fetch(url);
-          if (response.ok) {
-            const data = await response.json();
-            menuItemsData = data.menuItems || data || [];
-          }
-        } catch (error) {
-          console.log('Failed to fetch menu items from API, using IndexedDB');
-        }
-        
-        // Fallback to IndexedDB if API failed or returned no data
-        if (menuItemsData.length === 0) {
-          const itemsData = await storage.getMenuItems();
-          menuItemsData = itemsData.filter((item: any) => 
-            item.isActive && (!branchId || branchId === 'all' || !item.branchId || item.branchId === branchId)
-          );
-        }
-        
-        const activeItems = menuItemsData
-          .filter((item: any) => item.isActive)
-          .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
-        setMenuItems(activeItems);
-
-        // Load saved cart
         const savedCart = await storage.getJSON('mobile-cart');
         if (savedCart) {
           setCart(savedCart);
         }
-
-        setLoading(false);
       } catch (error) {
-        console.error('Error fetching POS data:', error);
-        showErrorToast('Error', 'Failed to load menu items');
-        setLoading(false);
+        console.error('Error loading cart:', error);
       }
     };
 
-    fetchData();
-  }, [user?.branchId, user?.role]);
+    loadCart();
+  }, []);
 
   // Save cart to storage
   useEffect(() => {
@@ -624,6 +642,25 @@ export function MobilePOS() {
       <div className="min-h-screen bg-slate-50 pb-32">
         {/* Header */}
         <div className="bg-white border-b border-slate-200 px-4 pt-12 pb-4 sticky top-0 z-40">
+          {/* Branch Selector for Admins (same as desktop) */}
+          {user?.role === 'ADMIN' && (
+            <div className="mb-3">
+              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                <SelectTrigger className="h-10 bg-slate-50">
+                  <Store className="w-4 h-4 mr-2 text-emerald-600" />
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branchesData && (Array.isArray(branchesData) ? branchesData : branchesData.branches || []).map((branch: any) => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.branchName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Search Bar */}
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
