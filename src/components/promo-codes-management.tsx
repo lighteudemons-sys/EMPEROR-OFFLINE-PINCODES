@@ -372,6 +372,7 @@ export default function PromoCodesManagement() {
 
   // Fetch codes when switching to codes tab
   useEffect(() => {
+    console.log('activeTab changed:', activeTab);
     if (activeTab === 'codes') {
       fetchCodes();
     }
@@ -1699,9 +1700,10 @@ export default function PromoCodesManagement() {
             </Select>
             {activeTab === 'codes' && (
               <>
+                <span className="text-sm text-slate-500">Generated:</span>
                 <Select value={timeFilter} onValueChange={(value: any) => setTimeFilter(value)}>
-                  <SelectTrigger className="w-36">
-                    <SelectValue placeholder="Generated Time" />
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="All Time" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Time</SelectItem>
