@@ -87,31 +87,71 @@ export function MobileDashboard() {
     try {
       if (isRefresh) setRefreshing(true);
 
-      const storage = getIndexedDBStorage();
-      await storage.init();
-
       // Get today's date range
       const today = new Date();
       const startOfDay = new Date(today.setHours(0, 0, 0, 0));
       const endOfDay = new Date(today.setHours(23, 59, 59, 999));
 
-      // Fetch today's orders
-      const allOrders = await storage.getAllOrders();
-      const todayOrders = allOrders.filter((order: any) => {
-        const orderDate = new Date(order.createdAt);
-        return orderDate >= startOfDay && orderDate <= endOfDay;
-      });
+      // Fetch today's orders from API first
+      let todayOrders: any[] = [];
+      try {
+        const response = await fetch('/api/orders');
+        if (response.ok) {
+          const data = await response.json();
+          const allOrders = data.orders || [];
+          todayOrders = allOrders.filter((order: any) => {
+            const orderDate = new Date(order.createdAt || order.orderTimestamp);
+            return orderDate >= startOfDay && orderDate <= endOfDay;
+          });
+        }
+      } catch (error) {
+        console.log('Failed to fetch orders from API, using IndexedDB');
+      }
+
+      // Fallback to IndexedDB if API failed or returned no data
+      if (todayOrders.length === 0) {
+        const storage = getIndexedDBStorage();
+        await storage.init();
+        const allOrders = await storage.getAllOrders();
+        todayOrders = allOrders.filter((order: any) => {
+          const orderDate = new Date(order.createdAt || order.orderTimestamp);
+          return orderDate >= startOfDay && orderDate <= endOfDay;
+        });
+      }
 
       const todayRevenue = todayOrders.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0);
       const orderCount = todayOrders.length;
 
       // Get current shift
-      const allShifts = await storage.getAllShifts();
-      const openShift = allShifts.find((s: any) =>
-        s.cashierId === user?.id &&
-        s.branchId === user?.branchId &&
-        !s.isClosed
-      );
+      let openShift: any = null;
+      try {
+        const params = new URLSearchParams({
+          branchId: user?.branchId || '',
+          cashierId: user?.id || '',
+          status: 'open',
+        });
+        const response = await fetch(`/api/shifts?${params.toString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.shifts && data.shifts.length > 0) {
+            openShift = data.shifts[0];
+          }
+        }
+      } catch (error) {
+        console.log('Failed to fetch shift from API, checking IndexedDB');
+      }
+
+      // Fallback to IndexedDB for shift
+      if (!openShift) {
+        const storage = getIndexedDBStorage();
+        await storage.init();
+        const allShifts = await storage.getAllShifts();
+        openShift = allShifts.find((s: any) =>
+          s.cashierId === user?.id &&
+          s.branchId === user?.branchId &&
+          !s.isClosed
+        );
+      }
 
       if (openShift) {
         setCurrentShift({
@@ -123,42 +163,87 @@ export function MobileDashboard() {
           cashierName: user?.name || user?.username || 'Unknown',
           branchName: 'Current Branch',
         });
+      } else {
+        setCurrentShift(null);
       }
 
       // Get low stock items
-      const allInventory = await storage.getAllInventory();
-      const lowStock = allInventory
-        .filter((item: any) => item.currentStock <= (item.minimumStock || 10))
-        .slice(0, 5)
-        .map((item: any) => ({
-          id: item.id,
-          name: item.ingredient?.name || item.ingredientId,
-          currentStock: item.currentStock,
-          minimumStock: item.minimumStock || 10,
-          unit: item.ingredient?.unit || 'units',
-        }));
+      let lowStock: LowStockItem[] = [];
+      try {
+        const response = await fetch(`/api/inventory-alerts?branchId=${user?.branchId}`);
+        if (response.ok) {
+          const data = await response.json();
+          lowStock = (data.alerts || []).slice(0, 5).map((item: any) => ({
+            id: item.id,
+            name: item.ingredient?.name || item.ingredientId,
+            currentStock: item.currentStock,
+            minimumStock: item.minimumStock || 10,
+            unit: item.ingredient?.unit || 'units',
+          }));
+        }
+      } catch (error) {
+        console.log('Failed to fetch inventory alerts, checking IndexedDB');
+      }
+
+      // Fallback to IndexedDB for low stock
+      if (lowStock.length === 0) {
+        const storage = getIndexedDBStorage();
+        await storage.init();
+        const allInventory = await storage.getAllInventory();
+        lowStock = allInventory
+          .filter((item: any) => item.currentStock <= (item.minimumStock || 10))
+          .slice(0, 5)
+          .map((item: any) => ({
+            id: item.id,
+            name: item.ingredient?.name || item.ingredientId,
+            currentStock: item.currentStock,
+            minimumStock: item.minimumStock || 10,
+            unit: item.ingredient?.unit || 'units',
+          }));
+      }
+
       setLowStockItems(lowStock);
 
       // Get recent activity
       const activities: RecentActivity[] = [];
-
-      // Add recent orders
       todayOrders.slice(0, 3).forEach((order: any) => {
         activities.push({
           id: `order-${order.id}`,
           type: 'order',
           description: `Order #${order.orderNumber || 'N/A'}`,
-          timestamp: order.createdAt,
+          timestamp: order.createdAt || order.orderTimestamp,
           amount: order.totalAmount,
         });
       });
 
       // Add recent expenses
-      const allExpenses = await storage.getAll('daily_expenses');
-      const todayExpenses = allExpenses.filter((exp: any) => {
-        const expDate = new Date(exp.createdAt);
-        return expDate >= startOfDay && expDate <= endOfDay;
-      });
+      let todayExpenses: any[] = [];
+      try {
+        const today = new Date();
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+        const response = await fetch(`/api/daily-expenses?branchId=${user?.branchId}&startDate=${startOfDay.toISOString()}&endDate=${endOfDay.toISOString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          todayExpenses = data.expenses || [];
+        }
+      } catch (error) {
+        console.log('Failed to fetch expenses from API, using IndexedDB');
+      }
+
+      // Fallback to IndexedDB for expenses
+      if (todayExpenses.length === 0) {
+        const storage = getIndexedDBStorage();
+        await storage.init();
+        const allExpenses = await storage.getAll('daily_expenses');
+        const today = new Date();
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+        todayExpenses = allExpenses.filter((exp: any) => {
+          const expDate = new Date(exp.createdAt);
+          return expDate >= startOfDay && expDate <= endOfDay;
+        });
+      }
 
       todayExpenses.slice(0, 2).forEach((exp: any) => {
         activities.push({

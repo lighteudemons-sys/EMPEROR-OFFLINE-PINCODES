@@ -82,13 +82,34 @@ export function MobileMoney() {
   const [expenseReason, setExpenseReason] = useState('');
   const [expenseCategory, setExpenseCategory] = useState('OTHER');
   const [submittingExpense, setSubmittingExpense] = useState(false);
-
-  const expenseCategories = [
+  
+  // Expense categories from database
+  const [expenseCategories, setExpenseCategories] = useState<any[]>([
     { value: 'OTHER', label: 'General', icon: DollarSign },
     { value: 'INVENTORY', label: 'Inventory', icon: Package },
     { value: 'UTILITIES', label: 'Utilities', icon: Wrench },
     { value: 'SUPPLIES', label: 'Supplies', icon: Building2 },
-  ];
+  ]);
+
+  // Fetch expense categories from database
+  useEffect(() => {
+    const fetchExpenseCategories = async () => {
+      try {
+        const response = await fetch('/api/expense-categories');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.categories && data.categories.length > 0) {
+            setExpenseCategories(data.categories);
+            // Set default category to first one
+            setExpenseCategory(data.categories[0].value);
+          }
+        }
+      } catch (error) {
+        console.log('Using default expense categories');
+      }
+    };
+    fetchExpenseCategories();
+  }, []);
 
   // Listen for add expense event from Dashboard
   useEffect(() => {

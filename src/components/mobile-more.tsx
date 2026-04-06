@@ -161,34 +161,11 @@ export function MobileMore() {
   ];
 
   const handleFeatureClick = (feature: Feature) => {
-    // Dispatch event to switch to the corresponding desktop tab
-    const tabMap: Record<string, string> = {
-      'menu': 'menu',
-      'tables': 'tables',
-      'inventory': 'ingredients',
-      'delivery': 'delivery',
-      'suppliers': 'suppliers',
-      'purchase-orders': 'purchase-orders',
-      'customers': 'customers',
-      'loyalty': 'loyalty',
-      'promo-codes': 'promo-codes',
-      'reports': 'reports',
-      'analytics': 'reports',
-      'audit-logs': 'audit-logs',
-      'users': 'users',
-      'branches': 'branches',
-      'receipt': 'receipt',
-      'delivery-areas': 'delivery',
-      'couriers': 'delivery',
-      'eta-settings': 'eta-settings',
-    };
-
-    const targetTab = tabMap[feature.id];
-    if (targetTab) {
-      window.dispatchEvent(new CustomEvent('mobile-feature-click', { detail: targetTab }));
-    } else {
-      showSuccessToast('Opening', `Opening ${feature.name}...`);
-    }
+    // Show toast message for now - features need to be implemented as mobile views
+    showSuccessToast('Opening', `Opening ${feature.name}...`);
+    
+    // For now, just show a message - you can implement individual mobile views later
+    // The desktop views will still work when switching to desktop mode
   };
 
   const FeatureButton = ({ feature }: { feature: Feature }) => {
@@ -237,8 +214,11 @@ export function MobileMore() {
           </div>
           <div className="flex-1">
             <h1 className="text-xl font-bold">{user?.name || user?.username}</h1>
-            <p className="text-emerald-100 text-sm capitalize">
-              {user?.role?.replace('_', ' ').toLowerCase()}
+            <p className="text-emerald-100 text-sm">
+              {user?.role === 'ADMIN' ? 'HQ Admin' : 
+               user?.role === 'BRANCH_MANAGER' ? 'Branch Manager' :
+               user?.role === 'CASHIER' ? 'Cashier' :
+               user?.role?.replace('_', ' ')}
             </p>
           </div>
           {user?.branchId && <OfflineStatusIndicator branchId={user.branchId} />}

@@ -76,10 +76,24 @@ export function MobileOrders() {
     try {
       if (isRefresh) setRefreshing(true);
 
-      const storage = getIndexedDBStorage();
-      await storage.init();
+      // Fetch orders from API first
+      let allOrders: any[] = [];
+      try {
+        const response = await fetch('/api/orders');
+        if (response.ok) {
+          const data = await response.json();
+          allOrders = data.orders || [];
+        }
+      } catch (error) {
+        console.log('Failed to fetch orders from API, using IndexedDB');
+      }
 
-      const allOrders = await storage.getAllOrders();
+      // Fallback to IndexedDB if API failed or returned no data
+      if (allOrders.length === 0) {
+        const storage = getIndexedDBStorage();
+        await storage.init();
+        allOrders = await storage.getAllOrders();
+      }
 
       // Convert to our Order interface
       const convertedOrders: Order[] = allOrders.map((order: any) => ({
@@ -88,7 +102,7 @@ export function MobileOrders() {
         orderType: order.orderType || 'take-away',
         status: order.status || 'completed',
         totalAmount: order.totalAmount || 0,
-        createdAt: order.createdAt || new Date().toISOString(),
+        createdAt: order.createdAt || order.orderTimestamp || new Date().toISOString(),
         customer: order._offlineData?.customerName ? {
           name: order._offlineData.customerName,
           phone: order._offlineData.customerPhone || '',

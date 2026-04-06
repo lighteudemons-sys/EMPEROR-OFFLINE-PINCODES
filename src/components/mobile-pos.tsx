@@ -105,21 +105,54 @@ export function MobilePOS() {
         const storage = getIndexedDBStorage();
         await storage.init();
 
-        // Fetch categories
-        const catsData = await storage.getAllCategories();
-        const activeCats = catsData.filter((c: any) => c.isActive).sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+        // Fetch categories - try API first, then IndexedDB
+        let categoriesData: any[] = [];
+        try {
+          const response = await fetch('/api/categories?active=true');
+          if (response.ok) {
+            const data = await response.json();
+            categoriesData = data.categories || data || [];
+          }
+        } catch (error) {
+          console.log('Failed to fetch categories from API, using IndexedDB');
+        }
+        
+        // Fallback to IndexedDB if API failed or returned no data
+        if (categoriesData.length === 0) {
+          const catsData = await storage.getAllCategories();
+          categoriesData = catsData.filter((c: any) => c.isActive).sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+        }
+        
+        const activeCats = categoriesData.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
         setCategories(activeCats);
 
-        // Fetch menu items
-        const branchId = user?.branchId;
-        if (!branchId) {
-          setLoading(false);
-          return;
+        // Fetch menu items - try API first, then IndexedDB
+        const branchId = user?.role === 'ADMIN' ? (user.branchId || 'all') : user?.branchId;
+        let menuItemsData: any[] = [];
+        
+        try {
+          const url = branchId && branchId !== 'all' 
+            ? `/api/menu-items/pos?branchId=${branchId}`
+            : '/api/menu-items';
+          const response = await fetch(url);
+          if (response.ok) {
+            const data = await response.json();
+            menuItemsData = data.menuItems || data || [];
+          }
+        } catch (error) {
+          console.log('Failed to fetch menu items from API, using IndexedDB');
         }
-
-        const itemsData = await storage.getMenuItems();
-        const activeItems = itemsData
-          .filter((item: any) => item.isActive && (!item.branchId || item.branchId === branchId))
+        
+        // Fallback to IndexedDB if API failed or returned no data
+        if (menuItemsData.length === 0) {
+          const itemsData = await storage.getMenuItems();
+          menuItemsData = itemsData.filter((item: any) => 
+            item.isActive && (!branchId || branchId === 'all' || !item.branchId || item.branchId === branchId)
+          );
+        }
+        
+        const activeItems = menuItemsData
+          .filter((item: any) => item.isActive)
           .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
         setMenuItems(activeItems);
 
@@ -138,7 +171,7 @@ export function MobilePOS() {
     };
 
     fetchData();
-  }, [user?.branchId]);
+  }, [user?.branchId, user?.role]);
 
   // Save cart to storage
   useEffect(() => {
