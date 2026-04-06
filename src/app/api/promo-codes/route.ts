@@ -21,14 +21,20 @@ export async function GET(request: NextRequest) {
     if (isActive !== null) {
       where.isActive = isActive === 'true';
     }
-    if (startDate) {
-      where.createdAt = { ...where.createdAt, gte: new Date(startDate) };
-    }
-    if (endDate) {
-      // Include the entire end date by setting it to the end of the day
-      const endOfDay = new Date(endDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      where.createdAt = { ...where.createdAt, lte: endOfDay };
+
+    // Build date filter
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) {
+        dateFilter.gte = new Date(startDate);
+      }
+      if (endDate) {
+        // Include the entire end date by setting it to the end of the day
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        dateFilter.lte = endOfDay;
+      }
+      where.createdAt = dateFilter;
     }
 
     const [codes, totalCount] = await Promise.all([

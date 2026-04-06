@@ -569,11 +569,18 @@ export default function PromoCodesManagement() {
           break;
       }
 
+      console.log('Time filter:', timeFilter, 'Start:', startDate, 'End:', endDate);
+
       if (startDate) params.append('startDate', startDate.toISOString());
       if (endDate) params.append('endDate', endDate.toISOString());
 
+      console.log('Fetching codes with params:', params.toString());
+
       const res = await fetch(`/api/promo-codes?${params.toString()}`);
       const data = await res.json();
+
+      console.log('Codes response:', data);
+
       if (data.success) {
         const codesWithNames = data.codes.map((c: any) => ({
           ...c,
@@ -1735,18 +1742,20 @@ export default function PromoCodesManagement() {
                 )}
               </>
             )}
-            <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="PERCENTAGE">Percentage</SelectItem>
-                <SelectItem value="FIXED_AMOUNT">Fixed Amount</SelectItem>
-                <SelectItem value="CATEGORY_PERCENTAGE">Category %</SelectItem>
-                <SelectItem value="CATEGORY_FIXED">Category Fixed</SelectItem>
-              </SelectContent>
-            </Select>
+            {activeTab === 'promotions' && (
+              <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="PERCENTAGE">Percentage</SelectItem>
+                  <SelectItem value="FIXED_AMOUNT">Fixed Amount</SelectItem>
+                  <SelectItem value="CATEGORY_PERCENTAGE">Category %</SelectItem>
+                  <SelectItem value="CATEGORY_FIXED">Category Fixed</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
               <SelectTrigger className="w-36">
                 <SelectValue />
