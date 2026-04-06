@@ -294,6 +294,20 @@ export default function PromoCodesManagement() {
     maxUses: null as number | null,
   });
 
+  // Stats dialog state
+  const [selectedPromoForStats, setSelectedPromoForStats] = useState<Promotion | null>(null);
+  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [promoStats, setPromoStats] = useState<{
+    totalCodes: number;
+    usedCodes: number;
+    activeCodes: number;
+    redemptionRate: number;
+    totalRevenue: number;
+    avgOrderValue: number;
+    topCodes: Array<{ code: string; usageCount: number }>;
+  } | null>(null);
+
   // Form state
   const [formData, setFormData] = useState<formData>({
     name: '',
@@ -338,6 +352,52 @@ export default function PromoCodesManagement() {
       fetchCodes();
     }
   }, [activeTab, searchQuery, filterStatus]);
+
+  // Fetch stats when a promotion is selected for stats view
+  useEffect(() => {
+    if (selectedPromoForStats && statsDialogOpen) {
+      fetchPromoStats(selectedPromoForStats.id);
+    }
+  }, [selectedPromoForStats, statsDialogOpen]);
+
+  const fetchPromoStats = async (promotionId: string) => {
+    setLoadingStats(true);
+    try {
+      // Fetch all codes for this promotion
+      const codesRes = await fetch(`/api/promo-codes?promotionId=${promotionId}&limit=1000`);
+      const codesData = await codesRes.json();
+
+      if (codesData.success) {
+        const codes = codesData.codes;
+        const totalCodes = codes.length;
+        const usedCodes = codes.reduce((sum: number, c: any) => sum + (c.usageCount || 0), 0);
+        const activeCodes = codes.filter((c: any) => c.isActive).length;
+        const redemptionRate = totalCodes > 0 ? (usedCodes / totalCodes) * 100 : 0;
+
+        // Get top 5 most used codes
+        const topCodes = codes
+          .filter((c: any) => c.usageCount > 0)
+          .sort((a: any, b: any) => b.usageCount - a.usageCount)
+          .slice(0, 5)
+          .map((c: any) => ({ code: c.code, usageCount: c.usageCount }));
+
+        setPromoStats({
+          totalCodes,
+          usedCodes,
+          activeCodes,
+          redemptionRate: Math.round(redemptionRate),
+          totalRevenue: usedCodes * 100, // Estimate (can be improved with real data)
+          avgOrderValue: 100, // Estimate (can be improved with real data)
+          topCodes,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching promo stats:', error);
+      showToast('error', 'Failed to load stats');
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const fetchData = async (page = 1, append = false) => {
     if (append) {
@@ -1631,11 +1691,24 @@ export default function PromoCodesManagement() {
                     >
                       {promo.isActive ? <Pause className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
                     </Button>
-                    {(promo.codes?.length || 0) === 1 && promo.codes?.[0] && (
+                    {(promo._count?.codes || 0) === 1 && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => copyToClipboard(promo.codes[0].code || '')}
+                        onClick={async () => {
+                          // Fetch the first code for this promotion
+                          try {
+                            const res = await fetch(`/api/promo-codes?promotionId=${promo.id}&limit=1`);
+                            const data = await res.json();
+                            if (data.success && data.codes.length > 0) {
+                              copyToClipboard(data.codes[0].code);
+                            } else {
+                              showToast('error', 'No codes found for this promotion');
+                            }
+                          } catch (error) {
+                            showToast('error', 'Failed to fetch code');
+                          }
+                        }}
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
@@ -1643,14 +1716,34 @@ export default function PromoCodesManagement() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => showToast('info', 'Stats view coming soon')}
+                      onClick={() => {
+                        // Show stats in a dialog
+                        setSelectedPromoForStats(promo);
+                        setStatsDialogOpen(true);
+                      }}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => copyToClipboard(`Use code ${promo.codes[0]?.code || '...'} for ${promo.discountValue}% off!`)}
+                      onClick={async () => {
+                        // Fetch the first code and share it
+                        try {
+                          const res = await fetch(`/api/promo-codes?promotionId=${promo.id}&limit=1`);
+                          const data = await res.json();
+                          if (data.success && data.codes.length > 0) {
+                            const discountText = promo.discountType.includes('PERCENTAGE')
+                              ? `${promo.discountValue}%`
+                              : `${promo.discountValue} EGP`;
+                            copyToClipboard(`Use code ${data.codes[0].code} for ${discountText} off!`);
+                          } else {
+                            showToast('error', 'No codes available to share');
+                          }
+                        } catch (error) {
+                          showToast('error', 'Failed to fetch code');
+                        }
+                      }}
                     >
                       <Share2 className="h-4 w-4" />
                     </Button>
@@ -3031,6 +3124,149 @@ export default function PromoCodesManagement() {
             </Button>
             <Button onClick={handleSaveCode}>
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stats Dialog */}
+      <Dialog open={statsDialogOpen} onOpenChange={setStatsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Promotion Statistics</DialogTitle>
+            <DialogDescription>
+              {selectedPromoForStats?.name} - {selectedPromoForStats && getDiscountTypeLabel(selectedPromoForStats.discountType)}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingStats ? (
+            <div className="py-8 flex items-center justify-center">
+              <RefreshCw className="h-8 w-8 animate-spin text-slate-400" />
+            </div>
+          ) : promoStats ? (
+            <div className="space-y-6 py-4">
+              {/* Key Metrics */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-slate-500">Total Codes</p>
+                        <p className="text-2xl font-bold">{promoStats.totalCodes}</p>
+                      </div>
+                      <Ticket className="h-8 w-8 text-blue-400" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-slate-500">Redemptions</p>
+                        <p className="text-2xl font-bold">{promoStats.usedCodes}</p>
+                      </div>
+                      <CheckCircle className="h-8 w-8 text-emerald-400" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-slate-500">Active Codes</p>
+                        <p className="text-2xl font-bold">{promoStats.activeCodes}</p>
+                      </div>
+                      <AlertCircle className="h-8 w-8 text-amber-400" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Redemption Rate */}
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Redemption Rate</span>
+                    <span className="text-2xl font-bold text-emerald-600">{promoStats.redemptionRate}%</span>
+                  </div>
+                  <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 transition-all"
+                      style={{ width: `${Math.min(promoStats.redemptionRate, 100)}%` }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Top Codes */}
+              {promoStats.topCodes.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Top Used Codes</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {promoStats.topCodes.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded">
+                          <code className="font-mono text-sm">{item.code}</code>
+                          <Badge variant="secondary">{item.usageCount} uses</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Promotion Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Promotion Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Discount</span>
+                    <span className="font-medium">
+                      {selectedPromoForStats?.discountType?.includes('PERCENTAGE')
+                        ? `${selectedPromoForStats.discountValue}%`
+                        : `${selectedPromoForStats?.discountValue} EGP`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Start Date</span>
+                    <span className="font-medium">
+                      {selectedPromoForStats && new Date(selectedPromoForStats.startDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">End Date</span>
+                    <span className="font-medium">
+                      {selectedPromoForStats && new Date(selectedPromoForStats.endDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Max Uses</span>
+                    <span className="font-medium">
+                      {selectedPromoForStats?.maxUses || 'Unlimited'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Status</span>
+                    <Badge variant={selectedPromoForStats?.isActive ? 'default' : 'secondary'}>
+                      {selectedPromoForStats?.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-slate-500">
+              No stats available
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setStatsDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
