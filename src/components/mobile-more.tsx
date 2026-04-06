@@ -35,7 +35,7 @@ import {
   Languages,
   LogOut as LogOutIcon,
   Coffee,
-  Motorcycle,
+  UserCog,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -149,7 +149,7 @@ export function MobileMore() {
         { id: 'branches', name: 'Branches', icon: Building2, category: 'Settings' },
         { id: 'receipt', name: 'Receipt Settings', icon: Receipt, category: 'Settings' },
         { id: 'delivery-areas', name: 'Delivery Areas', icon: MapPin, category: 'Settings' },
-        { id: 'couriers', name: 'Couriers', icon: Motorcycle, category: 'Settings' },
+        { id: 'couriers', name: 'Couriers', icon: UserCog, category: 'Settings' },
         { id: 'eta-settings', name: 'ETA Settings', icon: Shield, category: 'Settings' },
       ],
     },
