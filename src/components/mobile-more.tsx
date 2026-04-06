@@ -29,13 +29,13 @@ import {
   Building2,
   Receipt,
   MapPin,
-  Bicycle,
   RefreshCw,
   Database,
   Download,
   Languages,
   LogOut as LogOutIcon,
   Coffee,
+  Motorcycle,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -149,7 +149,7 @@ export function MobileMore() {
         { id: 'branches', name: 'Branches', icon: Building2, category: 'Settings' },
         { id: 'receipt', name: 'Receipt Settings', icon: Receipt, category: 'Settings' },
         { id: 'delivery-areas', name: 'Delivery Areas', icon: MapPin, category: 'Settings' },
-        { id: 'couriers', name: 'Couriers', icon: Bicycle, category: 'Settings' },
+        { id: 'couriers', name: 'Couriers', icon: Motorcycle, category: 'Settings' },
         { id: 'eta-settings', name: 'ETA Settings', icon: Shield, category: 'Settings' },
       ],
     },
