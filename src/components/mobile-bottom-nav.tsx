@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, ShoppingCart, ClipboardList, DollarSign, MoreHorizontal } from 'lucide-react';
+import { Home, ShoppingCart, ClipboardList, Clock, DollarSign, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,7 @@ export function MobileBottomNav({ activeTab, onTabChange }: MobileBottomNavProps
     { id: 'mobile-dashboard', label: 'Dash', icon: Home },
     { id: 'mobile-pos', label: 'POS', icon: ShoppingCart },
     { id: 'mobile-orders', label: 'Orders', icon: ClipboardList },
+    { id: 'mobile-shifts', label: 'Shifts', icon: Clock },
     { id: 'mobile-money', label: 'Money', icon: DollarSign },
     { id: 'mobile-more', label: 'More', icon: MoreHorizontal },
   ];

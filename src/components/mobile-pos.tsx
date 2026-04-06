@@ -31,6 +31,8 @@ import {
   WifiOff,
   Filter,
   Layers,
+  Lock,
+  Clock,
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-context';
 import { formatCurrency } from '@/lib/utils';
@@ -40,6 +42,8 @@ import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import CustomerSearch from '@/components/customer-search';
 import { MobilePaymentDialog } from '@/components/mobile-payment-dialog';
+
+const storage = getIndexedDBStorage();
 
 interface CartItem {
   id: string;
@@ -128,6 +132,141 @@ export function MobilePOS() {
   const [customVariantValue, setCustomVariantValue] = useState<string>('');
   const [customPriceMode, setCustomPriceMode] = useState<'weight' | 'price'>('weight');
   const [customPriceValue, setCustomPriceValue] = useState<string>('');
+
+  // Shift/Business Day access check (same as desktop)
+  const [hasOpenShift, setHasOpenShift] = useState(false);
+  const [accessLoading, setAccessLoading] = useState(true);
+
+  // Check for open shift or business day (for cashiers) - SAME LOGIC AS DESKTOP
+  useEffect(() => {
+    if (user && user.role === 'CASHIER' && user.branchId) {
+      const checkPOSAccess = async () => {
+        let hasPOSAccess = false;
+        let accessReason = '';
+
+        // First check for open shift (online or offline)
+        try {
+          const params = new URLSearchParams({
+            branchId: user.branchId,
+            cashierId: user.id,
+            status: 'open',
+          });
+          const response = await fetch(`/api/shifts?${params.toString()}`);
+          const data = await response.json();
+
+          if (response.ok && data.shifts && data.shifts.length > 0) {
+            console.log('[Mobile POS] Found open shift from API:', data.shifts[0]);
+            hasPOSAccess = true;
+            accessReason = 'Open shift from API';
+          } else {
+            console.log('[Mobile POS] No open shift from API, checking offline...');
+          }
+        } catch (error) {
+          console.error('[Mobile POS] Failed to fetch current shift from API, checking local storage:', error);
+
+          // Check IndexedDB for offline shift
+          try {
+            await storage.init();
+            const allShifts = await storage.getAllShifts();
+
+            console.log('[Mobile POS] All shifts in IndexedDB:', allShifts);
+
+            const offlineShift = allShifts.find(
+              (s: any) =>
+                s.cashierId === user.id &&
+                s.branchId === user.branchId &&
+                !s.isClosed
+            );
+
+            if (offlineShift) {
+              console.log('[Mobile POS] Found open shift in IndexedDB:', offlineShift);
+              hasPOSAccess = true;
+              accessReason = 'Open shift from IndexedDB';
+            } else {
+              console.log('[Mobile POS] No open shift in IndexedDB');
+            }
+          } catch (dbError) {
+            console.error('[Mobile POS] Failed to check IndexedDB for shift:', dbError);
+          }
+        }
+
+        // If no open shift, check for open business day
+        if (!hasPOSAccess) {
+          let apiResponseSuccessful = false;
+
+          // Try API first
+          try {
+            const response = await fetch(`/api/business-days/status?branchId=${user.branchId}`);
+            const data = await response.json();
+
+            if (response.ok && data.status === 'OPEN' && data.businessDay) {
+              console.log('[Mobile POS] Business day is open from API, allowing POS access');
+              hasPOSAccess = true;
+              accessReason = 'Open business day from API';
+              apiResponseSuccessful = true;
+            } else {
+              console.log('[Mobile POS] Business day not open from API (status:', response.status, '), checking offline...');
+            }
+          } catch (error) {
+            console.error('[Mobile POS] Failed to fetch business day status from API (network error), checking local storage:', error);
+          }
+
+          // Always check IndexedDB as fallback (whether API succeeded or not)
+          if (!apiResponseSuccessful) {
+            try {
+              await storage.init();
+              const businessDays = await storage.getBusinessDays();
+
+              console.log('[Mobile POS] All business days in IndexedDB:', businessDays);
+
+              const openBusinessDay = businessDays.find(
+                (bd: any) => bd.branchId === user.branchId && bd.isOpen
+              );
+
+              if (openBusinessDay) {
+                console.log('[Mobile POS] Found open business day in IndexedDB:', openBusinessDay);
+                hasPOSAccess = true;
+                accessReason = 'Open business day from IndexedDB';
+              } else {
+                console.log('[Mobile POS] No open business day in IndexedDB for branch:', user.branchId);
+              }
+            } catch (dbError) {
+              console.error('[Mobile POS] Failed to check IndexedDB for business day:', dbError);
+            }
+          }
+        }
+
+        console.log('[Mobile POS] Final POS access decision:', { hasPOSAccess, accessReason });
+        setHasOpenShift(hasPOSAccess);
+        setAccessLoading(false);
+      };
+
+      checkPOSAccess();
+
+      // Listen for status refresh events
+      const handleRefreshShiftStatus = async () => {
+        console.log('[Mobile POS] refreshShiftStatus event received');
+        await checkPOSAccess();
+      };
+
+      const handleRefreshBusinessDayStatus = async () => {
+        console.log('[Mobile POS] refreshBusinessDayStatus event received');
+        await checkPOSAccess();
+      };
+
+      window.addEventListener('refreshShiftStatus', handleRefreshShiftStatus);
+      window.addEventListener('refreshBusinessDayStatus', handleRefreshBusinessDayStatus);
+
+      return () => {
+        window.removeEventListener('refreshShiftStatus', handleRefreshShiftStatus);
+        window.removeEventListener('refreshBusinessDayStatus', handleRefreshBusinessDayStatus);
+      };
+    } else {
+      // For admins and branch managers, always allow access
+      setHasOpenShift(true);
+      setAccessLoading(false);
+    }
+  }, [user, user?.branchId]);
 
   // Listen for checkout event
   useEffect(() => {
@@ -422,6 +561,45 @@ export function MobilePOS() {
       showErrorToast('Error', 'Failed to save order');
     }
   };
+
+  // Show loading screen while checking access
+  if (accessLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-12 w-12 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-slate-600 font-medium">Checking access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show locked screen for cashiers without open shift/business day
+  if (user?.role === 'CASHIER' && !hasOpenShift) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full p-6 text-center">
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-10 h-10 text-amber-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">POS Access Required</h2>
+          <p className="text-slate-600 mb-6">
+            You need to open a shift or have an open business day to access the POS.
+          </p>
+          <Button
+            className="w-full h-12 text-lg bg-emerald-600 hover:bg-emerald-700"
+            onClick={() => {
+              // Navigate to shifts tab
+              window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-shifts' }));
+            }}
+          >
+            <Clock className="w-5 h-5 mr-2" />
+            Go to Shifts
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
