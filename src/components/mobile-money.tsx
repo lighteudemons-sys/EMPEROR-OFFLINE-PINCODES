@@ -32,6 +32,9 @@ import {
   Building2,
   Wrench,
   MoreHorizontal,
+  Tag,
+  Shield,
+  FileText,
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-context';
 import { useAuth } from '@/lib/auth-context';

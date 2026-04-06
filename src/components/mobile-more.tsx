@@ -184,17 +184,18 @@ export function MobileMore() {
     };
 
     const targetTab = featureToTabMap[feature.id];
-    
+
     if (targetTab) {
-      // Dispatch event to switch to desktop view
-      window.dispatchEvent(new CustomEvent('mobile-feature-click', { detail: targetTab }));
-      // Switch to desktop view by triggering resize or directly changing state
+      // Switch to desktop view and navigate to the tab
       showSuccessToast('Opening', `Opening ${feature.name}...`);
-      
-      // Force switch to desktop view by dispatching a resize event
+
+      // Dispatch event to switch to desktop view
+      window.dispatchEvent(new Event('switch-to-desktop'));
+
+      // Then navigate to the target tab
       setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 100);
+        window.dispatchEvent(new CustomEvent('mobile-feature-click', { detail: targetTab }));
+      }, 200);
     } else {
       showSuccessToast('Coming Soon', `${feature.name} will be available soon`);
     }

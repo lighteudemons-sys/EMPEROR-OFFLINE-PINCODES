@@ -167,40 +167,21 @@ export function MobileDashboard() {
         setCurrentShift(null);
       }
 
-      // Get low stock items
+      // Get low stock items - use IndexedDB directly (inventory-alerts API not available)
       let lowStock: LowStockItem[] = [];
-      try {
-        const response = await fetch(`/api/inventory-alerts?branchId=${user?.branchId}`);
-        if (response.ok) {
-          const data = await response.json();
-          lowStock = (data.alerts || []).slice(0, 5).map((item: any) => ({
-            id: item.id,
-            name: item.ingredient?.name || item.ingredientId,
-            currentStock: item.currentStock,
-            minimumStock: item.minimumStock || 10,
-            unit: item.ingredient?.unit || 'units',
-          }));
-        }
-      } catch (error) {
-        console.log('Failed to fetch inventory alerts, checking IndexedDB');
-      }
-
-      // Fallback to IndexedDB for low stock
-      if (lowStock.length === 0) {
-        const storage = getIndexedDBStorage();
-        await storage.init();
-        const allInventory = await storage.getAllInventory();
-        lowStock = allInventory
-          .filter((item: any) => item.currentStock <= (item.minimumStock || 10))
-          .slice(0, 5)
-          .map((item: any) => ({
-            id: item.id,
-            name: item.ingredient?.name || item.ingredientId,
-            currentStock: item.currentStock,
-            minimumStock: item.minimumStock || 10,
-            unit: item.ingredient?.unit || 'units',
-          }));
-      }
+      const storage = getIndexedDBStorage();
+      await storage.init();
+      const allInventory = await storage.getAllInventory();
+      lowStock = allInventory
+        .filter((item: any) => item.currentStock <= (item.minimumStock || 10))
+        .slice(0, 5)
+        .map((item: any) => ({
+          id: item.id,
+          name: item.ingredient?.name || item.ingredientId,
+          currentStock: item.currentStock,
+          minimumStock: item.minimumStock || 10,
+          unit: item.ingredient?.unit || 'units',
+        }));
 
       setLowStockItems(lowStock);
 
@@ -375,7 +356,7 @@ export function MobileDashboard() {
               <p className="font-semibold">{getGreeting()}, {user?.name?.split(' ')[0] || user?.username}!</p>
               <div className="flex items-center gap-2 text-emerald-100 text-sm">
                 <Store className="w-3 h-3" />
-                <span>{user?.branchName || 'Branch Manager'}</span>
+                <span>{user?.role === 'ADMIN' ? 'Admin' : (user?.branchName || 'Branch Manager')}</span>
               </div>
             </div>
           </div>

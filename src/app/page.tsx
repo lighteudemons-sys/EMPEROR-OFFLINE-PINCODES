@@ -455,12 +455,20 @@ export default function POSDashboard() {
       setActiveTab(e.detail);
     };
 
+    const handleSwitchToDesktop = () => {
+      // Switch to desktop view by forcing the isMobileView to false
+      // This is triggered when user wants to view desktop features on mobile
+      setIsMobileView(false);
+    };
+
     window.addEventListener('mobile-tab-change', handleMobileTabChange);
     window.addEventListener('mobile-feature-click', handleMobileFeatureClick);
+    window.addEventListener('switch-to-desktop', handleSwitchToDesktop);
 
     return () => {
       window.removeEventListener('mobile-tab-change', handleMobileTabChange);
       window.removeEventListener('mobile-feature-click', handleMobileFeatureClick);
+      window.removeEventListener('switch-to-desktop', handleSwitchToDesktop);
     };
   }, []);
 
