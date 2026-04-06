@@ -35,6 +35,9 @@ import {
   Tag,
   Shield,
   FileText,
+  PlayCircle,
+  PauseCircle,
+  Power,
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-context';
 import { useAuth } from '@/lib/auth-context';
@@ -78,6 +81,10 @@ export function MobileMoney() {
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [shiftOrders, setShiftOrders] = useState<any[]>([]);
   const [shiftExpenses, setShiftExpenses] = useState<Expense[]>([]);
+
+  // Business Day state
+  const [businessDayOpen, setBusinessDayOpen] = useState(false);
+  const [businessDayStartedAt, setBusinessDayStartedAt] = useState<string | null>(null);
 
   // Add Expense Dialog
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
@@ -128,6 +135,27 @@ export function MobileMoney() {
       const storage = getIndexedDBStorage();
       await storage.init();
 
+      // Check business day status
+      const businessDays = await storage.getBusinessDays();
+      const today = new Date();
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+      const openBusinessDay = businessDays.find((bd: any) =>
+        bd.branchId === user?.branchId &&
+        bd.isOpen &&
+        new Date(bd.startedAt) >= startOfDay &&
+        new Date(bd.startedAt) <= endOfDay
+      );
+
+      if (openBusinessDay) {
+        setBusinessDayOpen(true);
+        setBusinessDayStartedAt(openBusinessDay.startedAt);
+      } else {
+        setBusinessDayOpen(false);
+        setBusinessDayStartedAt(null);
+      }
+
       // Get current shift
       const allShifts = await storage.getAllShifts();
       const openShift = allShifts.find((s: any) =>
@@ -151,15 +179,15 @@ export function MobileMoney() {
       }
 
       // Get today's expenses
-      const today = new Date();
-      const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+      const todayExp = new Date();
+      const startOfToday = new Date(todayExp.setHours(0, 0, 0, 0));
+      const endOfToday = new Date(todayExp.setHours(23, 59, 59, 999));
 
       const allExpenses = await storage.getAll('daily_expenses');
       const todayExps = allExpenses
         .filter((exp: any) => {
           const expDate = new Date(exp.createdAt);
-          return expDate >= startOfDay && expDate <= endOfDay;
+          return expDate >= startOfToday && expDate <= endOfToday;
         })
         .map((exp: any) => ({
           id: exp.id,
@@ -216,6 +244,132 @@ export function MobileMoney() {
     fetchData(true);
   };
 
+  const handleOpenBusinessDay = async () => {
+    try {
+      if (!user?.branchId) {
+        showErrorToast('Error', 'No branch assigned');
+        return;
+      }
+
+      const storage = getIndexedDBStorage();
+      await storage.init();
+
+      // Check if business day is already open
+      const businessDays = await storage.getBusinessDays();
+      const today = new Date();
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+      const existingOpenDay = businessDays.find((bd: any) =>
+        bd.branchId === user.branchId &&
+        bd.isOpen &&
+        new Date(bd.startedAt) >= startOfDay &&
+        new Date(bd.startedAt) <= endOfDay
+      );
+
+      if (existingOpenDay) {
+        showWarningToast('Already Open', 'Business day is already open');
+        setBusinessDayOpen(true);
+        return;
+      }
+
+      // Close any previous open business days for this branch
+      const previousOpenDays = businessDays.filter((bd: any) =>
+        bd.branchId === user.branchId && bd.isOpen
+      );
+
+      for (const bd of previousOpenDays) {
+        await storage.put('business_days', {
+          ...bd,
+          isOpen: false,
+          endedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // Create new business day
+      const newBusinessDay = {
+        id: `bd-${Date.now()}`,
+        branchId: user.branchId,
+        openedBy: user.id,
+        startedAt: new Date().toISOString(),
+        isOpen: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await storage.put('business_days', newBusinessDay);
+
+      // Queue for sync
+      await storage.addOperation({
+        type: 'OPEN_BUSINESS_DAY',
+        data: newBusinessDay,
+        branchId: user.branchId,
+      });
+
+      setBusinessDayOpen(true);
+      setBusinessDayStartedAt(newBusinessDay.startedAt);
+      showSuccessToast('Business Day Opened', 'Business day has been opened successfully');
+    } catch (error) {
+      console.error('Error opening business day:', error);
+      showErrorToast('Error', 'Failed to open business day');
+    }
+  };
+
+  const handleCloseBusinessDay = async () => {
+    try {
+      if (!user?.branchId) {
+        showErrorToast('Error', 'No branch assigned');
+        return;
+      }
+
+      const storage = getIndexedDBStorage();
+      await storage.init();
+
+      const businessDays = await storage.getBusinessDays();
+      const today = new Date();
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+      const openBusinessDay = businessDays.find((bd: any) =>
+        bd.branchId === user.branchId &&
+        bd.isOpen &&
+        new Date(bd.startedAt) >= startOfDay &&
+        new Date(bd.startedAt) <= endOfDay
+      );
+
+      if (!openBusinessDay) {
+        showErrorToast('Error', 'No open business day found');
+        return;
+      }
+
+      // Update business day
+      const closedBusinessDay = {
+        ...openBusinessDay,
+        isOpen: false,
+        endedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await storage.put('business_days', closedBusinessDay);
+
+      // Queue for sync
+      await storage.addOperation({
+        type: 'CLOSE_BUSINESS_DAY',
+        data: closedBusinessDay,
+        branchId: user.branchId,
+      });
+
+      setBusinessDayOpen(false);
+      setBusinessDayStartedAt(null);
+      showSuccessToast('Business Day Closed', 'Business day has been closed successfully');
+      fetchData(true);
+    } catch (error) {
+      console.error('Error closing business day:', error);
+      showErrorToast('Error', 'Failed to close business day');
+    }
+  };
+
   const handleOpenShift = async () => {
     try {
       // Check if user can open shift
@@ -233,6 +387,19 @@ export function MobileMoney() {
 
       if (!openBusinessDay) {
         showWarningToast('Business Day Closed', 'Please open the business day first');
+        return;
+      }
+
+      // Check if user already has an open shift
+      const allShifts = await storage.getAllShifts();
+      const existingOpenShift = allShifts.find((s: any) =>
+        s.cashierId === user.id &&
+        s.branchId === user.branchId &&
+        !s.isClosed
+      );
+
+      if (existingOpenShift) {
+        showWarningToast('Shift Already Open', 'You already have an open shift');
         return;
       }
 
@@ -469,6 +636,65 @@ export function MobileMoney() {
         <div className="p-4 space-y-4">
           {activeTab === 'shift' ? (
             <>
+              {/* Business Day Status */}
+              {businessDayOpen ? (
+                <Card className="border-l-4 border-l-blue-500 shadow-md bg-gradient-to-r from-blue-50 to-white">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
+                        <h3 className="font-semibold text-slate-900">Business Day Open</h3>
+                      </div>
+                      <Badge className="bg-blue-100 text-blue-800">
+                        ACTIVE
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-slate-500">Started at</p>
+                        <p className="font-semibold text-slate-900">
+                          {businessDayStartedAt ? formatTime(businessDayStartedAt) : '--:--'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Duration</p>
+                        <p className="font-semibold text-slate-900">
+                          {businessDayStartedAt
+                            ? `${Math.floor((Date.now() - new Date(businessDayStartedAt).getTime()) / (1000 * 60 * 60))}h`
+                            : '0h'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full mt-3 border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={handleCloseBusinessDay}
+                    >
+                      <Power className="w-4 h-4 mr-2" />
+                      Close Business Day
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="border-l-4 border-l-orange-500 shadow-md bg-gradient-to-r from-orange-50 to-white">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <PlayCircle className="w-6 h-6 text-orange-600" />
+                        <div>
+                          <h3 className="font-semibold text-slate-900">Business Day Closed</h3>
+                          <p className="text-sm text-slate-500">Open the business day to start operations</p>
+                        </div>
+                      </div>
+                      <Button onClick={handleOpenBusinessDay}>
+                        <PlayCircle className="w-4 h-4 mr-2" />
+                        Open
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Current Shift */}
               {currentShift ? (
                 <Card className="border-l-4 border-l-emerald-500 shadow-md">
