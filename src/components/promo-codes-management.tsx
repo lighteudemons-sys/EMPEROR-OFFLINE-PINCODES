@@ -243,6 +243,7 @@ export default function PromoCodesManagement() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [user, setUser] = useState<{ id: string; role: string; branchId: string | null; branchName?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
@@ -343,8 +344,26 @@ export default function PromoCodesManagement() {
   const [similarCodes, setSimilarCodes] = useState<string[]>([]);
 
   useEffect(() => {
+    fetchUser();
     fetchData();
   }, [activeTab]);
+
+  // Fetch current user
+  const fetchUser = async () => {
+    try {
+      const res = await fetch('/api/auth/session-api');
+      const data = await res.json();
+      if (data.success && data.user) {
+        setUser({
+          id: data.user.id,
+          role: data.user.role,
+          branchId: data.user.branchId,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user:', error);
+    }
+  };
 
   // Fetch codes when switching to codes tab
   useEffect(() => {
@@ -688,6 +707,23 @@ export default function PromoCodesManagement() {
   };
 
   const handleDeletePromotion = async (id: string) => {
+    // Find the promotion to check branch access
+    const promotion = promotions.find(p => p.id === id);
+    if (!promotion) return;
+
+    // Check if branch manager is trying to delete a promotion they don't have access to
+    if (user?.role === 'BRANCH_MANAGER' && user.branchId) {
+      const hasBranchAccess = promotion.branchRestrictions?.some(
+        (br) => br.branchId === user.branchId
+      );
+
+      // Branch managers cannot delete global promotions or promotions for other branches
+      if (!hasBranchAccess) {
+        showToast('error', 'You can only delete promotions restricted to your branch');
+        return;
+      }
+    }
+
     if (!confirm('Are you sure you want to delete this promotion?')) return;
 
     try {
@@ -712,6 +748,19 @@ export default function PromoCodesManagement() {
   };
 
   const handleToggleActive = async (promotion: Promotion) => {
+    // Check if branch manager is trying to toggle a promotion they don't have access to
+    if (user?.role === 'BRANCH_MANAGER' && user.branchId) {
+      const hasBranchAccess = promotion.branchRestrictions?.some(
+        (br) => br.branchId === user.branchId
+      );
+
+      // Branch managers cannot modify global promotions or promotions for other branches
+      if (!hasBranchAccess) {
+        showToast('error', 'You can only modify promotions restricted to your branch');
+        return;
+      }
+    }
+
     try {
       const response = await fetch(`/api/promotions/${promotion.id}`, {
         method: 'PUT',
@@ -935,6 +984,9 @@ export default function PromoCodesManagement() {
   };
 
   const resetForm = () => {
+    const isBranchManager = user?.role === 'BRANCH_MANAGER';
+    const initialBranchIds = isBranchManager && user.branchId ? [user.branchId] : [];
+
     setFormData({
       name: '',
       description: '',
@@ -959,7 +1011,7 @@ export default function PromoCodesManagement() {
       getCategoryId: null,
       getProductVariantId: null,
       applyToCheapest: false,
-      branchIds: [],
+      branchIds: initialBranchIds,
       categoryIds: [],
       codes: [],
     });
@@ -978,6 +1030,19 @@ export default function PromoCodesManagement() {
   };
 
   const openEditDialog = (promotion: Promotion) => {
+    // Check if branch manager is trying to edit a promotion they don't have access to
+    if (user?.role === 'BRANCH_MANAGER' && user.branchId) {
+      const hasBranchAccess = promotion.branchRestrictions?.some(
+        (br) => br.branchId === user.branchId
+      );
+
+      // Branch managers cannot edit global promotions or promotions for other branches
+      if (!hasBranchAccess) {
+        showToast('error', 'You can only edit promotions restricted to your branch');
+        return;
+      }
+    }
+
     setEditingPromotion(promotion);
     setFormData({
       name: promotion.name,
@@ -1680,6 +1745,7 @@ export default function PromoCodesManagement() {
                       size="sm"
                       className="flex-1"
                       onClick={() => openEditDialog(promo)}
+                      disabled={user?.role === 'BRANCH_MANAGER' && !promo.branchRestrictions?.some(br => br.branchId === user.branchId)}
                     >
                       <Edit className="h-4 w-4 mr-1" />
                       Edit
@@ -1688,6 +1754,7 @@ export default function PromoCodesManagement() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleToggleActive(promo)}
+                      disabled={user?.role === 'BRANCH_MANAGER' && !promo.branchRestrictions?.some(br => br.branchId === user.branchId)}
                     >
                       {promo.isActive ? <Pause className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
                     </Button>
@@ -1765,6 +1832,7 @@ export default function PromoCodesManagement() {
                         <DropdownMenuItem
                           className="text-red-600"
                           onClick={() => handleDeletePromotion(promo.id)}
+                          disabled={user?.role === 'BRANCH_MANAGER' && !promo.branchRestrictions?.some(br => br.branchId === user.branchId)}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
                           Delete
@@ -2624,54 +2692,66 @@ export default function PromoCodesManagement() {
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Step 3: Restrictions</h3>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Branches</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setFormData({ ...formData, branchIds: branches.map(b => b.id) })}
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setFormData({ ...formData, branchIds: [] })}
-                      >
-                        Clear All
-                      </Button>
+                {/* Branch Selection - Hide for branch managers */}
+                {user?.role === 'BRANCH_MANAGER' ? (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>Branch:</strong> {user.branchName || 'Your branch'}
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      As a branch manager, promotions are automatically restricted to your branch.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>Branches</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setFormData({ ...formData, branchIds: branches.map(b => b.id) })}
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setFormData({ ...formData, branchIds: [] })}
+                        >
+                          Clear All
+                        </Button>
+                      </div>
                     </div>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        placeholder="Search branches..."
+                        className="pl-9 mb-2"
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto border rounded-md p-2 grid gap-2 md:grid-cols-2">
+                      {branches.map((branch) => (
+                        <label key={branch.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer">
+                          <Checkbox
+                            checked={formData.branchIds.includes(branch.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({ ...formData, branchIds: [...formData.branchIds, branch.id] });
+                              } else {
+                                setFormData({ ...formData, branchIds: formData.branchIds.filter((id) => id !== branch.id) });
+                              }
+                            }}
+                          />
+                          <span className="text-sm">{branch.branchName}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {formData.branchIds.length === 0 && (
+                      <p className="text-xs text-slate-500">No branches selected (promotion applies to all branches)</p>
+                    )}
                   </div>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                      placeholder="Search branches..."
-                      className="pl-9 mb-2"
-                    />
-                  </div>
-                  <div className="max-h-48 overflow-y-auto border rounded-md p-2 grid gap-2 md:grid-cols-2">
-                    {branches.map((branch) => (
-                      <label key={branch.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer">
-                        <Checkbox
-                          checked={formData.branchIds.includes(branch.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setFormData({ ...formData, branchIds: [...formData.branchIds, branch.id] });
-                            } else {
-                              setFormData({ ...formData, branchIds: formData.branchIds.filter((id) => id !== branch.id) });
-                            }
-                          }}
-                        />
-                        <span className="text-sm">{branch.branchName}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {formData.branchIds.length === 0 && (
-                    <p className="text-xs text-slate-500">No branches selected (promotion applies to all branches)</p>
-                  )}
-                </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Categories</Label>

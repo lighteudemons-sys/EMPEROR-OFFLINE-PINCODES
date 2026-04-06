@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
+import { getSession } from '@/lib/session-manager';
 
 // Validation schema for updating promotions
 const promotionUpdateSchema = z.object({
@@ -115,12 +116,28 @@ export async function PUT(
       );
     }
 
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const validatedData = promotionUpdateSchema.parse(body);
 
-    // Check if promotion exists
+    // Check if promotion exists and include branch restrictions
     const existingPromotion = await db.promotion.findUnique({
       where: { id },
+      include: {
+        branchRestrictions: {
+          select: {
+            branchId: true,
+          },
+        },
+      },
     });
 
     if (!existingPromotion) {
@@ -128,6 +145,33 @@ export async function PUT(
         { success: false, error: 'Promotion not found' },
         { status: 404 }
       );
+    }
+
+    // Branch managers can only update promotions for their branch
+    if (session.role === 'BRANCH_MANAGER') {
+      if (!session.branchId) {
+        return NextResponse.json(
+          { success: false, error: 'Branch manager must be assigned to a branch' },
+          { status: 403 }
+        );
+      }
+
+      // Check if the promotion is accessible to this branch manager
+      const hasBranchAccess = existingPromotion.branchRestrictions.some(
+        (br) => br.branchId === session.branchId
+      );
+
+      if (!hasBranchAccess) {
+        return NextResponse.json(
+          { success: false, error: 'You can only update promotions for your branch' },
+          { status: 403 }
+        );
+      }
+
+      // Force branchIds to only include the manager's branch
+      if (validatedData.branchIds !== undefined) {
+        validatedData.branchIds = [session.branchId];
+      }
     }
 
     // Validate dates if provided
@@ -313,10 +357,24 @@ export async function DELETE(
       );
     }
 
-    // Check if promotion exists
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Check if promotion exists and include branch restrictions
     const existingPromotion = await db.promotion.findUnique({
       where: { id },
       include: {
+        branchRestrictions: {
+          select: {
+            branchId: true,
+          },
+        },
         _count: {
           select: {
             usageLogs: true,
@@ -330,6 +388,28 @@ export async function DELETE(
         { success: false, error: 'Promotion not found' },
         { status: 404 }
       );
+    }
+
+    // Branch managers can only delete promotions for their branch
+    if (session.role === 'BRANCH_MANAGER') {
+      if (!session.branchId) {
+        return NextResponse.json(
+          { success: false, error: 'Branch manager must be assigned to a branch' },
+          { status: 403 }
+        );
+      }
+
+      // Check if the promotion is accessible to this branch manager
+      const hasBranchAccess = existingPromotion.branchRestrictions.some(
+        (br) => br.branchId === session.branchId
+      );
+
+      if (!hasBranchAccess) {
+        return NextResponse.json(
+          { success: false, error: 'You can only delete promotions for your branch' },
+          { status: 403 }
+        );
+      }
     }
 
     // Prevent deletion if promotion has been used

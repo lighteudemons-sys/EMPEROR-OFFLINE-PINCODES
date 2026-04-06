@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
+import { getSession } from '@/lib/session-manager';
 
 // Validation schema for creating/updating promotions
 const promotionSchema = z.object({
@@ -39,6 +40,15 @@ const promotionSchema = z.object({
 // GET /api/promotions - List all promotions
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const isActive = searchParams.get('isActive');
     const includeCodes = searchParams.get('includeCodes') === 'true';
@@ -49,6 +59,17 @@ export async function GET(request: NextRequest) {
     const where: any = {};
     if (isActive !== null) {
       where.isActive = isActive === 'true';
+    }
+
+    // Branch filtering for non-admin users
+    if (session.role === 'BRANCH_MANAGER' && session.branchId) {
+      // Branch managers can only see:
+      // 1. Global promotions (no branch restrictions)
+      // 2. Promotions restricted to their branch
+      where.OR = [
+        { branchRestrictions: { none: {} } }, // No branch restrictions (global)
+        { branchRestrictions: { some: { branchId: session.branchId } } }, // Restricted to their branch
+      ];
     }
 
     // Don't include codes in list endpoint to avoid 5MB limit
@@ -122,8 +143,29 @@ export async function GET(request: NextRequest) {
 // POST /api/promotions - Create a new promotion
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const validatedData = promotionSchema.parse(body);
+
+    // Branch managers can only create promotions for their branch
+    if (session.role === 'BRANCH_MANAGER') {
+      if (!session.branchId) {
+        return NextResponse.json(
+          { success: false, error: 'Branch manager must be assigned to a branch' },
+          { status: 403 }
+        );
+      }
+      // Force branchIds to only include the manager's branch
+      validatedData.branchIds = [session.branchId];
+    }
 
     // Validate dates
     const startDate = new Date(validatedData.startDate);
