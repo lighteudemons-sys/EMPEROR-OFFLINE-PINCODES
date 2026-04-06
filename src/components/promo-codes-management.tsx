@@ -44,8 +44,10 @@ interface Promotion {
   getQuantity: number | null;
   buyProductId: string | null;
   buyCategoryId: string | null;
+  buyProductVariantId: string | null;
   getProductId: string | null;
   getCategoryId: string | null;
+  getProductVariantId: string | null;
   applyToCheapest: boolean;
   codes: PromoCode[];
   branchRestrictions: any[];
@@ -78,6 +80,7 @@ interface MenuItem {
   categoryId: string | null;
   variants?: Array<{
     id: string;
+    menuItemId: string; // Parent menu item ID
     priceModifier: number;
     variantType: {
       id: string;
@@ -935,8 +938,10 @@ export default function PromoCodesManagement() {
       getQuantity: promotion.getQuantity,
       buyProductId: promotion.buyProductId,
       buyCategoryId: promotion.buyCategoryId,
+      buyProductVariantId: promotion.buyProductVariantId,
       getProductId: promotion.getProductId,
       getCategoryId: promotion.getCategoryId,
+      getProductVariantId: promotion.getProductVariantId,
       applyToCheapest: promotion.applyToCheapest,
       branchIds: (promotion.branchRestrictions || []).map((b) => b.branchId),
       categoryIds: (promotion.categoryRestrictions || []).map((c) => c.categoryId),
@@ -1602,7 +1607,7 @@ export default function PromoCodesManagement() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600 dark:text-slate-400">Codes</span>
-                    <span className="text-sm font-medium">{promo.codes?.length || 0}</span>
+                    <span className="text-sm font-medium">{promo._count?.codes || 0}</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     <Calendar className="h-3 w-3" />
@@ -2065,6 +2070,62 @@ export default function PromoCodesManagement() {
                   ))}
                 </div>
               </ScrollArea>
+
+              {/* Pagination Controls */}
+              {codesPagination.totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4 border-t">
+                  <div className="text-sm text-slate-500">
+                    Showing {((codesPagination.page - 1) * codesPagination.limit) + 1} to {Math.min(codesPagination.page * codesPagination.limit, codesPagination.totalCount)} of {codesPagination.totalCount} codes
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchCodes(codesPagination.page - 1)}
+                      disabled={codesPagination.page === 1 || loadingCodes}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Previous
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, codesPagination.totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (codesPagination.totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (codesPagination.page <= 3) {
+                          pageNum = i + 1;
+                        } else if (codesPagination.page >= codesPagination.totalPages - 2) {
+                          pageNum = codesPagination.totalPages - 4 + i;
+                        } else {
+                          pageNum = codesPagination.page - 2 + i;
+                        }
+
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={codesPagination.page === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => fetchCodes(pageNum)}
+                            disabled={loadingCodes}
+                            className="w-8 h-8 p-0"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchCodes(codesPagination.page + 1)}
+                      disabled={codesPagination.page === codesPagination.totalPages || loadingCodes}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -2243,12 +2304,14 @@ export default function PromoCodesManagement() {
                             if (value.startsWith('variant-')) {
                               const variantId = value.replace('variant-', '');
                               // Find the variant to get its parent product
-                              const allVariants = menuItems.flatMap(item => item.variants || []);
+                              const allVariants = menuItems.flatMap(item =>
+                                (item.variants || []).map(v => ({ ...v, menuItemId: item.id }))
+                              );
                               const variant = allVariants.find(v => v.id === variantId);
                               setFormData({
                                 ...formData,
                                 buyProductVariantId: variantId,
-                                buyProductId: variant ? variant.id : null, // Store variant ID as product ID for compatibility
+                                buyProductId: variant ? variant.menuItemId : null, // Store parent product ID
                                 buyCategoryId: null,
                               });
                             } else if (value.startsWith('product-')) {
@@ -2298,12 +2361,14 @@ export default function PromoCodesManagement() {
                               setFormData({ ...formData, getProductId: null, getProductVariantId: null, getCategoryId: null });
                             } else if (value.startsWith('variant-')) {
                               const variantId = value.replace('variant-', '');
-                              const allVariants = menuItems.flatMap(item => item.variants || []);
+                              const allVariants = menuItems.flatMap(item =>
+                                (item.variants || []).map(v => ({ ...v, menuItemId: item.id }))
+                              );
                               const variant = allVariants.find(v => v.id === variantId);
                               setFormData({
                                 ...formData,
                                 getProductVariantId: variantId,
-                                getProductId: variant ? variant.id : null,
+                                getProductId: variant ? variant.menuItemId : null,
                                 getCategoryId: null,
                               });
                             } else if (value.startsWith('product-')) {

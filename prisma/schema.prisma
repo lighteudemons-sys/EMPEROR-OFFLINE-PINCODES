@@ -1076,8 +1076,10 @@ model Promotion {
   getQuantity          Int?
   buyProductId         String?
   buyCategoryId        String?
+  buyProductVariantId  String?
   getProductId         String?
   getCategoryId        String?
+  getProductVariantId  String?
   applyToCheapest      Boolean             @default(false)
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt

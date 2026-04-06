@@ -22,8 +22,10 @@ const promotionSchema = z.object({
   getQuantity: z.number().int().positive().nullable().optional(),
   buyProductId: z.string().nullable().optional(),
   buyCategoryId: z.string().nullable().optional(),
+  buyProductVariantId: z.string().nullable().optional(), // Variant-specific buy product
   getProductId: z.string().nullable().optional(),
   getCategoryId: z.string().nullable().optional(),
+  getProductVariantId: z.string().nullable().optional(), // Variant-specific get product
   applyToCheapest: z.boolean().default(false),
   branchIds: z.array(z.string()).optional().default([]),
   categoryIds: z.array(z.string()).optional().default([]),
@@ -204,8 +206,10 @@ export async function POST(request: NextRequest) {
           getQuantity: validatedData.getQuantity,
           buyProductId: validatedData.buyProductId,
           buyCategoryId: validatedData.buyCategoryId,
+          buyProductVariantId: validatedData.buyProductVariantId,
           getProductId: validatedData.getProductId,
           getCategoryId: validatedData.getCategoryId,
+          getProductVariantId: validatedData.getProductVariantId,
           applyToCheapest: validatedData.applyToCheapest,
         },
       });
@@ -282,8 +286,10 @@ export async function POST(request: NextRequest) {
         getQuantity: true,
         buyProductId: true,
         buyCategoryId: true,
+        buyProductVariantId: true,
         getProductId: true,
         getCategoryId: true,
+        getProductVariantId: true,
         applyToCheapest: true,
         createdAt: true,
         updatedAt: true,

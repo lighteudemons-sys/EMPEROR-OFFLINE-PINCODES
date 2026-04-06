@@ -198,6 +198,7 @@ export async function GET(request: NextRequest) {
 
         return {
           ...variant,
+          menuItemId: item.id, // Add parent menu item ID
           productCost: parseFloat(variantProductCost.toFixed(2)),
           profit: parseFloat(variantProfit.toFixed(2)),
           profitMargin: parseFloat(variantProfitMargin.toFixed(2)),
