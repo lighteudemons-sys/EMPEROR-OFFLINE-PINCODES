@@ -356,7 +356,7 @@ export default function PromoCodesManagement() {
   // Fetch current user
   const fetchUser = async () => {
     try {
-      const res = await fetch('/api/auth/session-api');
+      const res = await fetch('/api/auth/session');
       const data = await res.json();
       if (data.success && data.user) {
         setUser({
