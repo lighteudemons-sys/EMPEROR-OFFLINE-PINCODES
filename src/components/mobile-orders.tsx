@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MobileBranchSelector } from '@/components/mobile-branch-selector';
+import { useAuth } from '@/lib/auth-context';
 import {
   Search,
   Filter,

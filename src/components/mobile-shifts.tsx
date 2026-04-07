@@ -65,6 +65,82 @@ interface PaymentBreakdown {
   total: number;
 }
 
+// Helper function to close business day offline
+async function closeBusinessDayOffline(
+  businessDayId: string,
+  userId: string,
+  notes: string
+): Promise<void> {
+  try {
+    console.log('[Mobile Day Closing] Closing business day offline, businessDayId:', businessDayId);
+
+    const indexedDBStorage = getIndexedDBStorage();
+    await indexedDBStorage.init();
+
+    // Get the business day from IndexedDB
+    const businessDays = await indexedDBStorage.getBusinessDays();
+    const businessDay = businessDays.find((bd: any) => bd.id === businessDayId);
+
+    if (!businessDay) {
+      throw new Error('Business day not found in IndexedDB');
+    }
+
+    console.log('[Mobile Day Closing] Found business day:', businessDay);
+
+    // Get all orders for this business day from IndexedDB
+    const allOrders = await indexedDBStorage.getAllOrders();
+    const allShifts = await indexedDBStorage.getAllShifts();
+
+    // Get shift IDs for this business day
+    const dayShiftIds = allShifts
+      .filter((shift: any) => shift.dayId === businessDayId)
+      .map((shift: any) => shift.id);
+
+    console.log('[Mobile Day Closing] Shifts for this business day:', dayShiftIds);
+
+    // Get orders for all shifts in this business day
+    const dayOrders = allOrders.filter((order: any) => dayShiftIds.includes(order.shiftId));
+
+    console.log('[Mobile Day Closing] Orders for this business day:', dayOrders.length);
+
+    // Calculate totals
+    const totalOrders = dayOrders.length;
+    const totalSales = dayOrders.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0);
+
+    // Update business day with closing data
+    const updatedBusinessDay = {
+      ...businessDay,
+      closedAt: new Date().toISOString(),
+      closedBy: userId,
+      isOpen: false,
+      totalOrders,
+      totalSales,
+      notes: notes || businessDay.notes,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Save updated business day
+    await indexedDBStorage.saveBusinessDay(updatedBusinessDay);
+
+    // Queue operation for sync
+    await indexedDBStorage.addOperation({
+      type: 'CLOSE_BUSINESS_DAY',
+      data: {
+        businessDayId,
+        closedAt: updatedBusinessDay.closedAt,
+        closedBy: userId,
+        notes: notes || undefined,
+      },
+      branchId: businessDay.branchId,
+    });
+
+    console.log('[Mobile Day Closing] Business day closed offline successfully:', updatedBusinessDay);
+  } catch (error) {
+    console.error('[Mobile Day Closing] Failed to close business day offline, error:', error);
+    throw error;
+  }
+}
+
 // Helper functions (SAME AS DESKTOP)
 async function createShiftOffline(shiftData: any, user: any): Promise<void> {
   try {
@@ -267,10 +343,13 @@ export function MobileShifts() {
   const [loading, setLoading] = useState(false);
   const [openDialogOpen, setOpenDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [closeDayDialogOpen, setCloseDayDialogOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('');
   const [shiftNotes, setShiftNotes] = useState('');
+  const [dayOpeningNotes, setDayOpeningNotes] = useState('');
+  const [dayClosingNotes, setDayClosingNotes] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [paymentBreakdown, setPaymentBreakdown] = useState<PaymentBreakdown>({
     cash: 0,
@@ -285,8 +364,6 @@ export function MobileShifts() {
     isOpen: boolean;
     businessDayId?: string;
   }>({ isOpen: false });
-  const [openDayDialogOpen, setOpenDayDialogOpen] = useState(false);
-  const [dayOpeningNotes, setDayOpeningNotes] = useState('');
 
   // Fetch branches
   useEffect(() => {
@@ -433,6 +510,16 @@ export function MobileShifts() {
 
   // Handle open shift
   const handleOpenShift = async () => {
+    console.log('[Mobile Shift] handleOpenShift called');
+    console.log('[Mobile Shift] Current business day status:', businessDayStatus);
+
+    // Check if business day is open
+    if (!businessDayStatus.isOpen || !businessDayStatus.businessDayId) {
+      console.log('[Mobile Shift] Business day is not open, preventing shift opening');
+      showErrorToast('Cannot Open Shift', 'Please open the business day first');
+      return;
+    }
+
     if (!selectedBranch) {
       showErrorToast('Error', 'Please select a branch');
       return;
@@ -448,47 +535,97 @@ export function MobileShifts() {
     const shiftData = {
       branchId: selectedBranch,
       cashierId: user.id,
+      dayId: businessDayStatus.businessDayId,
       openingCash: cashAmount,
       notes: shiftNotes || undefined,
     };
 
+    console.log('[Mobile Shift] Shift data to send:', shiftData);
+
     try {
-      // Try API first
-      const response = await fetch('/api/shifts/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(shiftData),
-      });
+      // Check actual network connectivity before trying API
+      let isActuallyOnline = navigator.onLine;
 
-      const data = await response.json();
+      if (navigator.onLine) {
+        // Verify with actual network request
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          await fetch('/api/branches', {
+            method: 'HEAD',
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          clearTimeout(timeoutId);
+          isActuallyOnline = true;
+          console.log('[Mobile Shift] Network check passed, trying API...');
+        } catch (netError) {
+          console.log('[Mobile Shift] Network check failed, assuming offline:', netError.message);
+          isActuallyOnline = false;
+        }
+      }
 
-      if (response.ok && data.success) {
-        showSuccessToast('Success', 'Shift opened successfully');
+      if (isActuallyOnline) {
+        // Try API first
+        const response = await fetch('/api/shifts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(shiftData),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showSuccessToast('Success', 'Shift opened successfully');
+          setOpenDialogOpen(false);
+          setOpeningCash('0');
+          setShiftNotes('');
+          
+          // Refresh shifts and business day status
+          const event = new CustomEvent('refreshShiftStatus');
+          window.dispatchEvent(event);
+          
+          return;
+        } else {
+          // API failed - check if it's a network error
+          const isNetworkError = !response.ok && (
+            response.status === 0 ||
+            response.type === 'error' ||
+            response.statusText === 'Failed to fetch' ||
+            data.error?.includes('Failed to fetch') ||
+            data.error?.includes('network') ||
+            data.error?.includes('ENOTFOUND') ||
+            data.error?.includes('ERR_NAME_NOT_RESOLVED') ||
+            data.error?.includes('TypeError') ||
+            data.error?.includes('Failed to fetch\n')
+          );
+
+          if (isNetworkError) {
+            console.log('[Mobile Shift] Network error detected, trying offline mode');
+            // Fall through to offline mode
+          } else {
+            showErrorToast('Error', data.error || 'Failed to open shift');
+            return;
+          }
+        }
+      }
+
+      // Offline mode
+      console.log('[Mobile Shift] Offline mode detected, creating shift locally');
+      try {
+        await createShiftOffline(shiftData, user);
+        showSuccessToast('Success', 'Shift opened (offline mode)');
         setOpenDialogOpen(false);
         setOpeningCash('0');
         setShiftNotes('');
-        
-        // Refresh shifts and business day status
+
+        // Refresh status
         const event = new CustomEvent('refreshShiftStatus');
         window.dispatchEvent(event);
-        
-        return;
+      } catch (offlineError) {
+        console.error('[Mobile Shift] Offline shift creation failed:', offlineError);
+        showErrorToast('Error', 'Failed to open shift offline: ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
       }
-    } catch (error) {
-      console.log('API failed, trying offline mode');
-    }
-
-    // Offline mode
-    try {
-      await createShiftOffline(shiftData, user);
-      showSuccessToast('Success', 'Shift opened (offline mode)');
-      setOpenDialogOpen(false);
-      setOpeningCash('0');
-      setShiftNotes('');
-
-      // Refresh status
-      const event = new CustomEvent('refreshShiftStatus');
-      window.dispatchEvent(event);
     } catch (error) {
       console.error('Failed to open shift:', error);
       showErrorToast('Error', 'Failed to open shift');
@@ -514,48 +651,92 @@ export function MobileShifts() {
     };
 
     try {
-      const response = await fetch('/api/business-days/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(businessDayData),
-      });
+      // Check actual network connectivity
+      let isActuallyOnline = navigator.onLine;
 
-      const data = await response.json();
+      if (navigator.onLine) {
+        // Verify with actual network request
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          await fetch('/api/branches', {
+            method: 'HEAD',
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          clearTimeout(timeoutId);
+          isActuallyOnline = true;
+          console.log('[Mobile Business Day] Network check passed, trying API...');
+        } catch (netError) {
+          console.log('[Mobile Business Day] Network check failed, assuming offline:', netError.message);
+          isActuallyOnline = false;
+        }
+      }
 
-      if (response.ok && data.success) {
-        showSuccessToast('Success', 'Business day opened successfully');
+      if (isActuallyOnline) {
+        const response = await fetch('/api/business-days/open', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(businessDayData),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showSuccessToast('Success', 'Business day opened successfully');
+          setOpenDayDialogOpen(false);
+          setDayOpeningNotes('');
+          setBusinessDayStatus({
+            isOpen: true,
+            businessDayId: data.businessDay.id,
+          });
+
+          // Refresh status
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('refreshBusinessDayStatus'));
+          }, 100);
+          return;
+        } else {
+          const isNetworkError = !response.ok && (
+            response.status === 0 ||
+            response.type === 'error' ||
+            response.statusText === 'Failed to fetch' ||
+            data.error?.includes('Failed to fetch') ||
+            data.error?.includes('network') ||
+            data.error?.includes('ENOTFOUND') ||
+            data.error?.includes('ERR_NAME_NOT_RESOLVED') ||
+            data.error?.includes('TypeError') ||
+            data.error?.includes('Failed to fetch\n')
+          );
+
+          if (isNetworkError) {
+            console.log('[Mobile Business Day] Network error detected, trying offline mode');
+          } else {
+            showErrorToast('Error', data.error || 'Failed to open business day');
+            return;
+          }
+        }
+      }
+
+      // Offline mode
+      try {
+        const offlineBusinessDay = await openBusinessDayOffline(businessDayData, user);
+        showSuccessToast('Success', 'Business day opened (offline mode)');
         setOpenDayDialogOpen(false);
         setDayOpeningNotes('');
         setBusinessDayStatus({
           isOpen: true,
-          businessDayId: data.businessDay.id,
+          businessDayId: offlineBusinessDay.id,
         });
 
         // Refresh status
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('refreshBusinessDayStatus'));
         }, 100);
-        return;
+      } catch (error) {
+        console.error('Failed to open business day:', error);
+        showErrorToast('Error', 'Failed to open business day');
       }
-    } catch (error) {
-      console.log('API failed, trying offline mode');
-    }
-
-    // Offline mode
-    try {
-      const offlineBusinessDay = await openBusinessDayOffline(businessDayData, user);
-      showSuccessToast('Success', 'Business day opened (offline mode)');
-      setOpenDayDialogOpen(false);
-      setDayOpeningNotes('');
-      setBusinessDayStatus({
-        isOpen: true,
-        businessDayId: offlineBusinessDay.id,
-      });
-
-      // Refresh status
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('refreshBusinessDayStatus'));
-      }, 100);
     } catch (error) {
       console.error('Failed to open business day:', error);
       showErrorToast('Error', 'Failed to open business day');
@@ -569,6 +750,84 @@ export function MobileShifts() {
     const cashAmount = parseFloat(closingCash) || 0;
 
     try {
+      // Check actual network connectivity before trying API
+      let isActuallyOnline = navigator.onLine;
+
+      if (navigator.onLine) {
+        // Verify with actual network request
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          await fetch('/api/branches', {
+            method: 'HEAD',
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          clearTimeout(timeoutId);
+          isActuallyOnline = true;
+          console.log('[Mobile Shift] Network check passed for close, trying API...');
+        } catch (netError) {
+          console.log('[Mobile Shift] Network check failed for close, assuming offline:', netError.message);
+          isActuallyOnline = false;
+        }
+      }
+
+      if (isActuallyOnline) {
+        // Try API first
+        const response = await fetch('/api/shifts/close', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shiftId: selectedShift.id,
+            closingCash: cashAmount,
+            notes: shiftNotes || undefined,
+            paymentBreakdown: paymentBreakdown,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showSuccessToast('Success', 'Shift closed successfully');
+          setCloseDialogOpen(false);
+          setClosingCash('');
+          setShiftNotes('');
+          setPaymentBreakdown({
+            cash: 0,
+            card: 0,
+            instapay: 0,
+            wallet: 0,
+            total: 0,
+          });
+          setSelectedShift(null);
+
+          // Refresh
+          const event = new CustomEvent('refreshShiftStatus');
+          window.dispatchEvent(event);
+          return;
+        } else {
+          const isNetworkError = !response.ok && (
+            response.status === 0 ||
+            response.type === 'error' ||
+            response.statusText === 'Failed to fetch' ||
+            data.error?.includes('Failed to fetch') ||
+            data.error?.includes('network') ||
+            data.error?.includes('ENOTFOUND') ||
+            data.error?.includes('ERR_NAME_NOT_RESOLVED') ||
+            data.error?.includes('TypeError') ||
+            data.error?.includes('Failed to fetch\n')
+          );
+
+          if (isNetworkError) {
+            console.log('[Mobile Shift] Network error detected for close, trying offline mode');
+          } else {
+            showErrorToast('Error', data.error || 'Failed to close shift');
+            return;
+          }
+        }
+      }
+
+      // Offline mode
       await closeShiftOffline(selectedShift, cashAmount, shiftNotes, paymentBreakdown);
       showSuccessToast('Success', 'Shift closed successfully');
       setCloseDialogOpen(false);
@@ -589,6 +848,129 @@ export function MobileShifts() {
     } catch (error) {
       console.error('Failed to close shift:', error);
       showErrorToast('Error', 'Failed to close shift');
+    }
+  };
+
+  // Handle close business day
+  const handleCloseBusinessDay = async () => {
+    if (!businessDayStatus.businessDayId) {
+      showErrorToast('Error', 'Business day not found');
+      return;
+    }
+
+    if (!user?.id) {
+      showErrorToast('Error', 'User not authenticated');
+      return;
+    }
+
+    // Check if all shifts are closed
+    const hasOpenShifts = shifts.some(s => !s.isClosed);
+    if (hasOpenShifts) {
+      showErrorToast('Error', 'Please close all shifts before closing the day');
+      return;
+    }
+
+    // Check if business day ID is temporary (created offline)
+    const isTempBusinessDay = businessDayStatus.businessDayId.startsWith('temp-');
+
+    try {
+      // Check actual network connectivity before trying API
+      let isActuallyOnline = navigator.onLine;
+
+      if (navigator.onLine) {
+        // Verify with actual network request
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          await fetch('/api/branches', {
+            method: 'HEAD',
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          clearTimeout(timeoutId);
+          isActuallyOnline = true;
+        } catch (netError) {
+          console.log('[Mobile Day Closing] Network check failed, assuming offline:', netError);
+          isActuallyOnline = false;
+        }
+      }
+
+      // If it's a temporary business day, close it offline (it needs to sync first)
+      if (isTempBusinessDay) {
+        console.log('[Mobile Day Closing] Temporary business day detected, closing offline');
+        try {
+          await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
+          showSuccessToast('Success', 'Business day closed (offline mode)');
+          setCloseDayDialogOpen(false);
+          setDayClosingNotes('');
+          setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
+          setRefreshTrigger(prev => prev + 1);
+        } catch (offlineError) {
+          console.error('[Mobile Day Closing] Offline business day closing failed:', offlineError);
+          showErrorToast('Error', 'Failed to close business day: ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+        }
+        return;
+      }
+
+      if (isActuallyOnline) {
+        const response = await fetch('/api/business-days/close', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            businessDayId: businessDayStatus.businessDayId,
+            userId: user.id,
+            closingCash: 0,
+            notes: dayClosingNotes || undefined,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showSuccessToast('Success', 'Business day closed successfully');
+          setCloseDayDialogOpen(false);
+          setDayClosingNotes('');
+          setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
+          setRefreshTrigger(prev => prev + 1);
+        } else {
+          const isNetworkError = !response.ok && (
+            response.status === 0 ||
+            response.type === 'error' ||
+            response.statusText === 'Failed to fetch' ||
+            data.error?.includes('Failed to fetch') ||
+            data.error?.includes('network') ||
+            data.error?.includes('ENOTFOUND') ||
+            data.error?.includes('ERR_NAME_NOT_RESOLVED') ||
+            data.error?.includes('TypeError') ||
+            data.error?.includes('Failed to fetch\n')
+          );
+
+          if (isNetworkError) {
+            console.log('[Mobile Day Closing] Network error detected, trying offline mode');
+            // Fall through to offline mode
+          } else {
+            showErrorToast('Error', data.error || 'Failed to close business day');
+            return;
+          }
+        }
+      }
+
+      // Offline mode
+      console.log('[Mobile Day Closing] Offline mode detected, closing business day locally');
+      try {
+        await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
+        showSuccessToast('Success', 'Business day closed (offline mode)');
+        setCloseDayDialogOpen(false);
+        setDayClosingNotes('');
+        setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
+        setRefreshTrigger(prev => prev + 1);
+      } catch (offlineError) {
+        console.error('[Mobile Day Closing] Offline business day closing failed:', offlineError);
+        showErrorToast('Error', 'Failed to close business day: ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+      }
+    } catch (error) {
+      console.error('Failed to close business day:', error);
+      showErrorToast('Error', 'Failed to close business day');
     }
   };
 
@@ -642,14 +1024,23 @@ export function MobileShifts() {
                     </p>
                   </div>
                 </div>
-                {!businessDayStatus.isOpen && (
+                {businessDayStatus.isOpen ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCloseDayDialogOpen(true)}
+                  >
+                    <Square className="w-4 h-4 mr-1" />
+                    Close Day
+                  </Button>
+                ) : (
                   <Button
                     size="sm"
                     className="bg-emerald-600 hover:bg-emerald-700"
                     onClick={() => setOpenDayDialogOpen(true)}
                   >
                     <Play className="w-4 h-4 mr-1" />
-                    Open
+                    Open Day
                   </Button>
                 )}
               </div>
@@ -699,8 +1090,8 @@ export function MobileShifts() {
             </Card>
           )}
 
-          {/* Open Shift Button (if no active shift) */}
-          {(!shifts.length || shifts[0]?.isClosed) && (
+          {/* Open Shift Button (if no active shift and business day is open) */}
+          {businessDayStatus.isOpen && (!shifts.length || shifts[0]?.isClosed) && (
             <Button
               className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700"
               onClick={() => setOpenDialogOpen(true)}
@@ -708,6 +1099,17 @@ export function MobileShifts() {
               <Play className="w-5 h-5 mr-2" />
               Start New Shift
             </Button>
+          )}
+
+          {/* Message if business day is not open */}
+          {!businessDayStatus.isOpen && (!shifts.length || shifts[0]?.isClosed) && (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Store className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500 font-medium">Business day is closed</p>
+                <p className="text-sm text-slate-400 mt-1">Open the business day to start a shift</p>
+              </CardContent>
+            </Card>
           )}
 
           {/* Shift History */}
@@ -724,7 +1126,7 @@ export function MobileShifts() {
                   <CardContent className="p-6 text-center">
                     <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                     <p className="text-slate-500">No shifts yet</p>
-                    <p className="text-sm text-slate-400 mt-1">Start a shift to begin</p>
+                    <p className="text-sm text-slate-400 mt-1">Open a business day and start a shift to begin</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -838,6 +1240,7 @@ export function MobileShifts() {
                 value={dayOpeningNotes}
                 onChange={(e) => setDayOpeningNotes(e.target.value)}
                 placeholder="Any notes for this business day..."
+                className="mt-2"
                 rows={3}
               />
             </div>
@@ -904,6 +1307,7 @@ export function MobileShifts() {
                 value={shiftNotes}
                 onChange={(e) => setShiftNotes(e.target.value)}
                 placeholder="Any notes for shift closing..."
+                className="mt-2"
                 rows={3}
               />
             </div>
@@ -914,6 +1318,39 @@ export function MobileShifts() {
             </Button>
             <Button onClick={handleCloseShift} className="bg-emerald-600 hover:bg-emerald-700">
               Close Shift
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Close Business Day Dialog */}
+      <Dialog open={closeDayDialogOpen} onOpenChange={setCloseDayDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Close Business Day</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to close the business day? Make sure all shifts are closed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="dayClosingNotes">Notes (optional)</Label>
+              <Textarea
+                id="dayClosingNotes"
+                value={dayClosingNotes}
+                onChange={(e) => setDayClosingNotes(e.target.value)}
+                placeholder="Any notes for day closing..."
+                className="mt-2"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseDayDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCloseBusinessDay} className="bg-emerald-600 hover:bg-emerald-700">
+              Close Day
             </Button>
           </DialogFooter>
         </DialogContent>

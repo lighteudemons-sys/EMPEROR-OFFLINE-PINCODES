@@ -152,6 +152,27 @@ export function MobileMenu() {
   const [selectedVariantType, setSelectedVariantType] = useState<string>('');
   const [itemVariants, setItemVariants] = useState<Array<{ id?: string; variantOptionId: string; priceModifier: string }>>([]);
 
+  // Variants Tab State
+  const [variantsVariantTypes, setVariantsVariantTypes] = useState<VariantType[]>([]);
+  const [selectedVariantTypeForOptions, setSelectedVariantTypeForOptions] = useState<VariantType | null>(null);
+  const [variantTypeDialogOpen, setVariantTypeDialogOpen] = useState(false);
+  const [variantOptionDialogOpen, setVariantOptionDialogOpen] = useState(false);
+  const [editingVariantType, setEditingVariantType] = useState<VariantType | null>(null);
+  const [editingVariantOption, setEditingVariantOption] = useState<VariantOption | null>(null);
+  const [variantTypeFormData, setVariantTypeFormData] = useState({
+    name: '',
+    description: '',
+    isActive: true,
+    isCustomInput: false,
+  });
+  const [variantOptionFormData, setVariantOptionFormData] = useState({
+    name: '',
+    description: '',
+    sortOrder: '0',
+    isActive: true,
+    variantTypeId: '',
+  });
+
   // Fetch categories
   useEffect(() => {
     fetchCategories();
@@ -160,6 +181,11 @@ export function MobileMenu() {
   // Fetch variant types
   useEffect(() => {
     fetchVariantTypes();
+  }, []);
+
+  // Fetch variant types for Variants tab
+  useEffect(() => {
+    fetchVariantTypesForVariantsTab();
   }, []);
 
   // Fetch menu items
@@ -191,10 +217,27 @@ export function MobileMenu() {
     }
   };
 
+  const fetchVariantTypesForVariantsTab = async () => {
+    try {
+      const response = await fetch('/api/variant-types?active=true&includeOptions=true');
+      const data = await response.json();
+      if (response.ok && data.variantTypes) {
+        setVariantsVariantTypes(data.variantTypes);
+      }
+    } catch (error) {
+      console.error('Failed to fetch variant types:', error);
+    }
+  };
+
   const fetchMenuItems = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/menu-items?active=true&includeVariants=true');
+      let url = '/api/menu-items?active=true&includeVariants=true';
+      // Add branchId parameter if a branch is selected
+      if (selectedBranch && selectedBranch !== 'all') {
+        url += `&branchId=${selectedBranch}`;
+      }
+      const response = await fetch(url);
       const data = await response.json();
       if (response.ok && data.menuItems) {
         setMenuItems(data.menuItems);
@@ -290,6 +333,179 @@ export function MobileMenu() {
       imagePath: '',
     });
     setCategoryUploading(false);
+  };
+
+  // Variant Type Management (Variants Tab)
+  const handleVariantTypeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const url = editingVariantType ? `/api/variant-types/${editingVariantType.id}` : '/api/variant-types';
+      const method = editingVariantType ? 'PATCH' : 'POST';
+
+      const payload: any = {
+        name: variantTypeFormData.name,
+        description: variantTypeFormData.description,
+        isActive: variantTypeFormData.isActive,
+        isCustomInput: variantTypeFormData.isCustomInput,
+      };
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        showErrorToast('Error', data.error || 'Failed to save variant type');
+        return;
+      }
+
+      setVariantTypeDialogOpen(false);
+      resetVariantTypeForm();
+      await fetchVariantTypes();
+      await fetchVariantTypesForVariantsTab();
+      showSuccessToast('Success', editingVariantType ? 'Variant type updated!' : 'Variant type created!');
+    } catch (error) {
+      showErrorToast('Error', 'Failed to save variant type');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditVariantType = (variantType: VariantType) => {
+    setEditingVariantType(variantType);
+    setVariantTypeFormData({
+      name: variantType.name,
+      description: variantType.description || '',
+      isActive: variantType.isActive,
+      isCustomInput: variantType.isCustomInput,
+    });
+    setVariantTypeDialogOpen(true);
+  };
+
+  const handleDeleteVariantType = async (variantTypeId: string) => {
+    if (!confirm('Are you sure you want to delete this variant type? All its options will also be deleted.')) return;
+
+    try {
+      const response = await fetch(`/api/variant-types/${variantTypeId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        showErrorToast('Error', data.error || 'Failed to delete variant type');
+        return;
+      }
+
+      await fetchVariantTypes();
+      await fetchVariantTypesForVariantsTab();
+      showSuccessToast('Success', 'Variant type deleted!');
+    } catch (error) {
+      showErrorToast('Error', 'Failed to delete variant type');
+    }
+  };
+
+  const resetVariantTypeForm = () => {
+    setEditingVariantType(null);
+    setVariantTypeFormData({
+      name: '',
+      description: '',
+      isActive: true,
+      isCustomInput: false,
+    });
+  };
+
+  // Variant Option Management (Variants Tab)
+  const handleVariantOptionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const url = editingVariantOption ? `/api/variant-options/${editingVariantOption.id}` : '/api/variant-options';
+      const method = editingVariantOption ? 'PATCH' : 'POST';
+
+      const payload: any = {
+        name: variantOptionFormData.name,
+        description: variantOptionFormData.description,
+        sortOrder: parseInt(variantOptionFormData.sortOrder),
+        isActive: variantOptionFormData.isActive,
+        variantTypeId: editingVariantOption ? undefined : variantOptionFormData.variantTypeId,
+      };
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        showErrorToast('Error', data.error || 'Failed to save variant option');
+        return;
+      }
+
+      setVariantOptionDialogOpen(false);
+      resetVariantOptionForm();
+      await fetchVariantTypes();
+      await fetchVariantTypesForVariantsTab();
+      showSuccessToast('Success', editingVariantOption ? 'Variant option updated!' : 'Variant option created!');
+    } catch (error) {
+      showErrorToast('Error', 'Failed to save variant option');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditVariantOption = (variantOption: VariantOption, variantTypeId: string) => {
+    setEditingVariantOption(variantOption);
+    setVariantOptionFormData({
+      name: variantOption.name,
+      description: variantOption.description || '',
+      sortOrder: variantOption.sortOrder.toString(),
+      isActive: variantOption.isActive,
+      variantTypeId,
+    });
+    setVariantOptionDialogOpen(true);
+  };
+
+  const handleDeleteVariantOption = async (variantOptionId: string) => {
+    if (!confirm('Are you sure you want to delete this variant option?')) return;
+
+    try {
+      const response = await fetch(`/api/variant-options/${variantOptionId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        showErrorToast('Error', data.error || 'Failed to delete variant option');
+        return;
+      }
+
+      await fetchVariantTypes();
+      await fetchVariantTypesForVariantsTab();
+      showSuccessToast('Success', 'Variant option deleted!');
+    } catch (error) {
+      showErrorToast('Error', 'Failed to delete variant option');
+    }
+  };
+
+  const resetVariantOptionForm = () => {
+    setEditingVariantOption(null);
+    setVariantOptionFormData({
+      name: '',
+      description: '',
+      sortOrder: '0',
+      isActive: true,
+      variantTypeId: '',
+    });
   };
 
   // Menu Item Management
@@ -621,9 +837,10 @@ export function MobileMenu() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="bg-white border-b border-slate-200 px-4 pt-4">
-          <TabsList className="w-full grid grid-cols-2">
+          <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="items">Items</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
+            <TabsTrigger value="variants">Variants</TabsTrigger>
           </TabsList>
         </div>
 
@@ -893,6 +1110,184 @@ export function MobileMenu() {
                 </div>
               )}
             </ScrollArea>
+          </div>
+        </TabsContent>
+
+        {/* Variants Tab */}
+        <TabsContent value="variants" className="mt-0">
+          <div className="p-4 space-y-4">
+            {/* Variant Types Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Variant Types</h3>
+                  <p className="text-sm text-slate-500">Like Size, Weight, Material</p>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => { resetVariantTypeForm(); setVariantTypeDialogOpen(true); }}
+                className="w-full h-12 text-lg bg-emerald-600 hover:bg-emerald-700"
+              >
+                <Layers className="w-5 h-5 mr-2" />
+                Add Variant Type
+              </Button>
+
+              <div className="space-y-3">
+                {variantsVariantTypes.map((variantType) => (
+                  <Card key={variantType.id} className={!variantType.isActive ? 'opacity-60' : ''}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Layers className="w-5 h-5 text-blue-600" />
+                            <h4 className="font-semibold">{variantType.name}</h4>
+                          </div>
+                          {variantType.description && (
+                            <p className="text-sm text-slate-600 mb-2">{variantType.description}</p>
+                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-xs">
+                              <Package className="w-3 h-3 mr-1" />
+                              {variantType.options?.length || 0} option{variantType.options?.length !== 1 ? 's' : ''}
+                            </Badge>
+                            {variantType.isCustomInput && (
+                              <Badge variant="default" className="bg-purple-600 text-xs">
+                                Custom Input
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 ml-3">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditVariantType(variantType)}
+                            className="h-9 w-9"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteVariantType(variantType.id)}
+                            className="h-9 w-9 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {variantsVariantTypes.length === 0 && (
+                  <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50">
+                    <Layers className="w-12 h-12 mx-auto mb-3 text-slate-400" />
+                    <p className="font-medium">No variant types found</p>
+                    <p className="text-sm">Add a variant type to get started</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Variant Options Section */}
+            <div className="border-t pt-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Variant Options</h3>
+                  <p className="text-sm text-slate-500">Options for each variant type</p>
+                </div>
+              </div>
+
+              {/* Variant Type Selector */}
+              <div className="space-y-2">
+                <Label htmlFor="variantTypeFilter">Select Variant Type</Label>
+                <Select
+                  value={selectedVariantTypeForOptions?.id || ''}
+                  onValueChange={(value) => {
+                    const variantType = variantsVariantTypes.find(vt => vt.id === value);
+                    setSelectedVariantTypeForOptions(variantType || null);
+                  }}
+                >
+                  <SelectTrigger id="variantTypeFilter" className="h-12">
+                    <SelectValue placeholder="Choose a variant type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {variantsVariantTypes.map((vt) => (
+                      <SelectItem key={vt.id} value={vt.id}>
+                        {vt.name} {vt.description && `(${vt.description})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {!selectedVariantTypeForOptions ? (
+                <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50">
+                  <Layers className="w-12 h-12 mx-auto mb-3 text-slate-400" />
+                  <p className="text-sm">Select a variant type above to see options</p>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    onClick={() => {
+                      resetVariantOptionForm();
+                      setVariantOptionFormData(prev => ({
+                        ...prev,
+                        variantTypeId: selectedVariantTypeForOptions.id
+                      }));
+                      setVariantOptionDialogOpen(true);
+                    }}
+                    className="w-full h-12 bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Plus className="w-5 h-5 mr-2" />
+                    Add Option for {selectedVariantTypeForOptions.name}
+                  </Button>
+
+                  <div className="space-y-3">
+                    {selectedVariantTypeForOptions.options && selectedVariantTypeForOptions.options.length > 0 ? (
+                      selectedVariantTypeForOptions.options.map((option) => (
+                        <Card key={option.id} className={!option.isActive ? 'opacity-60' : ''}>
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <h4 className="font-semibold">{option.name}</h4>
+                                {option.description && (
+                                  <p className="text-sm text-slate-600">{option.description}</p>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEditVariantOption(option, selectedVariantTypeForOptions.id)}
+                                  className="h-9 w-9"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteVariantOption(option.id)}
+                                  className="h-9 w-9 text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50">
+                        <Package className="w-12 h-12 mx-auto mb-3 text-slate-400" />
+                        <p className="text-sm">No options found for this type</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </TabsContent>
       </Tabs>
@@ -1256,6 +1651,164 @@ export function MobileMenu() {
               </Button>
               <Button type="submit" disabled={loading} className="w-full sm:w-auto h-11 bg-emerald-600 hover:bg-emerald-700">
                 {loading ? 'Saving...' : editingCategory ? 'Update Category' : 'Add Category'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Variant Type Dialog */}
+      <Dialog open={variantTypeDialogOpen} onOpenChange={setVariantTypeDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingVariantType ? 'Edit Variant Type' : 'Add Variant Type'}</DialogTitle>
+            <DialogDescription>
+              Define a variant type like Size, Weight, or Material
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleVariantTypeSubmit}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="variantTypeName">Type Name *</Label>
+                <Input
+                  id="variantTypeName"
+                  value={variantTypeFormData.name}
+                  onChange={(e) => setVariantTypeFormData({ ...variantTypeFormData, name: e.target.value })}
+                  placeholder="e.g., Size, Weight, Material"
+                  required
+                  className="h-12"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variantTypeDescription">Description</Label>
+                <Input
+                  id="variantTypeDescription"
+                  value={variantTypeFormData.description}
+                  onChange={(e) => setVariantTypeFormData({ ...variantTypeFormData, description: e.target.value })}
+                  placeholder="Optional description"
+                  className="h-12"
+                />
+              </div>
+              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="variantTypeCustomInput" className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-blue-600" />
+                      Enable Custom Input
+                    </Label>
+                    <Switch
+                      id="variantTypeCustomInput"
+                      checked={variantTypeFormData.isCustomInput}
+                      onCheckedChange={(checked) => setVariantTypeFormData({ ...variantTypeFormData, isCustomInput: checked })}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    {variantTypeFormData.isCustomInput
+                      ? 'Users will enter a custom value (e.g., weight multiplier).'
+                      : 'Users will select from predefined options.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="variantTypeActive">Active</Label>
+                <Switch
+                  id="variantTypeActive"
+                  checked={variantTypeFormData.isActive}
+                  onCheckedChange={(checked) => setVariantTypeFormData({ ...variantTypeFormData, isActive: checked })}
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button type="button" variant="outline" onClick={() => setVariantTypeDialogOpen(false)} className="w-full sm:w-auto h-11">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading} className="w-full sm:w-auto h-11 bg-emerald-600 hover:bg-emerald-700">
+                {loading ? 'Saving...' : editingVariantType ? 'Update' : 'Add'} Variant Type
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Variant Option Dialog */}
+      <Dialog open={variantOptionDialogOpen} onOpenChange={setVariantOptionDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingVariantOption ? 'Edit Variant Option' : 'Add Variant Option'}</DialogTitle>
+            <DialogDescription>
+              {editingVariantOption ? 'Update variant option details' : 'Create a new option for a variant type'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleVariantOptionSubmit}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="optionVariantType">Variant Type *</Label>
+                <Select
+                  value={variantOptionFormData.variantTypeId}
+                  onValueChange={(value) => setVariantOptionFormData({ ...variantOptionFormData, variantTypeId: value })}
+                  disabled={!!editingVariantOption}
+                >
+                  <SelectTrigger id="optionVariantType" className="h-12">
+                    <SelectValue placeholder="Select variant type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {variantsVariantTypes.map((vt) => (
+                      <SelectItem key={vt.id} value={vt.id}>
+                        {vt.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="optionName">Option Name *</Label>
+                <Input
+                  id="optionName"
+                  value={variantOptionFormData.name}
+                  onChange={(e) => setVariantOptionFormData({ ...variantOptionFormData, name: e.target.value })}
+                  placeholder="e.g., Small, Medium, Large"
+                  required
+                  className="h-12"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="optionDescription">Description</Label>
+                <Input
+                  id="optionDescription"
+                  value={variantOptionFormData.description}
+                  onChange={(e) => setVariantOptionFormData({ ...variantOptionFormData, description: e.target.value })}
+                  placeholder="Optional description"
+                  className="h-12"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="optionSortOrder">Sort Order</Label>
+                <Input
+                  id="optionSortOrder"
+                  type="number"
+                  min="0"
+                  value={variantOptionFormData.sortOrder}
+                  onChange={(e) => setVariantOptionFormData({ ...variantOptionFormData, sortOrder: e.target.value })}
+                  placeholder="0"
+                  className="h-12"
+                />
+                <p className="text-xs text-slate-500">Lower numbers appear first</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="optionActive">Active</Label>
+                <Switch
+                  id="optionActive"
+                  checked={variantOptionFormData.isActive}
+                  onCheckedChange={(checked) => setVariantOptionFormData({ ...variantOptionFormData, isActive: checked })}
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button type="button" variant="outline" onClick={() => setVariantOptionDialogOpen(false)} className="w-full sm:w-auto h-11">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading} className="w-full sm:w-auto h-11 bg-emerald-600 hover:bg-emerald-700">
+                {loading ? 'Saving...' : editingVariantOption ? 'Update' : 'Add'} Option
               </Button>
             </DialogFooter>
           </form>
