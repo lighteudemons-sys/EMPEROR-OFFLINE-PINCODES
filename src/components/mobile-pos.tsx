@@ -835,7 +835,6 @@ export function MobilePOS() {
   }, [user, branches, selectedBranch]);
 
   // Auto-sync when connection is restored
-  const currentBranchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
   useAutoSync(currentBranchId);
 
   // Fetch current shift for cashiers and branch managers
