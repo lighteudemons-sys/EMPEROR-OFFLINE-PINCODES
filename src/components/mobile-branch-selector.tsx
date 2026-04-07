@@ -37,11 +37,14 @@ export function MobileBranchSelector({ className = '', onBranchChange }: MobileB
   useEffect(() => {
     if (user?.role === 'ADMIN' && branches.length > 0 && !hasInitialized.current) {
       const defaultBranchId = branches[0].id;
-      setSelectedBranch(defaultBranchId);
-      onBranchChange?.(defaultBranchId);
-      hasInitialized.current = true;
+      // Use setTimeout to avoid synchronous setState in effect
+      setTimeout(() => {
+        setSelectedBranch(defaultBranchId);
+        onBranchChange?.(defaultBranchId);
+        hasInitialized.current = true;
+      }, 0);
     }
-  }, [user, branches, onBranchChange, hasInitialized]);
+  }, [user, branches, onBranchChange]);
 
   const handleBranchChange = (branchId: string) => {
     setSelectedBranch(branchId);

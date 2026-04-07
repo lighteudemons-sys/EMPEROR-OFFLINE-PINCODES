@@ -2033,7 +2033,7 @@ export function MobilePOS() {
 
     setAuthLoading(true);
     try {
-      const bcrypt = await import('bcrypt');
+      const bcrypt = await import('bcryptjs');
       const isTempOrder = (orderId: string) => orderId?.startsWith('temp-order-');
       const isOnline = navigator.onLine;
       const isOfflineOrder = selectedOrder && isTempOrder(selectedOrder.id);

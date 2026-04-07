@@ -46,10 +46,6 @@ import { useI18n } from '@/lib/i18n-context';
 import { OfflineStatusIndicator } from '@/components/offline-status-indicator';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
-import { MobileMenu } from '@/components/mobile-menu';
-import { MobileInventory } from '@/components/mobile-inventory';
-import { MobileCustomers } from '@/components/mobile-customers';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 interface Feature {
   id: string;
