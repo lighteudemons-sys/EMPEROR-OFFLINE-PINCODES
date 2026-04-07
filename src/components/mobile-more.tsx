@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { MobileBranchSelector } from '@/components/mobile-branch-selector';
+import { MobileMenu } from '@/components/mobile-menu';
+import { MobileInventory } from '@/components/mobile-inventory';
+import { MobileCustomers } from '@/components/mobile-customers';
 import {
   User,
   LogOut,
@@ -42,6 +46,10 @@ import { useI18n } from '@/lib/i18n-context';
 import { OfflineStatusIndicator } from '@/components/offline-status-indicator';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
+import { MobileMenu } from '@/components/mobile-menu';
+import { MobileInventory } from '@/components/mobile-inventory';
+import { MobileCustomers } from '@/components/mobile-customers';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 interface Feature {
   id: string;
@@ -57,6 +65,10 @@ export function MobileMore() {
   const { language, setLanguage, t } = useI18n();
   const [storageInfo, setStorageInfo] = useState({ used: 0, total: 0 });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  
+  // Mobile view sheets
+  const [mobileViewOpen, setMobileViewOpen] = useState(false);
+  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | null>(null);
 
   useEffect(() => {
     const fetchStorageInfo = async () => {
@@ -161,19 +173,35 @@ export function MobileMore() {
   ];
 
   const handleFeatureClick = (feature: Feature) => {
-    // Show message that this feature is available on desktop
+    // Open mobile view for supported features
+    if (feature.id === 'menu') {
+      setCurrentMobileView('menu');
+      setMobileViewOpen(true);
+      return;
+    }
+    
+    if (feature.id === 'inventory') {
+      setCurrentMobileView('inventory');
+      setMobileViewOpen(true);
+      return;
+    }
+    
+    if (feature.id === 'customers') {
+      setCurrentMobileView('customers');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    // For other features, show message that they are available on desktop
     showSuccessToast('Desktop Feature', `${feature.name} is available on desktop view. Rotate your device or use a larger screen.`);
 
     // Optionally, still try to switch to desktop view
     // Note: This may not work well on actual mobile devices due to screen size
     const featureToTabMap: Record<string, string> = {
-      'menu': 'menu',
       'tables': 'tables',
-      'inventory': 'ingredients',
       'delivery': 'delivery',
       'suppliers': 'suppliers',
       'purchase-orders': 'purchase-orders',
-      'customers': 'customers',
       'loyalty': 'loyalty',
       'promo-codes': 'promo-codes',
       'reports': 'reports',
@@ -419,6 +447,15 @@ export function MobileMore() {
               </div>
             </div>
           </ScrollArea>
+        </SheetContent>
+      </Sheet>
+
+      {/* Mobile View Sheet */}
+      <Sheet open={mobileViewOpen} onOpenChange={setMobileViewOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0">
+          {currentMobileView === 'menu' && <MobileMenu />}
+          {currentMobileView === 'inventory' && <MobileInventory />}
+          {currentMobileView === 'customers' && <MobileCustomers />}
         </SheetContent>
       </Sheet>
     </div>

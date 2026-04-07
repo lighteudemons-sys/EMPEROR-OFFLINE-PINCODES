@@ -3091,3 +3091,117 @@ Testing Notes:
 - Bcrypt verification for PIN authentication
 - IndexedDB operations for offline void/refund
 - Sync queue integration for offline operations
+
+---
+
+## Task ID: 5
+### Agent: fullstack-dev
+### Task: Create mobile views for More Tab features
+
+### Work Log:
+- Read worklog.md to understand previous work
+- Read existing desktop components to understand implementation:
+  - menu-management.tsx - Menu items, categories, variants management
+  - ingredient-management.tsx - Inventory tracking, stock levels, transactions
+  - customer-management.tsx - Customer database, addresses, loyalty
+- Read existing mobile components as design references:
+  - mobile-pos.tsx - POS interface with cart, dialogs, offline support
+  - mobile-orders.tsx - Orders list with filters and details
+  - mobile-shifts.tsx - Shift management with opening/closing
+- Read mobile-branch-selector.tsx to understand branch selector implementation
+
+- Created mobile-menu.tsx:
+  - Full Menu Management with Items and Categories tabs
+  - Menu Items list with search and category filter
+  - Add/Edit/Delete menu items with image upload
+  - Add/Edit/Delete categories
+  - Uses same API endpoints as desktop (/api/menu-items, /api/categories)
+  - Includes MobileBranchSelector for admin users
+  - Responsive card layout for mobile
+  - Proper loading states, empty states, and error handling
+  - Image upload support with preview
+  - Tax rate, sort order, active/inactive status
+  - Touch-friendly UI with large buttons (h-11, h-12, h-14)
+
+- Created mobile-inventory.tsx:
+  - Inventory list with search and stock filter (all/low/ok)
+  - Stats cards showing total value, low stock count, total items
+  - Tabs for Inventory and Transaction History
+  - Add/Edit/Delete ingredients (admin only)
+  - Quick Restock feature with reason
+  - Uses same API endpoints as desktop (/api/ingredients, /api/inventory/restock, /api/inventory/transactions)
+  - Includes MobileBranchSelector for admin users
+  - Low stock indicators with amber badge
+  - Transaction history with icons for different types
+  - Proper loading states, empty states, and error handling
+  - Touch-friendly UI with large buttons
+
+- Created mobile-customers.tsx:
+  - Customer list with search by name, phone, email
+  - Stats cards showing total customers, active customers, total orders
+  - Add/Edit/Delete customers with form validation
+  - Customer addresses management (add/edit/delete)
+  - Default address support
+  - Loyalty points and tier display
+  - Uses same API endpoints as desktop (/api/customers, /api/customer-addresses, /api/branches, /api/delivery-areas)
+  - Includes MobileBranchSelector for admin users
+  - Responsive card layout showing customer info and addresses
+  - Proper loading states, empty states, and error handling
+  - Touch-friendly UI with large buttons
+
+- Updated mobile-more.tsx:
+  - Added imports for MobileMenu, MobileInventory, MobileCustomers components
+  - Added Sheet component imports
+  - Added state for mobile view sheet: mobileViewOpen, currentMobileView
+  - Modified handleFeatureClick to open mobile views:
+    - menu → opens MobileMenu in sheet
+    - inventory → opens MobileInventory in sheet
+    - customers → opens MobileCustomers in sheet
+    - Other features still show desktop message
+  - Added Mobile View Sheet that renders the appropriate component based on currentMobileView
+  - Removed switch-to-desktop event logic for supported features
+
+### Stage Summary:
+- Created three complete mobile-optimized management views
+- All views use the same API endpoints and logic as desktop versions
+- All views include MobileBranchSelector for admin users
+- All views have proper loading states, error handling, and empty states
+- All views are responsive and touch-friendly with large touch targets
+- Mobile More tab now opens mobile views instead of switching to desktop
+- Data flow: fetch → display → edit → save → refresh works correctly
+- All validation rules maintained from desktop versions
+- Branch filtering works correctly for admin users
+- Consistent design with existing mobile components (mobile-pos, mobile-orders, mobile-shifts)
+
+### Files Created:
+1. `src/components/mobile-menu.tsx` (31,953 bytes)
+   - Menu items and categories management
+   - Image upload, search, filtering
+   - Same API endpoints as desktop
+
+2. `src/components/mobile-inventory.tsx` (28,952 bytes)
+   - Inventory tracking with stock levels
+   - Quick restock feature
+   - Transaction history
+   - Same API endpoints as desktop
+
+3. `src/components/mobile-customers.tsx` (33,537 bytes)
+   - Customer database with addresses
+   - Loyalty points and tiers
+   - Delivery area integration
+   - Same API endpoints as desktop
+
+### Files Modified:
+1. `src/components/mobile-more.tsx` (17,014 bytes)
+   - Added imports for new mobile components and Sheet
+   - Added state for mobile view management
+   - Updated handleFeatureClick to open mobile views
+   - Added Mobile View Sheet component
+
+### Testing Notes:
+- All mobile components use same API calls as desktop
+- All validation logic preserved from desktop versions
+- All loading and error states implemented
+- Touch targets meet minimum requirements (h-11 = 44px minimum)
+- Consistent with existing mobile design patterns
+- Branch selector only shows for admin users (as expected)

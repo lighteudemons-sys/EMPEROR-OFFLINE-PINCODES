@@ -463,6 +463,7 @@ interface CartItem {
   category?: string;
   categoryId?: string | null;
   requiresCaptainReceipt?: boolean;
+  taxRate?: number;
 }
 
 interface MenuItemVariant {
@@ -1106,6 +1107,7 @@ export function MobilePOS() {
       category: item.category,
       categoryId: item.categoryId,
       requiresCaptainReceipt: getMenuItemRequiresCaptainReceipt(item),
+      taxRate: item.taxRate || 0.14,
     };
 
     setCart((prevCart) => {
@@ -1178,10 +1180,13 @@ export function MobilePOS() {
   // Use tableCart for dine-in, cart for take-away and delivery (SAME AS DESKTOP)
   const currentCart = (orderType === 'dine-in' && selectedTable) ? tableCart : cart;
   const subtotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = subtotal * 0.14;
+  // Calculate tax based on each item's tax rate
+  const tax = currentCart.reduce((sum, item) => sum + (item.price * item.quantity * (item.taxRate || 0.14)), 0);
   const deliveryFee = orderType === 'delivery' ? (deliveryAreas.find((a: any) => a.id === deliveryArea)?.fee || 0) : 0;
   const total = subtotal + tax + deliveryFee - promoDiscount - loyaltyDiscount - manualDiscountAmount;
   const itemCount = currentCart.reduce((sum, item) => sum + item.quantity, 0);
+  // Calculate average tax rate for display
+  const averageTaxRate = subtotal > 0 ? (tax / subtotal) * 100 : 0;
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
@@ -1248,7 +1253,8 @@ export function MobilePOS() {
         orderType,
         items: orderItems,
         subtotal,
-        taxRate: 0.14,
+        taxRate: averageTaxRate / 100, // Convert percentage to decimal
+        tax,
         total,
         paymentMethod,
         cashierId: user?.id,
@@ -3480,7 +3486,7 @@ export function MobilePOS() {
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Tax (14%)</span>
+                  <span className="text-slate-600">Tax ({averageTaxRate.toFixed(1)}%)</span>
                   <span className="font-medium">{formatCurrency(tax)}</span>
                 </div>
                 <Separator />

@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MobileBranchSelector } from '@/components/mobile-branch-selector';
 import {
   Search,
   Filter,
@@ -42,6 +43,7 @@ interface Order {
   orderType: OrderType;
   status: OrderStatus;
   totalAmount: number;
+  taxAmount?: number;
   createdAt: string;
   customer?: {
     name: string;
@@ -102,6 +104,7 @@ export function MobileOrders() {
         orderType: order.orderType || 'take-away',
         status: order.status || 'completed',
         totalAmount: order.totalAmount || 0,
+        taxAmount: order.taxAmount || 0,
         createdAt: order.createdAt || order.orderTimestamp || new Date().toISOString(),
         customer: order._offlineData?.customerName ? {
           name: order._offlineData.customerName,
@@ -150,9 +153,11 @@ export function MobileOrders() {
     const now = new Date();
     const orderDate = new Date(order.createdAt);
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
     if (activeTab === 'active') {
-      return !['completed', 'cancelled'].includes(order.status);
+      // Active = Orders from the last 2 hours (or still in progress)
+      return orderDate >= twoHoursAgo || !['completed', 'cancelled'].includes(order.status);
     } else if (activeTab === 'today') {
       return orderDate >= today;
     } else {
@@ -258,6 +263,9 @@ export function MobileOrders() {
     <div className="min-h-screen bg-slate-50 pb-20">
       {/* Header */}
       <div className="bg-white border-b border-slate-200 px-4 pt-12 pb-4 sticky top-0 z-40">
+        {/* Branch Selector for Admins */}
+        <MobileBranchSelector className="mb-3" />
+        
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-slate-900">Orders</h1>
           <Button
@@ -561,15 +569,17 @@ export function MobileOrders() {
                         <div className="flex justify-between">
                           <span className="text-slate-600">Subtotal</span>
                           <span className="font-medium">
-                            {formatCurrency(selectedOrder.totalAmount / 1.14)}
+                            {formatCurrency(selectedOrder.totalAmount - (selectedOrder.taxAmount || 0))}
                           </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Tax (14%)</span>
-                          <span className="font-medium">
-                            {formatCurrency(selectedOrder.totalAmount - (selectedOrder.totalAmount / 1.14))}
-                          </span>
-                        </div>
+                        {(selectedOrder.taxAmount || 0) > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-slate-600">Tax</span>
+                            <span className="font-medium">
+                              {formatCurrency(selectedOrder.taxAmount || 0)}
+                            </span>
+                          </div>
+                        )}
                         <Separator />
                         <div className="flex justify-between text-lg font-bold">
                           <span>Total</span>
