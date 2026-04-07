@@ -66,22 +66,28 @@ interface OrderItem {
 
 export function MobileOrders() {
   const { currency, t } = useI18n();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'active' | 'today' | 'all'>('active');
+  const [activeTab, setActiveTab] = useState<'today' | 'all'>('today');
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderDetailOpen, setOrderDetailOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
 
   const fetchOrders = async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
 
+      // For admin, use selectedBranch; for others, use user's branch
+      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+
       // Fetch orders from API first
       let allOrders: any[] = [];
       try {
-        const response = await fetch('/api/orders');
+        const url = branchId ? `/api/orders?branchId=${branchId}` : '/api/orders';
+        const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           allOrders = data.orders || [];
@@ -94,7 +100,14 @@ export function MobileOrders() {
       if (allOrders.length === 0) {
         const storage = getIndexedDBStorage();
         await storage.init();
-        allOrders = await storage.getAllOrders();
+        let dbOrders = await storage.getAllOrders();
+
+        // Filter by branch if branchId is specified
+        if (branchId) {
+          dbOrders = dbOrders.filter((order: any) => order.branchId === branchId);
+        }
+
+        allOrders = dbOrders;
       }
 
       // Convert to our Order interface
@@ -138,6 +151,13 @@ export function MobileOrders() {
     fetchOrders();
   }, []);
 
+  // Refetch orders when branch changes (for admin)
+  useEffect(() => {
+    if (selectedBranch && user?.role === 'ADMIN') {
+      fetchOrders();
+    }
+  }, [selectedBranch, user?.role]);
+
   const handleRefresh = () => {
     fetchOrders(true);
   };
@@ -153,12 +173,8 @@ export function MobileOrders() {
     const now = new Date();
     const orderDate = new Date(order.createdAt);
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
-    if (activeTab === 'active') {
-      // Active = Orders from the last 2 hours (or still in progress)
-      return orderDate >= twoHoursAgo || !['completed', 'cancelled'].includes(order.status);
-    } else if (activeTab === 'today') {
+    if (activeTab === 'today') {
       return orderDate >= today;
     } else {
       return true;
@@ -250,7 +266,6 @@ export function MobileOrders() {
         <div className="flex gap-2">
           <Skeleton className="h-10 flex-1" />
           <Skeleton className="h-10 flex-1" />
-          <Skeleton className="h-10 flex-1" />
         </div>
         {[...Array(3)].map((_, i) => (
           <Skeleton key={i} className="h-32 w-full" />
@@ -264,7 +279,10 @@ export function MobileOrders() {
       {/* Header */}
       <div className="bg-white border-b border-slate-200 px-4 pt-12 pb-4 sticky top-0 z-40">
         {/* Branch Selector for Admins */}
-        <MobileBranchSelector className="mb-3" />
+        <MobileBranchSelector
+          className="mb-3"
+          onBranchChange={setSelectedBranch}
+        />
         
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-slate-900">Orders</h1>
@@ -300,16 +318,6 @@ export function MobileOrders() {
 
         {/* Tab Filter */}
         <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-          <button
-            onClick={() => setActiveTab('active')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-              activeTab === 'active'
-                ? 'bg-white text-emerald-600 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Active
-          </button>
           <button
             onClick={() => setActiveTab('today')}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${

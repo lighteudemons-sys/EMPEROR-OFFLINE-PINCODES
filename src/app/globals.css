@@ -139,3 +139,15 @@
     padding-bottom: max(env(safe-area-inset-bottom), 16px);
   }
 }
+
+/* Hide scrollbar utility for horizontal scrolling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide::-webkit-scrollbar-thumb {
+  display: none;
+}

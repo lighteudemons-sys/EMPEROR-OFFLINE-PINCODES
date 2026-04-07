@@ -117,7 +117,8 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
 
     const totalDiscounts = (orderData.promoDiscount || 0) + (orderData.loyaltyDiscount || 0) + (orderData.manualDiscountAmount || 0);
     const discountedSubtotal = Math.max(0, orderData.subtotal - totalDiscounts);
-    const taxAmount = discountedSubtotal > 0 ? discountedSubtotal * (orderData.taxRate || 0.14) : 0;
+    // Only calculate tax if taxRate is provided (from branch settings), otherwise 0
+    const taxAmount = discountedSubtotal > 0 && orderData.taxRate ? discountedSubtotal * orderData.taxRate : 0;
     const totalAmount = orderData.total || (discountedSubtotal + taxAmount + (orderData.deliveryFee || 0));
 
     const transactionHash = Buffer.from(
@@ -727,13 +728,13 @@ export function MobilePOS() {
     }
   );
 
+  // Get current branch ID for data fetching
+  const currentBranchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+
   const { data: menuItemsData, loading: menuItemsLoading, refetch: refetchMenuItems } = useOfflineData(
-    (() => {
-      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
-      if (!branchId) return null;
-      return `/api/menu-items/pos?branchId=${branchId}`;
-    })(),
+    currentBranchId ? `/api/menu-items/pos?branchId=${currentBranchId}` : null,
     {
+      branchId: currentBranchId, // Add branchId for cache invalidation
       fetchFromDB: offlineDataFetchers.menuItems,
       deps: [selectedBranch, user?.branchId, user?.role],
       useCache: true,
@@ -757,8 +758,9 @@ export function MobilePOS() {
   const { data: couriersData } = useOfflineData(
     '',
     {
+      branchId: currentBranchId, // Add branchId for cache invalidation
       fetchFromDB: offlineDataFetchers.couriers,
-      enabled: !!user?.branchId,
+      enabled: !!currentBranchId,
       deps: [selectedBranch, user?.branchId, user?.role],
     }
   );
@@ -1180,13 +1182,11 @@ export function MobilePOS() {
   // Use tableCart for dine-in, cart for take-away and delivery (SAME AS DESKTOP)
   const currentCart = (orderType === 'dine-in' && selectedTable) ? tableCart : cart;
   const subtotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  // Calculate tax based on each item's tax rate
-  const tax = currentCart.reduce((sum, item) => sum + (item.price * item.quantity * (item.taxRate || 0.14)), 0);
+  // Tax is calculated on the backend when order is created (same as desktop)
+  // Don't calculate tax in the cart UI
   const deliveryFee = orderType === 'delivery' ? (deliveryAreas.find((a: any) => a.id === deliveryArea)?.fee || 0) : 0;
-  const total = subtotal + tax + deliveryFee - promoDiscount - loyaltyDiscount - manualDiscountAmount;
+  const total = subtotal + deliveryFee - promoDiscount - loyaltyDiscount - manualDiscountAmount;
   const itemCount = currentCart.reduce((sum, item) => sum + item.quantity, 0);
-  // Calculate average tax rate for display
-  const averageTaxRate = subtotal > 0 ? (tax / subtotal) * 100 : 0;
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
@@ -3274,8 +3274,8 @@ export function MobilePOS() {
 
         {/* Category Tabs */}
         <div className="bg-white border-b border-slate-200 sticky top-[128px] z-30">
-          <ScrollArea className="w-full">
-            <div className="flex gap-2 px-4 py-3">
+          <div className="overflow-x-auto overflow-y-hidden whitespace-nowrap px-4 py-3 scrollbar-hide">
+            <div className="inline-flex gap-2">
               <button
                 onClick={() => setSelectedCategory('all')}
                 className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
@@ -3300,7 +3300,7 @@ export function MobilePOS() {
                 </button>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </div>
 
         {/* Product Grid */}
@@ -3485,10 +3485,6 @@ export function MobilePOS() {
                     <span className="font-medium">{formatCurrency(deliveryFee)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Tax ({averageTaxRate.toFixed(1)}%)</span>
-                  <span className="font-medium">{formatCurrency(tax)}</span>
-                </div>
                 <Separator />
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total</span>
