@@ -108,12 +108,18 @@ export function MobileInventory() {
   useEffect(() => {
     if (user && branches.length > 0) {
       if (user.role === 'ADMIN') {
-        setSelectedBranch(branches[0].id);
+        // For admins, use the first branch if no branch is selected yet
+        if (!selectedBranch) {
+          setSelectedBranch(branches[0].id);
+        }
       } else if (user.branchId) {
-        setSelectedBranch(user.branchId);
+        // For non-admin users, use their assigned branch
+        if (!selectedBranch) {
+          setSelectedBranch(user.branchId);
+        }
       }
     }
-  }, [user, branches]);
+  }, [user, branches, selectedBranch]);
 
   // Fetch inventory data
   useEffect(() => {
@@ -129,7 +135,14 @@ export function MobileInventory() {
     try {
       const response = await fetch(`/api/ingredients?branchId=${selectedBranch}`);
       if (response.ok) {
-        setIngredients((await response.json()).ingredients || []);
+        const data = await response.json();
+        const ingredientsWithInventory = (data.ingredients || []).map((ing: any) => ({
+          ...ing,
+          // Ensure currentStock is properly set from API response
+          currentStock: ing.currentStock !== undefined ? ing.currentStock : 0,
+          branchStock: ing.branchStock !== undefined ? ing.branchStock : 0,
+        }));
+        setIngredients(ingredientsWithInventory);
       }
     } catch (error) {
       console.error('Failed to fetch ingredients:', error);
@@ -143,7 +156,8 @@ export function MobileInventory() {
     try {
       const response = await fetch(`/api/inventory/transactions?branchId=${selectedBranch}&limit=50`);
       if (response.ok) {
-        setTransactions((await response.json()).transactions || []);
+        const data = await response.json();
+        setTransactions(data.transactions || []);
       }
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
@@ -381,8 +395,23 @@ export function MobileInventory() {
         {/* Inventory Tab */}
         <TabsContent value="inventory" className="mt-0">
           <div className="p-4 space-y-4">
-            {/* Branch Selector */}
-            <MobileBranchSelector />
+            {/* Branch Selector - Connected to parent state */}
+            {user?.role === 'ADMIN' ? (
+              <MobileBranchSelector onBranchChange={setSelectedBranch} />
+            ) : (
+              /* Branch Info for Non-Admin Users */
+              branches.length > 0 && selectedBranch && (
+                <div className="flex items-center gap-2 bg-white rounded-lg shadow-sm border border-slate-200 px-3 py-2">
+                  <Store className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-slate-500 font-medium">Your Branch</p>
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {branches.find(b => b.id === selectedBranch)?.branchName || selectedBranch}
+                    </p>
+                  </div>
+                </div>
+              )
+            )}
 
             {/* Search and Filter */}
             <div className="space-y-3">
@@ -445,70 +474,92 @@ export function MobileInventory() {
                   {filteredIngredients.map((item) => (
                     <Card key={item.id} className={item.isLowStock ? 'border-2 border-amber-300 bg-amber-50' : ''}>
                       <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-3 mb-3">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <h3 className="font-semibold text-slate-900">{item.name}</h3>
-                              {item.isLowStock && (
-                                <Badge variant="destructive" className="gap-1 text-xs">
+                              <h3 className="font-semibold text-slate-900 text-base">{item.name}</h3>
+                              {item.isLowStock ? (
+                                <Badge variant="destructive" className="gap-1 text-xs h-6">
                                   <AlertTriangle className="h-3 w-3" />
-                                  Low
+                                  Low Stock
                                 </Badge>
+                              ) : (
+                                <Badge className="bg-emerald-600 text-xs h-6">In Stock</Badge>
                               )}
                             </div>
-                            <div className="space-y-1 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-slate-600">Stock</span>
-                                <span className={item.isLowStock ? 'font-bold text-red-600' : 'font-semibold text-slate-900'}>
-                                  {item.currentStock?.toFixed(2) || '-'} {item.unit}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-600">Reorder At</span>
-                                <span className="text-slate-900">{item.reorderThreshold} {item.unit}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-600">Value</span>
-                                <span className="font-semibold text-emerald-600">
-                                  {formatCurrency((item.currentStock || 0) * item.costPerUnit)}
-                                </span>
-                              </div>
-                            </div>
                           </div>
-                          <div className="flex flex-col gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setRestockItem(item);
-                                setRestockDialogOpen(true);
-                              }}
-                              className="h-9 w-9 text-green-600 hover:text-green-700"
-                              title="Quick Restock"
-                            >
-                              <ArrowUpCircle className="w-4 h-4" />
-                            </Button>
-                            {user?.role === 'ADMIN' && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleEdit(item)}
-                                  className="h-9 w-9"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDelete(item.id)}
-                                  className="h-9 w-9 text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </>
-                            )}
+                        </div>
+
+                        {/* Detailed Information Grid */}
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2">
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Current Stock</p>
+                            <p className={`font-bold text-lg ${item.isLowStock ? 'text-red-600' : 'text-slate-900'}`}>
+                              {(item.currentStock || 0).toFixed(2)}
+                            </p>
+                            <p className="text-xs text-slate-500">{item.unit}</p>
                           </div>
+
+                          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2">
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Cost/Unit</p>
+                            <p className="font-bold text-lg text-slate-900">
+                              {formatCurrency(item.costPerUnit)}
+                            </p>
+                            <p className="text-xs text-slate-500">per {item.unit}</p>
+                          </div>
+
+                          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2">
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Reorder Level</p>
+                            <p className="font-bold text-lg text-slate-900">
+                              {item.reorderThreshold}
+                            </p>
+                            <p className="text-xs text-slate-500">{item.unit}</p>
+                          </div>
+
+                          <div className="bg-emerald-50 dark:bg-emerald-950 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
+                            <p className="text-xs text-emerald-700 dark:text-emerald-400 mb-1">Stock Value</p>
+                            <p className="font-bold text-lg text-emerald-700 dark:text-emerald-400">
+                              {formatCurrency((item.currentStock || 0) * item.costPerUnit)}
+                            </p>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-500">Total</p>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setRestockItem(item);
+                              setRestockDialogOpen(true);
+                            }}
+                            className="flex-1 h-10 text-green-700 border-green-300 hover:bg-green-50"
+                          >
+                            <ArrowUpCircle className="w-4 h-4 mr-2" />
+                            Restock
+                          </Button>
+                          {user?.role === 'ADMIN' && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(item)}
+                                className="flex-1 h-10"
+                              >
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDelete(item.id)}
+                                className="h-10 text-red-600 border-red-300 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -548,32 +599,51 @@ export function MobileInventory() {
                     <Card key={txn.id}>
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
-                          <div className="mt-1">
+                          <div className="mt-1 flex-shrink-0">
                             {getTransactionIcon(txn.transactionType)}
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="font-semibold text-slate-900">{txn.ingredientName}</h4>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-2 gap-2">
+                              <h4 className="font-semibold text-slate-900 truncate">{txn.ingredientName}</h4>
                               {getTransactionBadge(txn.transactionType)}
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <span className="text-slate-600">Change: </span>
-                                <span className={txn.quantityChange >= 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
-                                  {txn.quantityChange >= 0 ? '+' : ''}{txn.quantityChange}
-                                </span>
+
+                            {/* Transaction Details Grid */}
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                              <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
+                                <p className="text-xs text-slate-600 dark:text-slate-400">Change</p>
+                                <p className={`font-bold ${txn.quantityChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {txn.quantityChange >= 0 ? '+' : ''}{txn.quantityChange.toFixed(2)}
+                                </p>
                               </div>
-                              <div>
-                                <span className="text-slate-600">After: </span>
-                                <span className="font-semibold">{txn.stockAfter}</span>
+                              <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
+                                <p className="text-xs text-slate-600 dark:text-slate-400">After</p>
+                                <p className="font-bold text-slate-900">
+                                  {txn.stockAfter.toFixed(2)}
+                                </p>
                               </div>
                             </div>
-                            {txn.reason && (
-                              <p className="text-sm text-slate-600 mt-2">{txn.reason}</p>
-                            )}
-                            <p className="text-xs text-slate-400 mt-2">
-                              {new Date(txn.createdAt).toLocaleString()}
-                            </p>
+
+                            {/* Additional Details */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-slate-600">Before:</span>
+                                <span className="font-medium">{txn.stockBefore.toFixed(2)}</span>
+                              </div>
+                              {txn.reason && (
+                                <div className="bg-amber-50 dark:bg-amber-950 rounded p-2 mt-2">
+                                  <p className="text-xs text-amber-800 dark:text-amber-300">{txn.reason}</p>
+                                </div>
+                              )}
+                              <p className="text-xs text-slate-400 mt-2">
+                                {new Date(txn.createdAt).toLocaleString()}
+                              </p>
+                              {txn.userName && (
+                                <p className="text-xs text-slate-500">
+                                  By: {txn.userName}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </CardContent>

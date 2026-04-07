@@ -15,7 +15,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { 
   Coffee, Plus, Search, Edit, Trash2, DollarSign, Package, 
   Layers, ArrowLeft, CheckCircle, X, XCircle, Filter, 
-  ArrowUpCircle, ArrowDownCircle, Image as ImageIcon, Upload
+  ArrowUpCircle, ArrowDownCircle, Image as ImageIcon, Upload,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-context';
 import { formatCurrency } from '@/lib/utils';
@@ -32,12 +33,48 @@ interface MenuItem {
   isActive: boolean;
   sortOrder?: number;
   hasVariants: boolean;
+  variants?: MenuItemVariant[];
   imagePath?: string | null;
   categoryRel?: {
     id: string;
     name: string;
     sortOrder: number;
   };
+}
+
+interface MenuItemVariant {
+  id: string;
+  menuItemId: string;
+  variantTypeId: string;
+  variantOptionId: string;
+  priceModifier: number;
+  sortOrder: number;
+  isActive: boolean;
+  variantType: {
+    id: string;
+    name: string;
+  };
+  variantOption: {
+    id: string;
+    name: string;
+  };
+}
+
+interface VariantType {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  isCustomInput: boolean;
+  options: VariantOption[];
+}
+
+interface VariantOption {
+  id: string;
+  name: string;
+  description?: string | null;
+  sortOrder: number;
+  isActive: boolean;
 }
 
 interface Category {
@@ -108,10 +145,21 @@ export function MobileMenu() {
   const [loading, setLoading] = useState(false);
   const [itemUploading, setItemUploading] = useState(false);
   const [categoryUploading, setCategoryUploading] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  // Variant Management State
+  const [variantTypes, setVariantTypes] = useState<VariantType[]>([]);
+  const [selectedVariantType, setSelectedVariantType] = useState<string>('');
+  const [itemVariants, setItemVariants] = useState<Array<{ id?: string; variantOptionId: string; priceModifier: string }>>([]);
 
   // Fetch categories
   useEffect(() => {
     fetchCategories();
+  }, []);
+
+  // Fetch variant types
+  useEffect(() => {
+    fetchVariantTypes();
   }, []);
 
   // Fetch menu items
@@ -128,6 +176,18 @@ export function MobileMenu() {
       }
     } catch (error) {
       console.error('Failed to fetch categories:', error);
+    }
+  };
+
+  const fetchVariantTypes = async () => {
+    try {
+      const response = await fetch('/api/variant-types?active=true&includeOptions=true');
+      const data = await response.json();
+      if (response.ok && data.variantTypes) {
+        setVariantTypes(data.variantTypes);
+      }
+    } catch (error) {
+      console.error('Failed to fetch variant types:', error);
     }
   };
 
@@ -238,6 +298,8 @@ export function MobileMenu() {
     setLoading(true);
 
     try {
+      let menuItemId: string | null = null;
+
       const payload: any = {
         name: itemFormData.name,
         category: itemFormData.category,
@@ -256,12 +318,13 @@ export function MobileMenu() {
       }
 
       if (editingItem) {
+        menuItemId = editingItem.id;
         const response = await fetch('/api/menu-items', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             _method: 'PATCH',
-            id: editingItem.id,
+            id: menuItemId,
             ...payload,
           }),
         });
@@ -280,6 +343,72 @@ export function MobileMenu() {
         const data = await response.json();
         if (!response.ok || !data.success) {
           throw new Error(data.error || 'Failed to create menu item');
+        }
+
+        menuItemId = data.menuItem.id;
+      }
+
+      // Save variants if enabled
+      if (itemFormData.hasVariants && menuItemId) {
+        // First, get existing variants for this menu item
+        const existingVariantsResponse = await fetch(`/api/menu-item-variants?menuItemId=${menuItemId}`);
+        const existingVariantsData = await existingVariantsResponse.json();
+        const existingVariants = existingVariantsData.variants || [];
+
+        // Track which variants we've processed
+        const processedVariantIds = new Set<string>();
+
+        for (const variant of itemVariants) {
+          if (variant.variantOptionId) {
+            // Check if this variant already exists
+            const existingVariant = existingVariants.find((v: MenuItemVariant) => 
+              v.variantOptionId === variant.variantOptionId
+            );
+
+            let response;
+            if (existingVariant && variant.id) {
+              // Update existing variant
+              response = await fetch(`/api/menu-item-variants/${variant.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  priceModifier: parseFloat(variant.priceModifier),
+                  variantTypeId: selectedVariantType,
+                }),
+              });
+              processedVariantIds.add(existingVariant.id);
+            } else {
+              // Create new variant
+              response = await fetch('/api/menu-item-variants', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  menuItemId,
+                  variantTypeId: selectedVariantType,
+                  variantOptionId: variant.variantOptionId,
+                  priceModifier: parseFloat(variant.priceModifier),
+                }),
+              });
+            }
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+              throw new Error(data.error || 'Failed to save variant');
+            }
+          }
+        }
+
+        // Delete variants that are no longer in the list
+        for (const existingVariant of existingVariants) {
+          if (!processedVariantIds.has(existingVariant.id)) {
+            const deleteResponse = await fetch(`/api/menu-item-variants/${existingVariant.id}`, {
+              method: 'DELETE',
+            });
+            const deleteData = await deleteResponse.json();
+            if (!deleteResponse.ok || !deleteData.success) {
+              console.error('Failed to delete variant:', deleteData.error);
+            }
+          }
         }
       }
 
@@ -307,6 +436,15 @@ export function MobileMenu() {
       sortOrder: (item.sortOrder ?? 0).toString(),
       imagePath: item.imagePath || '',
     });
+
+    // Fetch variants if the item has them
+    if (item.hasVariants) {
+      await fetchItemVariants(item.id);
+    } else {
+      setItemVariants([]);
+      setSelectedVariantType('');
+    }
+
     setItemDialogOpen(true);
   };
 
@@ -333,6 +471,80 @@ export function MobileMenu() {
     }
   };
 
+  // Variant Management Functions
+  const handleAddVariant = () => {
+    if (!selectedVariantType) return;
+    setItemVariants([...itemVariants, { variantOptionId: '', priceModifier: '0' }]);
+  };
+
+  const handleRemoveVariant = (index: number) => {
+    setItemVariants(itemVariants.filter((_, i) => i !== index));
+  };
+
+  const handleVariantChange = (index: number, field: string, value: string) => {
+    const newVariants = [...itemVariants];
+    newVariants[index] = { ...newVariants[index], [field]: value };
+    setItemVariants(newVariants);
+  };
+
+  const handleDeleteVariant = async (variantId: string) => {
+    if (!confirm('Are you sure you want to delete this variant?')) return;
+    
+    try {
+      const response = await fetch(`/api/menu-item-variants/${variantId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        showErrorToast('Error', data.error || 'Failed to delete variant');
+        return;
+      }
+
+      await fetchMenuItems();
+      if (editingItem) {
+        await fetchItemVariants(editingItem.id);
+      }
+      showSuccessToast('Success', 'Variant deleted!');
+    } catch (error) {
+      showErrorToast('Error', 'Failed to delete variant');
+    }
+  };
+
+  const fetchItemVariants = async (menuItemId: string) => {
+    try {
+      const response = await fetch(`/api/menu-item-variants?menuItemId=${menuItemId}`);
+      const data = await response.json();
+      if (response.ok && data.variants) {
+        const variants = data.variants.map((v: MenuItemVariant) => ({
+          id: v.id,
+          variantOptionId: v.variantOptionId,
+          priceModifier: v.priceModifier.toString(),
+        }));
+        setItemVariants(variants);
+        if (data.variants.length > 0) {
+          setSelectedVariantType(data.variants[0].variantTypeId || '');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch item variants:', error);
+    }
+  };
+
+  const toggleItemExpand = (itemId: string) => {
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId);
+    } else {
+      newExpanded.add(itemId);
+    }
+    setExpandedItems(newExpanded);
+  };
+
+  const getVariantPrice = (basePrice: number, priceModifier: number) => {
+    return basePrice + priceModifier;
+  };
+
   const resetItemForm = () => {
     setEditingItem(null);
     setItemFormData({
@@ -346,6 +558,8 @@ export function MobileMenu() {
       sortOrder: '0',
       imagePath: '',
     });
+    setItemVariants([]);
+    setSelectedVariantType('');
     setItemUploading(false);
   };
 
@@ -402,7 +616,7 @@ export function MobileMenu() {
         </div>
 
         {/* Branch Selector */}
-        <MobileBranchSelector />
+        <MobileBranchSelector onBranchChange={setSelectedBranch} />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -423,7 +637,7 @@ export function MobileMenu() {
                 <Input
                   placeholder="Search menu items..."
                   value={searchTerm}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 h-12 bg-white"
                 />
                 {searchTerm && (
@@ -476,58 +690,134 @@ export function MobileMenu() {
               ) : (
                 <div className="space-y-3 pb-4">
                   {filteredItems.map((item) => (
-                    <Card key={item.id} className={!item.isActive ? 'opacity-60' : ''}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          {item.imagePath ? (
-                            <img
-                              src={item.imagePath}
-                              alt={item.name}
-                              className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                            />
-                          ) : (
-                            <div className="w-16 h-16 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <Coffee className="w-8 h-8 text-emerald-600" />
-                            </div>
-                          )}
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1">
-                                <h3 className="font-semibold text-slate-900 line-clamp-1">{item.name}</h3>
-                                <p className="text-sm text-slate-600">{item.category}</p>
+                    <div key={item.id}>
+                      <Card 
+                        className={!item.isActive ? 'opacity-60' : ''}
+                        onClick={item.hasVariants ? () => toggleItemExpand(item.id) : undefined}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex items-start gap-3 flex-1">
+                              {item.imagePath ? (
+                                <img
+                                  src={item.imagePath}
+                                  alt={item.name}
+                                  className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                                />
+                              ) : (
+                                <div className="w-16 h-16 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <Coffee className="w-8 h-8 text-emerald-600" />
+                                </div>
+                              )}
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <h3 className="font-semibold text-slate-900 line-clamp-1">{item.name}</h3>
+                                      {item.hasVariants && (
+                                        <Badge variant="outline" className="text-xs">
+                                          <Layers className="w-3 h-3 mr-1" />
+                                          Variants
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-slate-600">{item.category}</p>
+                                  </div>
+                                  <Badge variant={item.isActive ? 'default' : 'secondary'} className={item.isActive ? 'bg-emerald-600' : ''}>
+                                    {item.isActive ? 'Active' : 'Inactive'}
+                                  </Badge>
+                                </div>
+                                <div className="mt-2 flex items-center justify-between">
+                                  <span className="text-lg font-bold text-emerald-600">
+                                    {formatCurrency(item.price)}
+                                  </span>
+                                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleEditItem(item)}
+                                      className="h-9 w-9"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleDeleteItem(item.id)}
+                                      className="h-9 w-9 text-red-600 hover:text-red-700"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
-                              <Badge variant={item.isActive ? 'default' : 'secondary'} className={item.isActive ? 'bg-emerald-600' : ''}>
-                                {item.isActive ? 'Active' : 'Inactive'}
-                              </Badge>
                             </div>
-                            <div className="mt-2 flex items-center justify-between">
-                              <span className="text-lg font-bold text-emerald-600">
-                                {formatCurrency(item.price)}
-                              </span>
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleEditItem(item)}
-                                  className="h-9 w-9"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteItem(item.id)}
-                                  className="h-9 w-9 text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </div>
+                            {item.hasVariants && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleItemExpand(item.id);
+                                }}
+                                className="h-9 w-9 flex-shrink-0"
+                              >
+                                {expandedItems.has(item.id) ? (
+                                  <ChevronUp className="w-4 h-4" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4" />
+                                )}
+                              </Button>
+                            )}
                           </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Expanded Variants Section */}
+                      {item.hasVariants && expandedItems.has(item.id) && (
+                        <div className="mt-0 bg-slate-50 border-t-0 rounded-b-lg border border-slate-200 p-4">
+                          <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                            <Layers className="h-4 w-4" />
+                            Variants
+                          </h4>
+                          {item.variants && item.variants.length > 0 ? (
+                            <div className="space-y-2">
+                              {item.variants.map((variant) => (
+                                <div 
+                                  key={variant.id} 
+                                  className="bg-white p-3 rounded-lg border flex justify-between items-start gap-2"
+                                >
+                                  <div className="flex-1">
+                                    <div className="font-medium text-sm">
+                                      {variant.variantType.name}: {variant.variantOption.name}
+                                    </div>
+                                    <div className="text-sm text-emerald-600">
+                                      {formatCurrency(getVariantPrice(item.price, variant.priceModifier))}
+                                      {variant.priceModifier !== 0 && (
+                                        <span className={`ml-2 text-xs ${variant.priceModifier > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                          ({variant.priceModifier > 0 ? '+' : ''}{formatCurrency(variant.priceModifier)})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteVariant(variant.id)}
+                                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-500 italic">No variants configured</p>
+                          )}
                         </div>
-                      </CardContent>
-                    </Card>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -768,6 +1058,128 @@ export function MobileMenu() {
                   onCheckedChange={(checked) => setItemFormData({ ...itemFormData, isActive: checked })}
                 />
                 <Label htmlFor="isActive" className="cursor-pointer">Active (visible in menu)</Label>
+              </div>
+
+              {/* Variants Section */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-2">
+                      <Layers className="h-4 w-4" />
+                      Enable Variants
+                    </Label>
+                    <p className="text-sm text-slate-500">
+                      Allow different sizes/weights with custom pricing
+                    </p>
+                  </div>
+                  <Switch
+                    checked={itemFormData.hasVariants}
+                    onCheckedChange={(checked) => {
+                      setItemFormData({ ...itemFormData, hasVariants: checked });
+                      if (checked && !selectedVariantType) {
+                        const cat = categories.find(c => c.id === itemFormData.categoryId);
+                        if (cat && (cat as any).defaultVariantTypeId) {
+                          setSelectedVariantType((cat as any).defaultVariantTypeId);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+
+                {itemFormData.hasVariants && (
+                  <div className="space-y-4 border rounded-lg p-4 bg-slate-50">
+                    <div className="space-y-2">
+                      <Label>Variant Type *</Label>
+                      <Select
+                        value={selectedVariantType}
+                        onValueChange={setSelectedVariantType}
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Select variant type (e.g., Size, Weight)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {variantTypes.map((vt) => (
+                            <SelectItem key={vt.id} value={vt.id}>
+                              {vt.name} {vt.description && `(${vt.description})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {selectedVariantType && (
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center gap-2">
+                          <Label>Variants</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAddVariant}
+                            className="h-9"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Variant
+                          </Button>
+                        </div>
+
+                        {itemVariants.length === 0 && (
+                          <p className="text-sm text-slate-500 italic">
+                            No variants added yet. Click "Add Variant" to add options.
+                          </p>
+                        )}
+
+                        {itemVariants.map((variant, index) => {
+                          const selectedType = variantTypes.find(vt => vt.id === selectedVariantType);
+                          return (
+                            <div key={index} className="space-y-2">
+                              <Select
+                                value={variant.variantOptionId}
+                                onValueChange={(value) => handleVariantChange(index, 'variantOptionId', value)}
+                              >
+                                <SelectTrigger className="h-11">
+                                  <SelectValue placeholder="Select option" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {selectedType?.options.map((option) => (
+                                    <SelectItem key={option.id} value={option.id}>
+                                      {option.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs whitespace-nowrap">Price Modifier:</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={variant.priceModifier}
+                                  onChange={(e) => handleVariantChange(index, 'priceModifier', e.target.value)}
+                                  placeholder="+0.00"
+                                  className="h-9"
+                                />
+                                <span className="text-xs text-slate-500 whitespace-nowrap">
+                                  Final: {formatCurrency(
+                                    getVariantPrice(parseFloat(itemFormData.price || '0'), parseFloat(variant.priceModifier || '0'))
+                                  )}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleRemoveVariant(index)}
+                                  className="h-9 w-9 text-red-600 hover:text-red-700 ml-auto"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">

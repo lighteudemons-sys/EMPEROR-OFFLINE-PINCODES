@@ -10,6 +10,7 @@ import { MobileBranchSelector } from '@/components/mobile-branch-selector';
 import { MobileMenu } from '@/components/mobile-menu';
 import { MobileInventory } from '@/components/mobile-inventory';
 import { MobileCustomers } from '@/components/mobile-customers';
+import { MobileTables } from '@/components/mobile-tables';
 import {
   User,
   LogOut,
@@ -64,7 +65,7 @@ export function MobileMore() {
   
   // Mobile view sheets
   const [mobileViewOpen, setMobileViewOpen] = useState(false);
-  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | null>(null);
+  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | null>(null);
 
   useEffect(() => {
     const fetchStorageInfo = async () => {
@@ -188,13 +189,18 @@ export function MobileMore() {
       return;
     }
 
+    if (feature.id === 'tables') {
+      setCurrentMobileView('tables');
+      setMobileViewOpen(true);
+      return;
+    }
+
     // For other features, show message that they are available on desktop
     showSuccessToast('Desktop Feature', `${feature.name} is available on desktop view. Rotate your device or use a larger screen.`);
 
     // Optionally, still try to switch to desktop view
     // Note: This may not work well on actual mobile devices due to screen size
     const featureToTabMap: Record<string, string> = {
-      'tables': 'tables',
       'delivery': 'delivery',
       'suppliers': 'suppliers',
       'purchase-orders': 'purchase-orders',
@@ -452,6 +458,7 @@ export function MobileMore() {
           {currentMobileView === 'menu' && <MobileMenu />}
           {currentMobileView === 'inventory' && <MobileInventory />}
           {currentMobileView === 'customers' && <MobileCustomers />}
+          {currentMobileView === 'tables' && <MobileTables />}
         </SheetContent>
       </Sheet>
     </div>
