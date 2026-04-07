@@ -320,8 +320,8 @@ export function MobileDashboard() {
           <div className="flex items-center gap-3">
             <Coffee className="w-8 h-8" />
             <div>
-              <h1 className="text-xl font-bold">Emperor POS</h1>
-              <p className="text-emerald-100 text-sm">Mobile Dashboard</p>
+              <h1 className="text-xl font-bold">{t('app.name')}</h1>
+              <p className="text-emerald-100 text-sm">{t('dashboard.mobile.title')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -371,9 +371,9 @@ export function MobileDashboard() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h4 className="font-semibold text-orange-900">Low Stock Alert</h4>
+                <h4 className="font-semibold text-orange-900">{t('alerts.low.stock')}</h4>
                 <p className="text-sm text-orange-700 mt-1">
-                  {lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} running low
+                  {lowStockItems.length} {t('dashboard.lowstock.items', { count: lowStockItems.length })}
                 </p>
                 <div className="mt-3 space-y-2">
                   {lowStockItems.map((item) => (
@@ -407,24 +407,24 @@ export function MobileDashboard() {
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-emerald-100 text-sm font-medium">Today's Revenue</p>
+                  <p className="text-emerald-100 text-sm font-medium">{t('dashboard.today.revenue')}</p>
                   <h2 className="text-3xl font-bold mt-1">{formatCurrency(stats.todayRevenue)}</h2>
                   <div className="flex items-center gap-1 mt-2 text-emerald-100 text-sm">
                     {stats.revenueChange >= 0 ? (
                       <>
                         <TrendingUp className="w-4 h-4" />
-                        <span>+{stats.revenueChange}% from yesterday</span>
+                        <span>+{stats.revenueChange}% {t('dashboard.from.yesterday')}</span>
                       </>
                     ) : (
                       <>
                         <TrendingUp className="w-4 h-4 rotate-180" />
-                        <span>{stats.revenueChange}% from yesterday</span>
+                        <span>{stats.revenueChange}% {t('dashboard.from.yesterday')}</span>
                       </>
                     )}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-emerald-100 text-xs">Today</div>
+                  <div className="text-emerald-100 text-xs">{t('dashboard.today')}</div>
                   <div className="text-lg font-semibold">
                     {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </div>
@@ -438,19 +438,19 @@ export function MobileDashboard() {
             <Card className="bg-white shadow-sm">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-emerald-600">{stats.orderCount}</div>
-                <div className="text-xs text-slate-600 mt-1">Orders</div>
+                <div className="text-xs text-slate-600 mt-1">{t('dashboard.orders')}</div>
               </CardContent>
             </Card>
             <Card className="bg-white shadow-sm">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-blue-600">{stats.shiftCount}</div>
-                <div className="text-xs text-slate-600 mt-1">Shifts</div>
+                <div className="text-xs text-slate-600 mt-1">{t('dashboard.shifts')}</div>
               </CardContent>
             </Card>
             <Card className="bg-white shadow-sm">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-purple-600">{stats.hoursOpen}h</div>
-                <div className="text-xs text-slate-600 mt-1">Hours</div>
+                <div className="text-xs text-slate-600 mt-1">{t('dashboard.hours')}</div>
               </CardContent>
             </Card>
           </div>
@@ -462,7 +462,7 @@ export function MobileDashboard() {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-                    <h3 className="font-semibold text-slate-900">Current Shift</h3>
+                    <h3 className="font-semibold text-slate-900">{t('shifts.current.title')}</h3>
                   </div>
                   <Badge className="bg-emerald-100 text-emerald-800">
                     {currentShift.status.toUpperCase()}
@@ -471,22 +471,22 @@ export function MobileDashboard() {
 
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
-                    <p className="text-xs text-slate-500">Started</p>
+                    <p className="text-xs text-slate-500">{t('shifts.started')}</p>
                     <p className="font-semibold text-slate-900">{formatTime(currentShift.startedAt)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Duration</p>
+                    <p className="text-xs text-slate-500">{t('shifts.duration')}</p>
                     <p className="font-semibold text-slate-900">
                       {Math.floor((Date.now() - new Date(currentShift.startedAt).getTime()) / (1000 * 60 * 60))}h
                       {Math.floor(((Date.now() - new Date(currentShift.startedAt).getTime()) / (1000 * 60)) % 60)}m
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Revenue</p>
+                    <p className="text-xs text-slate-500">{t('shifts.revenue')}</p>
                     <p className="font-semibold text-emerald-600">{formatCurrency(currentShift.currentRevenue)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Orders</p>
+                    <p className="text-xs text-slate-500">{t('shifts.orders')}</p>
                     <p className="font-semibold text-slate-900">{currentShift.orderCount}</p>
                   </div>
                 </div>
@@ -499,7 +499,7 @@ export function MobileDashboard() {
                     window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-money' }));
                   }}
                 >
-                  View Details
+                  {t('dashboard.view.details')}
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               </CardContent>
@@ -511,8 +511,8 @@ export function MobileDashboard() {
                   <div className="flex items-center gap-2">
                     <Clock className="w-5 h-5 text-amber-600" />
                     <div>
-                      <h3 className="font-semibold text-slate-900">No Active Shift</h3>
-                      <p className="text-sm text-slate-500">Open a shift to start taking orders</p>
+                      <h3 className="font-semibold text-slate-900">{t('shifts.no.active')}</h3>
+                      <p className="text-sm text-slate-500">{t('shifts.open.to.start')}</p>
                     </div>
                   </div>
                   <Button
@@ -530,7 +530,7 @@ export function MobileDashboard() {
 
           {/* Quick Actions */}
           <div>
-            <h3 className="font-semibold text-slate-900 mb-3 px-1">⚡ Quick Actions</h3>
+            <h3 className="font-semibold text-slate-900 mb-3 px-1">⚡ {t('dashboard.quick.actions')}</h3>
             <div className="grid grid-cols-3 gap-3">
               <Button
                 variant="outline"
@@ -540,7 +540,7 @@ export function MobileDashboard() {
                 }}
               >
                 <ShoppingCart className="w-6 h-6 text-emerald-600" />
-                <span className="text-xs font-medium">New Order</span>
+                <span className="text-xs font-medium">{t('dashboard.new.order')}</span>
               </Button>
               <Button
                 variant="outline"
@@ -563,14 +563,14 @@ export function MobileDashboard() {
                 }}
               >
                 <Clock className="w-6 h-6 text-blue-600" />
-                <span className="text-xs font-medium">Open Shift</span>
+                <span className="text-xs font-medium">{t('dashboard.open.shift')}</span>
               </Button>
             </div>
           </div>
 
           {/* Recent Activity */}
           <div>
-            <h3 className="font-semibold text-slate-900 mb-3 px-1">📊 Recent Activity</h3>
+            <h3 className="font-semibold text-slate-900 mb-3 px-1">📊 {t('dashboard.recent.activity')}</h3>
             <Card className="shadow-sm">
               <CardContent className="p-3">
                 <div className="space-y-3">
@@ -592,7 +592,7 @@ export function MobileDashboard() {
                     </div>
                   ))}
                   {recentActivity.length === 0 && (
-                    <p className="text-center text-sm text-slate-500 py-4">No recent activity</p>
+                    <p className="text-center text-sm text-slate-500 py-4">{t('dashboard.no.recent.activity')}</p>
                   )}
                 </div>
               </CardContent>

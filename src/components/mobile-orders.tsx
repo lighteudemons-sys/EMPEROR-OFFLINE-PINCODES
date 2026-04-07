@@ -286,7 +286,7 @@ export function MobileOrders() {
         />
         
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-slate-900">Orders</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('orders.title')}</h1>
           <Button
             variant="ghost"
             size="icon"
@@ -302,7 +302,7 @@ export function MobileOrders() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <Input
             type="text"
-            placeholder="Search orders..."
+            placeholder={t('orders.search.placeholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 h-12 text-base bg-slate-50"
@@ -327,7 +327,7 @@ export function MobileOrders() {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Today
+            {t('orders.tab.today')}
           </button>
           <button
             onClick={() => setActiveTab('all')}
@@ -337,7 +337,7 @@ export function MobileOrders() {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            All
+            {t('orders.tab.all')}
           </button>
         </div>
       </div>
@@ -348,8 +348,8 @@ export function MobileOrders() {
           {filteredOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <Receipt className="w-16 h-16 mb-4 text-slate-300" />
-              <p className="font-medium">No orders found</p>
-              <p className="text-sm">Try a different search or filter</p>
+              <p className="font-medium">{t('orders.no.found')}</p>
+              <p className="text-sm">{t('orders.try.different')}</p>
             </div>
           ) : (
             filteredOrders.map((order) => (
@@ -366,7 +366,7 @@ export function MobileOrders() {
                     <div className="flex items-center gap-2">
                       {getOrderTypeIcon(order.orderType)}
                       <div>
-                        <h3 className="font-semibold text-slate-900">Order #{order.orderNumber}</h3>
+                        <h3 className="font-semibold text-slate-900">{t('order.number')} {order.orderNumber}</h3>
                         <p className="text-xs text-slate-500">{formatTime(order.createdAt)}</p>
                       </div>
                     </div>
@@ -420,7 +420,7 @@ export function MobileOrders() {
                           }}
                         >
                           <CheckCircle className="w-4 h-4 mr-1" />
-                          Complete
+                          {t('order.complete')}
                         </Button>
                       )}
                       <Button
@@ -448,7 +448,7 @@ export function MobileOrders() {
             <>
               <SheetHeader className="px-6 pt-6">
                 <div className="flex items-center justify-between">
-                  <SheetTitle>Order #{selectedOrder.orderNumber}</SheetTitle>
+                  <SheetTitle>{t('order.number')} {selectedOrder.orderNumber}</SheetTitle>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -465,18 +465,18 @@ export function MobileOrders() {
                 <div className="space-y-6">
                   {/* Order Info */}
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-900 mb-3">Order Information</h4>
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3">{t('order.info')}</h4>
                     <Card>
                       <CardContent className="p-4 space-y-3">
                         <div className="flex justify-between">
-                          <span className="text-slate-600">Type</span>
+                          <span className="text-slate-600">{t('order.type')}</span>
                           <div className="flex items-center gap-2">
                             {getOrderTypeIcon(selectedOrder.orderType)}
                             <span className="font-medium capitalize">{selectedOrder.orderType.replace('-', ' ')}</span>
                           </div>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-600">Status</span>
+                          <span className="text-slate-600">{t('order.status')}</span>
                           <Badge className={getStatusBadge(selectedOrder.status)}>
                             <div className="flex items-center gap-1">
                               {getStatusIcon(selectedOrder.status)}
@@ -485,13 +485,13 @@ export function MobileOrders() {
                           </Badge>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-600">Time</span>
+                          <span className="text-slate-600">{t('order.time')}</span>
                           <span className="font-medium">
                             {new Date(selectedOrder.createdAt).toLocaleString()}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-600">Payment</span>
+                          <span className="text-slate-600">{t('order.payment')}</span>
                           <span className="font-medium capitalize">{selectedOrder.paymentMethod}</span>
                         </div>
                       </CardContent>
@@ -501,7 +501,7 @@ export function MobileOrders() {
                   {/* Customer Info */}
                   {selectedOrder.customer && (
                     <div>
-                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Customer</h4>
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">{t('order.customer')}</h4>
                       <Card>
                         <CardContent className="p-4">
                           <div className="flex items-center gap-3">
@@ -521,7 +521,7 @@ export function MobileOrders() {
                   {/* Delivery Info */}
                   {selectedOrder.orderType === 'delivery' && selectedOrder.deliveryAddress && (
                     <div>
-                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Delivery</h4>
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">{t('order.delivery')}</h4>
                       <Card>
                         <CardContent className="p-4">
                           <div className="flex items-start gap-2">
@@ -561,7 +561,7 @@ export function MobileOrders() {
                   {/* Notes */}
                   {selectedOrder.notes && (
                     <div>
-                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Notes</h4>
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">{t('order.notes')}</h4>
                       <Card>
                         <CardContent className="p-4">
                           <p className="text-sm text-slate-700">{selectedOrder.notes}</p>
@@ -572,18 +572,18 @@ export function MobileOrders() {
 
                   {/* Total */}
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-900 mb-3">Payment Summary</h4>
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3">{t('order.payment.summary')}</h4>
                     <Card>
                       <CardContent className="p-4 space-y-2">
                         <div className="flex justify-between">
-                          <span className="text-slate-600">Subtotal</span>
+                          <span className="text-slate-600">{t('order.subtotal')}</span>
                           <span className="font-medium">
                             {formatCurrency(selectedOrder.totalAmount - (selectedOrder.taxAmount || 0))}
                           </span>
                         </div>
                         {(selectedOrder.taxAmount || 0) > 0 && (
                           <div className="flex justify-between">
-                            <span className="text-slate-600">Tax</span>
+                            <span className="text-slate-600">{t('order.tax')}</span>
                             <span className="font-medium">
                               {formatCurrency(selectedOrder.taxAmount || 0)}
                             </span>
@@ -591,7 +591,7 @@ export function MobileOrders() {
                         )}
                         <Separator />
                         <div className="flex justify-between text-lg font-bold">
-                          <span>Total</span>
+                          <span>{t('order.total')}</span>
                           <span className="text-emerald-600">{formatCurrency(selectedOrder.totalAmount)}</span>
                         </div>
                       </CardContent>
@@ -612,7 +612,7 @@ export function MobileOrders() {
                     }}
                   >
                     <CheckCircle className="w-5 h-5 mr-2" />
-                    Mark Complete
+                    {t('order.mark.complete')}
                   </Button>
                 </div>
               )}

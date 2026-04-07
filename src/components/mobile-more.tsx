@@ -16,6 +16,10 @@ import { MobileDelivery } from '@/components/mobile-delivery';
 import { MobileAnalytics } from '@/components/mobile-analytics';
 import { MobileLoyalty } from '@/components/mobile-loyalty';
 import { MobilePromoCodes } from '@/components/mobile-promo-codes';
+import { MobileReceiptSettings } from '@/components/mobile-receipt-settings';
+import { MobileDeliveryAreas } from '@/components/mobile-delivery-areas';
+import { MobileCouriers } from '@/components/mobile-couriers';
+import { MobileETASettings } from '@/components/mobile-eta-settings';
 import {
   User,
   LogOut,
@@ -70,7 +74,7 @@ export function MobileMore() {
   
   // Mobile view sheets
   const [mobileViewOpen, setMobileViewOpen] = useState(false);
-  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'delivery' | 'analytics' | 'loyalty' | 'promo-codes' | null>(null);
+  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'delivery' | 'analytics' | 'loyalty' | 'promo-codes' | 'receipt' | 'delivery-areas' | 'couriers' | 'eta-settings' | null>(null);
 
   useEffect(() => {
     const fetchStorageInfo = async () => {
@@ -230,6 +234,30 @@ export function MobileMore() {
       return;
     }
 
+    if (feature.id === 'receipt') {
+      setCurrentMobileView('receipt');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'delivery-areas') {
+      setCurrentMobileView('delivery-areas');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'couriers') {
+      setCurrentMobileView('couriers');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'eta-settings') {
+      setCurrentMobileView('eta-settings');
+      setMobileViewOpen(true);
+      return;
+    }
+
     // For other features, show message that they are available on desktop
     showSuccessToast('Desktop Feature', `${feature.name} is available on desktop view. Rotate your device or use a larger screen.`);
 
@@ -243,10 +271,6 @@ export function MobileMore() {
       'audit-logs': 'audit-logs',
       'users': 'users',
       'branches': 'branches',
-      'receipt': 'receipt',
-      'delivery-areas': 'delivery',
-      'couriers': 'delivery',
-      'eta-settings': 'eta-settings',
     };
 
     const targetTab = featureToTabMap[feature.id];
@@ -496,6 +520,10 @@ export function MobileMore() {
           {currentMobileView === 'analytics' && <MobileAnalytics />}
           {currentMobileView === 'loyalty' && <MobileLoyalty />}
           {currentMobileView === 'promo-codes' && <MobilePromoCodes />}
+          {currentMobileView === 'receipt' && <MobileReceiptSettings />}
+          {currentMobileView === 'delivery-areas' && <MobileDeliveryAreas />}
+          {currentMobileView === 'couriers' && <MobileCouriers />}
+          {currentMobileView === 'eta-settings' && <MobileETASettings />}
         </SheetContent>
       </Sheet>
     </div>
