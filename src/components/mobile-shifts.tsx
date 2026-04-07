@@ -271,6 +271,7 @@ export function MobileShifts() {
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('');
   const [shiftNotes, setShiftNotes] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [paymentBreakdown, setPaymentBreakdown] = useState<PaymentBreakdown>({
     cash: 0,
     card: 0,
@@ -367,7 +368,7 @@ export function MobileShifts() {
     };
 
     fetchShifts();
-  }, [selectedBranch]);
+  }, [selectedBranch, refreshTrigger]);
 
   // Fetch business day status
   const fetchBusinessDayStatus = async () => {
@@ -414,7 +415,21 @@ export function MobileShifts() {
     if (selectedBranch) {
       fetchBusinessDayStatus();
     }
-  }, [selectedBranch]);
+  }, [selectedBranch, refreshTrigger]);
+
+  // Listen for refresh events
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('[Mobile Shifts] Refresh triggered');
+      setRefreshTrigger(prev => prev + 1);
+    };
+
+    window.addEventListener('refreshShiftStatus', handleRefresh);
+
+    return () => {
+      window.removeEventListener('refreshShiftStatus', handleRefresh);
+    };
+  }, []);
 
   // Handle open shift
   const handleOpenShift = async () => {
