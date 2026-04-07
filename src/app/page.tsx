@@ -43,7 +43,6 @@ import { MobileDashboard } from '@/components/mobile-dashboard';
 import { MobilePOS } from '@/components/mobile-pos';
 import { MobileOrders } from '@/components/mobile-orders';
 import { MobileShifts } from '@/components/mobile-shifts';
-import { MobileMoney } from '@/components/mobile-money';
 import { MobileMore } from '@/components/mobile-more';
 import { offlineManager } from '@/lib/offline/offline-manager';
 import storageMonitor from '@/lib/storage/storage-monitor';
@@ -808,7 +807,6 @@ export default function POSDashboard() {
             {mobileActiveTab === 'mobile-pos' && <MobilePOS />}
             {mobileActiveTab === 'mobile-orders' && <MobileOrders />}
             {mobileActiveTab === 'mobile-shifts' && <MobileShifts />}
-            {mobileActiveTab === 'mobile-money' && <MobileMoney />}
             {mobileActiveTab === 'mobile-more' && <MobileMore />}
           </div>
 

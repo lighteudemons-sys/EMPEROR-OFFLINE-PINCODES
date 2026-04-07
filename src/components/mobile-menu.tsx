@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { 
@@ -35,6 +36,8 @@ interface MenuItem {
   hasVariants: boolean;
   variants?: MenuItemVariant[];
   imagePath?: string | null;
+  branchIds?: string[];
+  availableToAllBranches?: boolean;
   categoryRel?: {
     id: string;
     name: string;
@@ -96,6 +99,8 @@ interface MenuItemFormData {
   isActive: boolean;
   hasVariants: boolean;
   sortOrder: string;
+  branchIds: string[];
+  availableToAllBranches: boolean;
   imagePath: string;
 }
 
@@ -127,6 +132,8 @@ export function MobileMenu() {
     isActive: true,
     hasVariants: false,
     sortOrder: '0',
+    branchIds: [],
+    availableToAllBranches: true,
     imagePath: '',
   });
 
@@ -151,6 +158,10 @@ export function MobileMenu() {
   const [variantTypes, setVariantTypes] = useState<VariantType[]>([]);
   const [selectedVariantType, setSelectedVariantType] = useState<string>('');
   const [itemVariants, setItemVariants] = useState<Array<{ id?: string; variantOptionId: string; priceModifier: string }>>([]);
+
+  // Branches State
+  const [branches, setBranches] = useState<Array<{ id: string; branchName: string }>>([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
 
   // Variants Tab State
   const [variantsVariantTypes, setVariantsVariantTypes] = useState<VariantType[]>([]);
@@ -178,6 +189,11 @@ export function MobileMenu() {
     fetchCategories();
   }, []);
 
+  // Fetch branches
+  useEffect(() => {
+    fetchBranches();
+  }, []);
+
   // Fetch variant types
   useEffect(() => {
     fetchVariantTypes();
@@ -202,6 +218,21 @@ export function MobileMenu() {
       }
     } catch (error) {
       console.error('Failed to fetch categories:', error);
+    }
+  };
+
+  const fetchBranches = async () => {
+    setBranchesLoading(true);
+    try {
+      const response = await fetch('/api/branches?active=true');
+      const data = await response.json();
+      if (response.ok && data.branches) {
+        setBranches(data.branches);
+      }
+    } catch (error) {
+      console.error('Failed to fetch branches:', error);
+    } finally {
+      setBranchesLoading(false);
     }
   };
 
@@ -525,8 +556,8 @@ export function MobileMenu() {
         isActive: itemFormData.isActive,
         hasVariants: itemFormData.hasVariants,
         sortOrder: itemFormData.sortOrder,
-        branchIds: ['all'], // Available to all branches
-        availableToAllBranches: true,
+        branchIds: itemFormData.availableToAllBranches ? ['all'] : itemFormData.branchIds,
+        availableToAllBranches: itemFormData.availableToAllBranches,
       };
 
       if (itemFormData.imagePath) {
@@ -650,6 +681,8 @@ export function MobileMenu() {
       isActive: item.isActive,
       hasVariants: item.hasVariants,
       sortOrder: (item.sortOrder ?? 0).toString(),
+      branchIds: item.branchIds || [],
+      availableToAllBranches: item.availableToAllBranches ?? true,
       imagePath: item.imagePath || '',
     });
 
@@ -772,6 +805,8 @@ export function MobileMenu() {
       isActive: true,
       hasVariants: false,
       sortOrder: '0',
+      branchIds: [],
+      availableToAllBranches: true,
       imagePath: '',
     });
     setItemVariants([]);
@@ -1453,6 +1488,87 @@ export function MobileMenu() {
                   onCheckedChange={(checked) => setItemFormData({ ...itemFormData, isActive: checked })}
                 />
                 <Label htmlFor="isActive" className="cursor-pointer">Active (visible in menu)</Label>
+              </div>
+
+              {/* Branch Availability Section */}
+              <div className="border-t pt-4">
+                <div className="space-y-1 mb-4">
+                  <Label className="flex items-center gap-2 text-base font-semibold">
+                    <Package className="h-4 w-4" />
+                    Branch Availability
+                  </Label>
+                  <p className="text-sm text-slate-500">
+                    Choose which branches can see this menu item
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 border rounded-lg bg-slate-50">
+                    <Checkbox
+                      id="all-branches"
+                      checked={itemFormData.availableToAllBranches}
+                      onCheckedChange={(checked) => {
+                        setItemFormData({
+                          ...itemFormData,
+                          availableToAllBranches: checked as boolean,
+                          branchIds: checked ? [] : itemFormData.branchIds,
+                        });
+                      }}
+                    />
+                    <div className="flex-1">
+                      <Label
+                        htmlFor="all-branches"
+                        className="cursor-pointer font-medium"
+                      >
+                        Available to all branches
+                      </Label>
+                      <p className="text-xs text-slate-500">
+                        This item will be visible in all branches (default)
+                      </p>
+                    </div>
+                  </div>
+
+                  {!itemFormData.availableToAllBranches && (
+                    <div className="space-y-2 pl-1">
+                      <Label className="text-sm font-medium">Select specific branches:</Label>
+                      {branchesLoading ? (
+                        <div className="text-sm text-slate-500">Loading branches...</div>
+                      ) : branches.length === 0 ? (
+                        <div className="text-sm text-slate-500">No branches available</div>
+                      ) : (
+                        <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3 bg-slate-50">
+                          {branches.map((branch) => (
+                            <div key={branch.id} className="flex items-center gap-3 py-1">
+                              <Checkbox
+                                id={`branch-${branch.id}`}
+                                checked={itemFormData.branchIds.includes(branch.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setItemFormData({
+                                      ...itemFormData,
+                                      branchIds: [...itemFormData.branchIds, branch.id],
+                                    });
+                                  } else {
+                                    setItemFormData({
+                                      ...itemFormData,
+                                      branchIds: itemFormData.branchIds.filter(id => id !== branch.id),
+                                    });
+                                  }
+                                }}
+                              />
+                              <Label
+                                htmlFor={`branch-${branch.id}`}
+                                className="flex-1 cursor-pointer text-sm py-2"
+                              >
+                                {branch.branchName}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Variants Section */}

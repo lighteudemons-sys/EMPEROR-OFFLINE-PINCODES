@@ -8,13 +8,17 @@ import { useOfflineData, offlineDataFetchers } from '@/hooks/use-offline-data';
 
 interface MobileBranchSelectorProps {
   className?: string;
+  selectedBranch?: string;
   onBranchChange?: (branchId: string) => void;
 }
 
-export function MobileBranchSelector({ className = '', onBranchChange }: MobileBranchSelectorProps) {
+export function MobileBranchSelector({ className = '', selectedBranch: parentSelectedBranch, onBranchChange }: MobileBranchSelectorProps) {
   const { user } = useAuth();
-  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const [internalBranch, setInternalBranch] = useState<string>('');
   const hasInitialized = useRef(false);
+  
+  // Use parent's selectedBranch if provided, otherwise use internal state
+  const selectedBranch = parentSelectedBranch || internalBranch;
   
   const { data: branchesData } = useOfflineData(
     '/api/branches',
@@ -33,22 +37,36 @@ export function MobileBranchSelector({ className = '', onBranchChange }: MobileB
         name: branch.branchName,
       }));
 
-  // Set default branch on mount (only once)
+  // Set default branch on mount (only once) if no parent selectedBranch provided
   useEffect(() => {
-    if (user?.role === 'ADMIN' && branches.length > 0 && !hasInitialized.current) {
+    console.log('[MobileBranchSelector] Init effect - user:', user?.role, 'branches:', branches.length, 'parentSelectedBranch:', parentSelectedBranch, 'initialized:', hasInitialized.current);
+    if (user?.role === 'ADMIN' && branches.length > 0 && !hasInitialized.current && !parentSelectedBranch) {
       const defaultBranchId = branches[0].id;
+      console.log('[MobileBranchSelector] Setting default branch:', defaultBranchId);
       // Use setTimeout to avoid synchronous setState in effect
       setTimeout(() => {
-        setSelectedBranch(defaultBranchId);
+        setInternalBranch(defaultBranchId);
         onBranchChange?.(defaultBranchId);
         hasInitialized.current = true;
+        console.log('[MobileBranchSelector] Default branch set and notified parent');
       }, 0);
+    } else if (parentSelectedBranch && !hasInitialized.current) {
+      // Parent controls the branch, just mark as initialized
+      console.log('[MobileBranchSelector] Parent controls branch, marking as initialized');
+      hasInitialized.current = true;
     }
-  }, [user, branches, onBranchChange]);
+  }, [user, branches, onBranchChange, parentSelectedBranch]);
 
   const handleBranchChange = (branchId: string) => {
-    setSelectedBranch(branchId);
-    onBranchChange?.(branchId);
+    console.log('[MobileBranchSelector] Branch changed to:', branchId, 'parentSelectedBranch:', !!parentSelectedBranch);
+    if (parentSelectedBranch) {
+      // Parent controls the branch, only notify parent
+      onBranchChange?.(branchId);
+    } else {
+      // Component controls the branch
+      setInternalBranch(branchId);
+      onBranchChange?.(branchId);
+    }
   };
 
   // Only show branch selector for admin users

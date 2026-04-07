@@ -121,46 +121,63 @@ export function MobileInventory() {
     }
   }, [user, branches, selectedBranch]);
 
-  // Fetch inventory data
+  // Fetch inventory data when branch changes
   useEffect(() => {
     if (selectedBranch) {
+      console.log(`[MobileInventory] Branch changed to: ${selectedBranch}, fetching data`);
       fetchIngredients();
       fetchTransactions();
     }
   }, [selectedBranch]);
 
   const fetchIngredients = async () => {
-    if (!selectedBranch) return;
+    if (!selectedBranch) {
+      console.log('[MobileInventory] No selected branch, skipping ingredients fetch');
+      return;
+    }
     setLoading(true);
     try {
+      console.log(`[MobileInventory] Fetching ingredients for branch: ${selectedBranch}`);
       const response = await fetch(`/api/ingredients?branchId=${selectedBranch}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('[MobileInventory] Ingredients data:', data);
         const ingredientsWithInventory = (data.ingredients || []).map((ing: any) => ({
           ...ing,
           // Ensure currentStock is properly set from API response
           currentStock: ing.currentStock !== undefined ? ing.currentStock : 0,
           branchStock: ing.branchStock !== undefined ? ing.branchStock : 0,
+          isLowStock: ing.isLowStock !== undefined ? ing.isLowStock : false,
         }));
+        console.log('[MobileInventory] Mapped ingredients:', ingredientsWithInventory);
         setIngredients(ingredientsWithInventory);
+      } else {
+        console.error('[MobileInventory] Failed to fetch ingredients:', response.status, response.statusText);
       }
     } catch (error) {
-      console.error('Failed to fetch ingredients:', error);
+      console.error('[MobileInventory] Failed to fetch ingredients:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchTransactions = async () => {
-    if (!selectedBranch) return;
+    if (!selectedBranch) {
+      console.log('[MobileInventory] No selected branch, skipping transactions fetch');
+      return;
+    }
     try {
+      console.log(`[MobileInventory] Fetching transactions for branch: ${selectedBranch}`);
       const response = await fetch(`/api/inventory/transactions?branchId=${selectedBranch}&limit=50`);
       if (response.ok) {
         const data = await response.json();
+        console.log('[MobileInventory] Transactions data:', data);
         setTransactions(data.transactions || []);
+      } else {
+        console.error('[MobileInventory] Failed to fetch transactions:', response.status, response.statusText);
       }
     } catch (error) {
-      console.error('Failed to fetch transactions:', error);
+      console.error('[MobileInventory] Failed to fetch transactions:', error);
     }
   };
 
@@ -397,7 +414,7 @@ export function MobileInventory() {
           <div className="p-4 space-y-4">
             {/* Branch Selector - Connected to parent state */}
             {user?.role === 'ADMIN' ? (
-              <MobileBranchSelector onBranchChange={setSelectedBranch} />
+              <MobileBranchSelector selectedBranch={selectedBranch} onBranchChange={setSelectedBranch} />
             ) : (
               /* Branch Info for Non-Admin Users */
               branches.length > 0 && selectedBranch && (
