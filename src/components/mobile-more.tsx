@@ -11,6 +11,11 @@ import { MobileMenu } from '@/components/mobile-menu';
 import { MobileInventory } from '@/components/mobile-inventory';
 import { MobileCustomers } from '@/components/mobile-customers';
 import { MobileTables } from '@/components/mobile-tables';
+import { MobileReports } from '@/components/mobile-reports';
+import { MobileDelivery } from '@/components/mobile-delivery';
+import { MobileAnalytics } from '@/components/mobile-analytics';
+import { MobileLoyalty } from '@/components/mobile-loyalty';
+import { MobilePromoCodes } from '@/components/mobile-promo-codes';
 import {
   User,
   LogOut,
@@ -65,7 +70,7 @@ export function MobileMore() {
   
   // Mobile view sheets
   const [mobileViewOpen, setMobileViewOpen] = useState(false);
-  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | null>(null);
+  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'delivery' | 'analytics' | 'loyalty' | 'promo-codes' | null>(null);
 
   useEffect(() => {
     const fetchStorageInfo = async () => {
@@ -176,13 +181,13 @@ export function MobileMore() {
       setMobileViewOpen(true);
       return;
     }
-    
+
     if (feature.id === 'inventory') {
       setCurrentMobileView('inventory');
       setMobileViewOpen(true);
       return;
     }
-    
+
     if (feature.id === 'customers') {
       setCurrentMobileView('customers');
       setMobileViewOpen(true);
@@ -195,17 +200,44 @@ export function MobileMore() {
       return;
     }
 
+    if (feature.id === 'reports') {
+      setCurrentMobileView('reports');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'delivery') {
+      setCurrentMobileView('delivery');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'loyalty') {
+      setCurrentMobileView('loyalty');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'analytics') {
+      setCurrentMobileView('analytics');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'promo-codes') {
+      setCurrentMobileView('promo-codes');
+      setMobileViewOpen(true);
+      return;
+    }
+
     // For other features, show message that they are available on desktop
     showSuccessToast('Desktop Feature', `${feature.name} is available on desktop view. Rotate your device or use a larger screen.`);
 
     // Optionally, still try to switch to desktop view
     // Note: This may not work well on actual mobile devices due to screen size
     const featureToTabMap: Record<string, string> = {
-      'delivery': 'delivery',
       'suppliers': 'suppliers',
       'purchase-orders': 'purchase-orders',
-      'loyalty': 'loyalty',
-      'promo-codes': 'promo-codes',
       'reports': 'reports',
       'analytics': 'reports',
       'audit-logs': 'audit-logs',
@@ -459,6 +491,11 @@ export function MobileMore() {
           {currentMobileView === 'inventory' && <MobileInventory />}
           {currentMobileView === 'customers' && <MobileCustomers />}
           {currentMobileView === 'tables' && <MobileTables />}
+          {currentMobileView === 'reports' && <MobileReports />}
+          {currentMobileView === 'delivery' && <MobileDelivery />}
+          {currentMobileView === 'analytics' && <MobileAnalytics />}
+          {currentMobileView === 'loyalty' && <MobileLoyalty />}
+          {currentMobileView === 'promo-codes' && <MobilePromoCodes />}
         </SheetContent>
       </Sheet>
     </div>
