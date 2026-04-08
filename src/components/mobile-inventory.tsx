@@ -56,7 +56,7 @@ interface InventoryTransaction {
 const units = ['kg', 'g', 'L', 'ml', 'units'];
 
 export function MobileInventory() {
-  const { currency } = useI18n();
+  const { currency, t } = useI18n();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('inventory');
   const [selectedBranch, setSelectedBranch] = useState('');
