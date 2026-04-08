@@ -274,13 +274,14 @@ export function MobileReports() {
       }
       params.append('startDate', startDate.toISOString());
       params.append('endDate', endDate.toISOString());
-      params.append('limit', '10');
+      // Note: best-sellers API doesn't support limit param, we'll slice client-side
 
-      const response = await fetch(`/api/reports/items?${params.toString()}`);
+      const response = await fetch(`/api/reports/best-sellers?${params.toString()}`);
       const data = await response.json();
 
-      if (data.success && data.items) {
-        setTopItems(data.items);
+      if (data.success && data.data?.products) {
+        // Take top 10 items
+        setTopItems(data.data.products.slice(0, 10));
       }
     } catch (error) {
       console.error('Failed to fetch top items:', error);

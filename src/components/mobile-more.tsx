@@ -12,8 +12,6 @@ import { MobileInventory } from '@/components/mobile-inventory';
 import { MobileCustomers } from '@/components/mobile-customers';
 import { MobileTables } from '@/components/mobile-tables';
 import { MobileReports } from '@/components/mobile-reports';
-import { MobileDelivery } from '@/components/mobile-delivery';
-import { MobileAnalytics } from '@/components/mobile-analytics';
 import { MobileLoyalty } from '@/components/mobile-loyalty';
 import { MobilePromoCodes } from '@/components/mobile-promo-codes';
 import { MobileReceiptSettings } from '@/components/mobile-receipt-settings';
@@ -25,6 +23,7 @@ import { MobilePurchaseOrders } from '@/components/mobile-purchase-orders';
 import { MobileAuditLogs } from '@/components/mobile-audit-logs';
 import { MobileUsers } from '@/components/mobile-users';
 import { MobileBranches } from '@/components/mobile-branches';
+import { MobileCosts } from '@/components/mobile-costs';
 import {
   User,
   LogOut,
@@ -81,7 +80,7 @@ export function MobileMore() {
 
   // Mobile view sheets
   const [mobileViewOpen, setMobileViewOpen] = useState(false);
-  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'delivery' | 'analytics' | 'loyalty' | 'promo-codes' | 'receipt' | 'delivery-areas' | 'couriers' | 'eta-settings' | 'suppliers' | 'purchase-orders' | 'audit-logs' | 'users' | 'branches' | null>(null);
+  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'loyalty' | 'promo-codes' | 'receipt' | 'delivery-areas' | 'couriers' | 'eta-settings' | 'suppliers' | 'purchase-orders' | 'audit-logs' | 'users' | 'branches' | 'costs' | null>(null);
 
   // Role-based access control - same as desktop
   const canAccessHQFeatures = user?.role === 'ADMIN';
@@ -96,6 +95,7 @@ export function MobileMore() {
   const canAccessTables = user?.role === 'ADMIN';
   const canAccessAuditLogs = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
   const canAccessETA = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const canAccessCosts = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
 
   useEffect(() => {
     const fetchStorageInfo = async () => {
@@ -161,7 +161,6 @@ export function MobileMore() {
         { id: 'menu', name: 'Menu Management', icon: Utensils, category: 'Operations', canAccess: canAccessHQFeatures },
         { id: 'tables', name: 'Tables', icon: LayoutGrid, category: 'Operations', canAccess: canAccessTables },
         { id: 'inventory', name: 'Inventory', icon: Package, category: 'Operations', badge: 'Low', canAccess: canAccessInventory },
-        { id: 'delivery', name: 'Delivery', icon: Truck, category: 'Operations', canAccess: canAccessDelivery },
         { id: 'suppliers', name: 'Suppliers', icon: ShoppingBag, category: 'Operations', canAccess: canAccessSuppliers },
         { id: 'purchase-orders', name: 'Purchase Orders', icon: ShoppingBag, category: 'Operations', canAccess: canAccessPurchaseOrders },
       ],
@@ -178,7 +177,7 @@ export function MobileMore() {
       name: 'Reports',
       features: [
         { id: 'reports', name: 'Reports', icon: BarChart3, category: 'Reports', canAccess: canAccessBranchFeatures },
-        { id: 'analytics', name: 'Analytics', icon: TrendingUp, category: 'Reports', canAccess: canAccessAnalytics },
+        { id: 'costs', name: 'Costs', icon: TrendingDown, category: 'Reports', canAccess: canAccessCosts },
         { id: 'audit-logs', name: 'Audit Logs', icon: FileText, category: 'Reports', canAccess: canAccessAuditLogs },
       ],
     },
@@ -238,20 +237,14 @@ export function MobileMore() {
       return;
     }
 
-    if (feature.id === 'delivery') {
-      setCurrentMobileView('delivery');
+    if (feature.id === 'costs') {
+      setCurrentMobileView('costs');
       setMobileViewOpen(true);
       return;
     }
 
     if (feature.id === 'loyalty') {
       setCurrentMobileView('loyalty');
-      setMobileViewOpen(true);
-      return;
-    }
-
-    if (feature.id === 'analytics') {
-      setCurrentMobileView('analytics');
       setMobileViewOpen(true);
       return;
     }
@@ -569,8 +562,7 @@ export function MobileMore() {
                 {currentMobileView === 'customers' && 'Customers'}
                 {currentMobileView === 'tables' && 'Tables'}
                 {currentMobileView === 'reports' && 'Reports'}
-                {currentMobileView === 'delivery' && 'Delivery'}
-                {currentMobileView === 'analytics' && 'Analytics'}
+                {currentMobileView === 'costs' && 'Costs'}
                 {currentMobileView === 'loyalty' && 'Loyalty Program'}
                 {currentMobileView === 'promo-codes' && 'Promo Codes'}
                 {currentMobileView === 'receipt' && 'Receipt Settings'}
@@ -591,8 +583,7 @@ export function MobileMore() {
             {currentMobileView === 'customers' && <MobileCustomers />}
             {currentMobileView === 'tables' && <MobileTables />}
             {currentMobileView === 'reports' && <MobileReports />}
-            {currentMobileView === 'delivery' && <MobileDelivery />}
-            {currentMobileView === 'analytics' && <MobileAnalytics />}
+            {currentMobileView === 'costs' && <MobileCosts />}
             {currentMobileView === 'loyalty' && <MobileLoyalty />}
             {currentMobileView === 'promo-codes' && <MobilePromoCodes />}
             {currentMobileView === 'receipt' && <MobileReceiptSettings />}

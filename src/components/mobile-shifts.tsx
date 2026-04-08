@@ -27,6 +27,7 @@ import {
   Lock,
   CheckCircle,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -63,6 +64,84 @@ interface PaymentBreakdown {
   instapay: number;
   wallet: number;
   total: number;
+}
+
+interface ShiftDetailsReport {
+  shift: {
+    id: string;
+    shiftNumber: number;
+    startTime: string;
+    endTime: string;
+    cashier: { name: string; username: string };
+    branch: { id: string; branchName: string };
+    openingCash: number;
+    closingCash: number | null;
+    openingOrders: number;
+    closingOrders: number | null;
+    openingRevenue: number;
+    closingRevenue: number | null;
+    notes?: string | null;
+  };
+  paymentSummary: {
+    cash: number;
+    card: number;
+    other: number;
+    total: number;
+  };
+  orderTypeBreakdown: {
+    'take-away': { value: number; discounts: number; count: number; total: number };
+    'dine-in': { value: number; discounts: number; count: number; total: number };
+    'delivery': { value: number; discounts: number; count: number; total: number };
+  };
+  totals: {
+    sales: number;
+    discounts: number;
+    deliveryFees: number;
+    refunds: number;
+    voidedItems: number;
+    card: number;
+    instapay: number;
+    wallet: number;
+    cash: number;
+    dailyExpenses: number;
+    openingCashBalance: number;
+    expectedCash: number;
+    closingCashBalance: number;
+    overShort: number | null;
+  };
+  categoryBreakdown?: Array<{
+    categoryName: string;
+    totalSales: number;
+    items: Array<{
+      itemId: string;
+      itemName: string;
+      quantity: number;
+      totalPrice: number;
+      isCustomInput?: boolean;
+      totalWeight?: number;
+    }>;
+  }>;
+  voidedItems?: Array<{
+    id: string;
+    itemName: string;
+    voidedQuantity: number;
+    unitPrice: number;
+    voidedSubtotal: number;
+    reason: string;
+    voidedBy: string;
+    voidedAt: string;
+    orderNumber: number;
+    orderTimestamp: string;
+  }>;
+  refundedOrders?: Array<{
+    id: string;
+    orderNumber: number;
+    orderTimestamp: string;
+    refundAmount: number;
+    refundReason: string;
+    refundedAt: string;
+    paymentMethod: string;
+  }>;
 }
 
 // Helper function to close business day offline
@@ -365,6 +444,11 @@ export function MobileShifts() {
     isOpen: boolean;
     businessDayId?: string;
   }>({ isOpen: false });
+
+  // Shift details states
+  const [shiftDetailsOpen, setShiftDetailsOpen] = useState(false);
+  const [shiftDetailsData, setShiftDetailsData] = useState<ShiftDetailsReport | null>(null);
+  const [loadingShiftDetails, setLoadingShiftDetails] = useState(false);
 
   // Fetch branches
   useEffect(() => {
@@ -975,6 +1059,42 @@ export function MobileShifts() {
     }
   };
 
+  // Fetch shift details for viewing
+  const fetchShiftDetails = async (shiftId: string) => {
+    setLoadingShiftDetails(true);
+    setShiftDetailsData(null);
+    try {
+      // Map temp ID to real ID if needed
+      let apiShiftId = shiftId;
+      if (shiftId.startsWith('temp-')) {
+        try {
+          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+          const storageService = getIndexedDBStorage();
+          await storageService.init();
+          const realId = await storageService.getRealIdFromTemp(shiftId);
+          if (realId) apiShiftId = realId;
+        } catch (mapError) {
+          console.error('[Mobile Shifts] Error checking ID mapping:', mapError);
+        }
+      }
+
+      const response = await fetch(`/api/shifts/${apiShiftId}/closing-report`);
+      const data = await response.json();
+
+      if (data.success && data.report) {
+        setShiftDetailsData(data.report);
+        setShiftDetailsOpen(true);
+      } else {
+        showErrorToast('Error', data.error || 'Failed to fetch shift details');
+      }
+    } catch (error) {
+      console.error('[Mobile Shifts] Failed to fetch shift details:', error);
+      showErrorToast('Error', 'Failed to fetch shift details');
+    } finally {
+      setLoadingShiftDetails(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       {/* Header */}
@@ -1149,7 +1269,14 @@ export function MobileShifts() {
                             {new Date(shift.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                           </p>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-slate-400" />
+                        <button
+                          type="button"
+                          className="p-1 -mr-1 rounded hover:bg-slate-100 transition-colors"
+                          onClick={() => fetchShiftDetails(shift.id)}
+                          aria-label="View shift details"
+                        >
+                          <ChevronRight className="w-5 h-5 text-slate-400" />
+                        </button>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-sm">
                         <div>
@@ -1354,6 +1481,226 @@ export function MobileShifts() {
               Close Day
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shift Details Dialog */}
+      <Dialog open={shiftDetailsOpen} onOpenChange={setShiftDetailsOpen}>
+        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Shift Details</DialogTitle>
+          </DialogHeader>
+          {loadingShiftDetails ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              <span>Loading...</span>
+            </div>
+          ) : shiftDetailsData ? (
+            <ScrollArea className="max-h-[70vh] pr-4">
+              <div className="space-y-4">
+                {/* Shift Info */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Shift Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Shift Number</span>
+                      <span className="font-medium">#{shiftDetailsData.shift.shiftNumber}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Cashier</span>
+                      <span className="font-medium">{shiftDetailsData.shift.cashier.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Branch</span>
+                      <span className="font-medium">{shiftDetailsData.shift.branch.branchName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Start Time</span>
+                      <span className="font-medium">{new Date(shiftDetailsData.shift.startTime).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">End Time</span>
+                      <span className="font-medium">{new Date(shiftDetailsData.shift.endTime).toLocaleString()}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Payment Summary */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Payment Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Cash</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.paymentSummary.cash)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Card</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.paymentSummary.card)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Other</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.paymentSummary.other)}</span>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="flex justify-between font-bold">
+                      <span>Total</span>
+                      <span className="text-emerald-600">{formatCurrency(shiftDetailsData.paymentSummary.total)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Order Type Breakdown */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Order Types</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Dine-In</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.orderTypeBreakdown['dine-in'].total)} ({shiftDetailsData.orderTypeBreakdown['dine-in'].count})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Take-Away</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.orderTypeBreakdown['take-away'].total)} ({shiftDetailsData.orderTypeBreakdown['take-away'].count})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Delivery</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.orderTypeBreakdown['delivery'].total)} ({shiftDetailsData.orderTypeBreakdown['delivery'].count})</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Totals */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Financial Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Sales</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.totals.sales)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Discounts</span>
+                      <span className="font-medium text-red-600">-{formatCurrency(shiftDetailsData.totals.discounts)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Delivery Fees</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.totals.deliveryFees)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Refunds</span>
+                      <span className="font-medium text-red-600">-{formatCurrency(shiftDetailsData.totals.refunds)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Daily Expenses</span>
+                      <span className="font-medium text-red-600">-{formatCurrency(shiftDetailsData.totals.dailyExpenses)}</span>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Opening Cash</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.totals.openingCashBalance)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Expected Cash</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.totals.expectedCash)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Closing Cash</span>
+                      <span className="font-medium">{formatCurrency(shiftDetailsData.totals.closingCashBalance)}</span>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="flex justify-between font-bold">
+                      <span>Over/Short</span>
+                      <span className={shiftDetailsData.totals.overShort && shiftDetailsData.totals.overShort < 0 ? 'text-red-600' : shiftDetailsData.totals.overShort && shiftDetailsData.totals.overShort > 0 ? 'text-emerald-600' : 'text-slate-600'}>
+                        {shiftDetailsData.totals.overShort !== null ? formatCurrency(shiftDetailsData.totals.overShort) : 'N/A'}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Voided Items */}
+                {shiftDetailsData.voidedItems && shiftDetailsData.voidedItems.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Voided Items</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {shiftDetailsData.voidedItems.map((item, idx) => (
+                          <div key={idx} className="p-2 bg-slate-50 rounded text-xs">
+                            <div className="flex justify-between mb-1">
+                              <span className="font-medium">{item.itemName}</span>
+                              <span className="text-red-600">-{formatCurrency(item.voidedSubtotal)}</span>
+                            </div>
+                            <p className="text-slate-500">Qty: {item.voidedQuantity} • By: {item.voidedBy}</p>
+                            {item.reason && <p className="text-slate-500 italic">Reason: {item.reason}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Refunded Orders */}
+                {shiftDetailsData.refundedOrders && shiftDetailsData.refundedOrders.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Refunded Orders</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {shiftDetailsData.refundedOrders.map((order, idx) => (
+                          <div key={idx} className="p-2 bg-slate-50 rounded text-xs">
+                            <div className="flex justify-between mb-1">
+                              <span className="font-medium">Order #{order.orderNumber}</span>
+                              <span className="text-red-600">-{formatCurrency(order.refundAmount)}</span>
+                            </div>
+                            <p className="text-slate-500">Reason: {order.refundReason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Category Breakdown */}
+                {shiftDetailsData.categoryBreakdown && shiftDetailsData.categoryBreakdown.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Category Breakdown</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3 max-h-60 overflow-y-auto">
+                        {shiftDetailsData.categoryBreakdown.map((cat) => (
+                          <div key={cat.categoryName}>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-medium">{cat.categoryName}</span>
+                              <span className="text-sm font-bold text-emerald-600">{formatCurrency(cat.totalSales)}</span>
+                            </div>
+                            <div className="space-y-1 pl-2">
+                              {cat.items.map((item, idx) => (
+                                <div key={idx} className="flex justify-between text-xs text-slate-600">
+                                  <span>{item.itemName} x{item.quantity}</span>
+                                  <span>{formatCurrency(item.totalPrice)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="text-center py-8 text-slate-500">No shift details available</div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
