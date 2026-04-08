@@ -443,11 +443,11 @@ export function MobileMore() {
                 <Card>
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600">{t('dashboard.mobile.stat.items')}</span>
+                      <span className="text-slate-600">{t('inventory.mobile.stat.items')}</span>
                       <span className="font-medium">{formatStorage(storageInfo.used)}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600">Available</span>
+                      <span className="text-slate-600">{t('inventory.mobile.stat.total.value')}</span>
                       <span className="font-medium">{formatStorage(storageInfo.total - storageInfo.used)}</span>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-2">
