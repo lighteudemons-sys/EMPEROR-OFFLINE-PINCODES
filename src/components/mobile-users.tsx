@@ -83,6 +83,26 @@ export function MobileUsers() {
     fetchUsers();
   }, []);
 
+  // Role-based access control - same as desktop
+  const canAccessUsers = currentUser?.role === 'ADMIN' || currentUser?.role === 'BRANCH_MANAGER';
+
+  // If user cannot access users, show access denied
+  if (!canAccessUsers) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="text-center">
+          <Shield className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Access Denied</h2>
+          <p className="text-sm text-slate-600">
+            {currentUser?.role === 'CASHIER'
+              ? 'Cashiers do not have access to user management'
+              : 'You do not have permission to access this feature'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const fetchBranches = async () => {
     try {
       const response = await fetch('/api/branches');
@@ -414,9 +434,9 @@ export function MobileUsers() {
 
   if (selectedUser) {
     return (
-      <div className="h-full flex flex-col bg-slate-50">
+      <div className="min-h-screen flex flex-col bg-slate-50">
         {/* Header */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white px-4 py-4 flex items-center gap-3">
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white px-4 py-4 flex items-center gap-3 sticky top-0 z-10">
           <Button
             variant="ghost"
             size="icon"
@@ -432,7 +452,7 @@ export function MobileUsers() {
         </div>
 
         <ScrollArea className="flex-1 p-4">
-          <div className="space-y-4">
+          <div className="space-y-4 pb-4">
             {/* Status */}
             <Card>
               <CardContent className="p-4">
@@ -538,9 +558,9 @@ export function MobileUsers() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-slate-50">
       {/* Header */}
-      <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white px-4 py-4">
+      <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white px-4 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-bold">Users</h1>
           <Button
@@ -601,7 +621,7 @@ export function MobileUsers() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 pb-4">
             {filteredUsers.map((user) => (
               <Card
                 key={user.id}

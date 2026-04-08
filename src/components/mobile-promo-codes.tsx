@@ -56,6 +56,7 @@ interface Branch {
 export function MobilePromoCodes() {
   const { user } = useAuth();
   const { currency, t } = useI18n();
+
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +81,26 @@ export function MobilePromoCodes() {
     fetchPromoCodes();
     fetchBranches();
   }, []);
+
+  // Role-based access control - same as desktop
+  const canAccessCustomers = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+
+  // If user cannot access customer features, show access denied
+  if (!canAccessCustomers) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="text-center">
+          <Tag className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Access Denied</h2>
+          <p className="text-sm text-slate-600">
+            {user?.role === 'CASHIER'
+              ? 'Cashiers do not have access to promo codes'
+              : 'You do not have permission to access this feature'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const fetchPromoCodes = async () => {
     setLoading(true);

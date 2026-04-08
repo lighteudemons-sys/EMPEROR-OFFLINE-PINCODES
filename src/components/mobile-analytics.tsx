@@ -146,6 +146,26 @@ export function MobileAnalytics() {
     }
   }, [selectedBranch, selectedPeriod]);
 
+  // Role-based access control - same as desktop
+  const canAccessAnalytics = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+
+  // If user cannot access analytics, show access denied
+  if (!canAccessAnalytics) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="text-center">
+          <TrendingUp className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Access Denied</h2>
+          <p className="text-sm text-slate-600">
+            {user?.role === 'CASHIER'
+              ? 'Cashiers do not have access to analytics'
+              : 'You do not have permission to access this feature'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const fetchAnalytics = async () => {
     if (!selectedBranch) return;
 

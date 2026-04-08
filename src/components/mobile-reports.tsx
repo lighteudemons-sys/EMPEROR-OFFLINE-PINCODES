@@ -104,6 +104,7 @@ const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6'];
 export function MobileReports() {
   const { user } = useAuth();
   const { currency, t } = useI18n();
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>(() => {
     if (user?.role === 'ADMIN') {
@@ -155,6 +156,26 @@ export function MobileReports() {
     fetchKPIs();
     fetchTopItems();
   }, [selectedBranch, timeRange, customStartDate, customEndDate]);
+
+  // Role-based access control - same as desktop
+  const canAccessBranchFeatures = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+
+  // If user cannot access reports, show access denied
+  if (!canAccessBranchFeatures) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="text-center">
+          <BarChart3 className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Access Denied</h2>
+          <p className="text-sm text-slate-600">
+            {user?.role === 'CASHIER'
+              ? 'Cashiers do not have access to reports'
+              : 'You do not have permission to access this feature'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const getDateRange = () => {
     const now = new Date();

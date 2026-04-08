@@ -64,6 +64,7 @@ const TYPE_COLORS: Record<string, string> = {
 export function MobileLoyalty() {
   const { user } = useAuth();
   const { currency, t } = useI18n();
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [loyaltyInfo, setLoyaltyInfo] = useState<any>(null);
@@ -87,6 +88,26 @@ export function MobileLoyalty() {
     fetchCustomers();
     fetchLoyaltySettings();
   }, [search]);
+
+  // Role-based access control - same as desktop
+  const canAccessCustomers = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+
+  // If user cannot access customer features, show access denied
+  if (!canAccessCustomers) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="text-center">
+          <Star className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Access Denied</h2>
+          <p className="text-sm text-slate-600">
+            {user?.role === 'CASHIER'
+              ? 'Cashiers do not have access to loyalty program'
+              : 'You do not have permission to access this feature'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const fetchCustomers = async () => {
     setLoading(true);

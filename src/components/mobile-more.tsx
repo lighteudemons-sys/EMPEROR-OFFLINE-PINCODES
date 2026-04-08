@@ -69,6 +69,8 @@ interface Feature {
   category: string;
   description?: string;
   badge?: string;
+  canAccess?: boolean;
+  action?: () => void;
 }
 
 export function MobileMore() {
@@ -76,10 +78,24 @@ export function MobileMore() {
   const { language, setLanguage, t } = useI18n();
   const [storageInfo, setStorageInfo] = useState({ used: 0, total: 0 });
   const [settingsOpen, setSettingsOpen] = useState(false);
-  
+
   // Mobile view sheets
   const [mobileViewOpen, setMobileViewOpen] = useState(false);
   const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'delivery' | 'analytics' | 'loyalty' | 'promo-codes' | 'receipt' | 'delivery-areas' | 'couriers' | 'eta-settings' | 'suppliers' | 'purchase-orders' | 'audit-logs' | 'users' | 'branches' | null>(null);
+
+  // Role-based access control - same as desktop
+  const canAccessHQFeatures = user?.role === 'ADMIN';
+  const canAccessBranchFeatures = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const canAccessInventory = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const canAccessUsers = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const canAccessAnalytics = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const canAccessDelivery = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const canAccessCustomers = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const canAccessSuppliers = user?.role === 'ADMIN';
+  const canAccessPurchaseOrders = user?.role === 'ADMIN';
+  const canAccessTables = user?.role === 'ADMIN';
+  const canAccessAuditLogs = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const canAccessETA = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
 
   useEffect(() => {
     const fetchStorageInfo = async () => {
@@ -137,46 +153,53 @@ export function MobileMore() {
     }
   };
 
-  const categories = [
+  // All features with role-based filtering
+  const allCategories = [
     {
       name: 'Operations',
       features: [
-        { id: 'menu', name: 'Menu Management', icon: Utensils, category: 'Operations' },
-        { id: 'tables', name: 'Tables', icon: LayoutGrid, category: 'Operations' },
-        { id: 'inventory', name: 'Inventory', icon: Package, category: 'Operations', badge: 'Low' },
-        { id: 'delivery', name: 'Delivery', icon: Truck, category: 'Operations' },
-        { id: 'suppliers', name: 'Suppliers', icon: ShoppingBag, category: 'Operations' },
-        { id: 'purchase-orders', name: 'Purchase Orders', icon: ShoppingBag, category: 'Operations' },
+        { id: 'menu', name: 'Menu Management', icon: Utensils, category: 'Operations', canAccess: canAccessHQFeatures },
+        { id: 'tables', name: 'Tables', icon: LayoutGrid, category: 'Operations', canAccess: canAccessTables },
+        { id: 'inventory', name: 'Inventory', icon: Package, category: 'Operations', badge: 'Low', canAccess: canAccessInventory },
+        { id: 'delivery', name: 'Delivery', icon: Truck, category: 'Operations', canAccess: canAccessDelivery },
+        { id: 'suppliers', name: 'Suppliers', icon: ShoppingBag, category: 'Operations', canAccess: canAccessSuppliers },
+        { id: 'purchase-orders', name: 'Purchase Orders', icon: ShoppingBag, category: 'Operations', canAccess: canAccessPurchaseOrders },
       ],
     },
     {
       name: 'Customers',
       features: [
-        { id: 'customers', name: 'Customers', icon: Users, category: 'Customers' },
-        { id: 'loyalty', name: 'Loyalty Program', icon: Star, category: 'Customers' },
-        { id: 'promo-codes', name: 'Promo Codes', icon: Tag, category: 'Customers' },
+        { id: 'customers', name: 'Customers', icon: Users, category: 'Customers', canAccess: canAccessCustomers },
+        { id: 'loyalty', name: 'Loyalty Program', icon: Star, category: 'Customers', canAccess: canAccessCustomers },
+        { id: 'promo-codes', name: 'Promo Codes', icon: Tag, category: 'Customers', canAccess: canAccessCustomers },
       ],
     },
     {
       name: 'Reports',
       features: [
-        { id: 'reports', name: 'Reports', icon: BarChart3, category: 'Reports' },
-        { id: 'analytics', name: 'Analytics', icon: TrendingUp, category: 'Reports' },
-        { id: 'audit-logs', name: 'Audit Logs', icon: FileText, category: 'Reports' },
+        { id: 'reports', name: 'Reports', icon: BarChart3, category: 'Reports', canAccess: canAccessBranchFeatures },
+        { id: 'analytics', name: 'Analytics', icon: TrendingUp, category: 'Reports', canAccess: canAccessAnalytics },
+        { id: 'audit-logs', name: 'Audit Logs', icon: FileText, category: 'Reports', canAccess: canAccessAuditLogs },
       ],
     },
     {
       name: 'Settings',
       features: [
-        { id: 'users', name: 'Users', icon: User, category: 'Settings' },
-        { id: 'branches', name: 'Branches', icon: Building2, category: 'Settings' },
-        { id: 'receipt', name: 'Receipt Settings', icon: Receipt, category: 'Settings' },
-        { id: 'delivery-areas', name: 'Delivery Areas', icon: MapPin, category: 'Settings' },
-        { id: 'couriers', name: 'Couriers', icon: UserCog, category: 'Settings' },
-        { id: 'eta-settings', name: 'ETA Settings', icon: Shield, category: 'Settings' },
+        { id: 'users', name: 'Users', icon: User, category: 'Settings', canAccess: canAccessUsers },
+        { id: 'branches', name: 'Branches', icon: Building2, category: 'Settings', canAccess: canAccessHQFeatures },
+        { id: 'receipt', name: 'Receipt Settings', icon: Receipt, category: 'Settings', canAccess: canAccessHQFeatures },
+        { id: 'delivery-areas', name: 'Delivery Areas', icon: MapPin, category: 'Settings', canAccess: canAccessDelivery },
+        { id: 'couriers', name: 'Couriers', icon: UserCog, category: 'Settings', canAccess: canAccessDelivery },
+        { id: 'eta-settings', name: 'ETA Settings', icon: Shield, category: 'Settings', canAccess: canAccessETA },
       ],
     },
   ];
+
+  // Filter categories and features based on user role
+  const categories = allCategories.map(category => ({
+    ...category,
+    features: category.features.filter(feature => feature.canAccess)
+  })).filter(category => category.features.length > 0);
 
   const systemFeatures = [
     { id: 'sync', name: 'Sync Data', icon: RefreshCw, action: handleSync, category: 'System' },
