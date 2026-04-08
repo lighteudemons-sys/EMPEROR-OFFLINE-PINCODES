@@ -86,17 +86,17 @@ interface AnalyticsResponse {
   performance: PerformanceMetrics;
 }
 
-const periods = [
-  { value: '7', label: t('analytics.mobile.period.last7') },
-  { value: '30', label: t('analytics.mobile.period.last30') },
-  { value: '90', label: t('analytics.mobile.period.last90') },
-];
-
 const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 export function MobileAnalytics() {
   const { user } = useAuth();
   const { currency, t } = useI18n();
+
+  const periods = [
+    { value: '7', label: t('analytics.mobile.period.last7') },
+    { value: '30', label: t('analytics.mobile.period.last30') },
+    { value: '90', label: t('analytics.mobile.period.last90') },
+  ];
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>(() => {
     if (user?.role === 'ADMIN') {
