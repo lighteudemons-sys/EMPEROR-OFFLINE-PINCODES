@@ -11,10 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Tag, Plus, Search, Edit, Trash2, X, CheckCircle, 
   XCircle, Calendar, Percent, DollarSign, Check,
-  Package, RefreshCw
+  Package, RefreshCw, Gift, ChevronDown, ChevronUp, Layers, Users
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -53,33 +54,85 @@ interface Branch {
   branchName: string;
 }
 
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface MenuItem {
+  id: string;
+  name: string;
+  price: number;
+  categoryId: string | null;
+  variants?: Array<{
+    id: string;
+    menuItemId: string;
+    priceModifier: number;
+    variantType: {
+      id: string;
+      name: string;
+      isCustomInput: boolean;
+    };
+    variantOption: {
+      id: string;
+      name: string;
+    };
+  }>;
+}
+
 export function MobilePromoCodes() {
   const { user } = useAuth();
   const { currency, t } = useI18n();
 
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedPromo, setSelectedPromo] = useState<PromoCode | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [bogoSectionExpanded, setBogoSectionExpanded] = useState(false);
+  const [restrictionsSectionExpanded, setRestrictionsSectionExpanded] = useState(false);
+  const [advancedSectionExpanded, setAdvancedSectionExpanded] = useState(false);
   const [formData, setFormData] = useState({
-    code: '',
+    name: '',
     description: '',
-    discountType: 'PERCENTAGE' as 'PERCENTAGE' | 'FIXED_AMOUNT',
+    discountType: 'PERCENTAGE' as 'PERCENTAGE' | 'FIXED_AMOUNT' | 'CATEGORY_PERCENTAGE' | 'CATEGORY_FIXED' | 'BUY_X_GET_Y_FREE',
     discountValue: 10,
+    categoryId: '',
     minOrderAmount: null as number | null,
     maxUsage: null as number | null,
+    usesPerCustomer: null as number | null,
     startDate: '',
     endDate: '',
     isActive: true,
+    allowStacking: false,
+    maxDiscountAmount: null as number | null,
+    // BOGO fields
+    buyQuantity: null as number | null,
+    getQuantity: null as number | null,
+    buyProductId: '' as string | null,
+    buyCategoryId: '' as string | null,
+    buyProductVariantId: '' as string | null,
+    getProductId: '' as string | null,
+    getCategoryId: '' as string | null,
+    getProductVariantId: '' as string | null,
+    applyToCheapest: false,
+    // Branch & category restrictions
+    branchIds: [] as string[],
+    categoryIds: [] as string[],
+    // Multiple codes support
+    codes: [] as Array<{ code: string; isSingleUse: boolean; maxUses: number | null }>,
   });
 
-  // Fetch promo codes on mount
+  // Fetch data on mount
   useEffect(() => {
     fetchPromoCodes();
     fetchBranches();
+    fetchCategories();
+    fetchMenuItems();
   }, []);
 
   // Role-based access control - same as desktop
@@ -133,6 +186,30 @@ export function MobilePromoCodes() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/categories');
+      const data = await response.json();
+      if (response.ok) {
+        setCategories(data.categories || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+    }
+  };
+
+  const fetchMenuItems = async () => {
+    try {
+      const response = await fetch('/api/menu-items?includeVariants=true');
+      const data = await response.json();
+      if (response.ok) {
+        setMenuItems(data.menuItems || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch menu items:', error);
+    }
+  };
+
   const filteredPromoCodes = promoCodes.filter(promo => {
     const matchesSearch = promo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          (promo.description || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -152,16 +229,34 @@ export function MobilePromoCodes() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formData.description,
-          description: '',
+          name: formData.name,
+          description: formData.description,
           discountType: formData.discountType,
           discountValue: formData.discountValue,
+          categoryId: formData.categoryId || null,
           minOrderAmount: formData.minOrderAmount,
           maxUses: formData.maxUsage,
+          usesPerCustomer: formData.usesPerCustomer,
           startDate: formData.startDate ? new Date(formData.startDate).toISOString() : '',
           endDate: formData.endDate ? new Date(formData.endDate).toISOString() : '',
           isActive: formData.isActive,
-          codes: formData.code ? [{ code: formData.code, isSingleUse: false, maxUses: formData.maxUsage }] : [],
+          allowStacking: formData.allowStacking,
+          maxDiscountAmount: formData.maxDiscountAmount,
+          // BOGO fields
+          buyQuantity: formData.buyQuantity,
+          getQuantity: formData.getQuantity,
+          buyProductId: formData.buyProductId,
+          buyCategoryId: formData.buyCategoryId,
+          buyProductVariantId: formData.buyProductVariantId,
+          getProductId: formData.getProductId,
+          getCategoryId: formData.getCategoryId,
+          getProductVariantId: formData.getProductVariantId,
+          applyToCheapest: formData.applyToCheapest,
+          // Branch & category restrictions
+          branchIds: formData.branchIds,
+          categoryIds: formData.categoryIds,
+          // Codes
+          codes: formData.codes.length > 0 ? formData.codes : [],
         }),
       });
 
@@ -187,16 +282,34 @@ export function MobilePromoCodes() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formData.description,
-          description: '',
+          name: formData.name,
+          description: formData.description,
           discountType: formData.discountType,
           discountValue: formData.discountValue,
+          categoryId: formData.categoryId || null,
           minOrderAmount: formData.minOrderAmount,
           maxUses: formData.maxUsage,
+          usesPerCustomer: formData.usesPerCustomer,
           startDate: formData.startDate ? new Date(formData.startDate).toISOString() : '',
           endDate: formData.endDate ? new Date(formData.endDate).toISOString() : '',
           isActive: formData.isActive,
-          codes: formData.code ? [{ code: formData.code, isSingleUse: false, maxUses: formData.maxUsage }] : [],
+          allowStacking: formData.allowStacking,
+          maxDiscountAmount: formData.maxDiscountAmount,
+          // BOGO fields
+          buyQuantity: formData.buyQuantity,
+          getQuantity: formData.getQuantity,
+          buyProductId: formData.buyProductId,
+          buyCategoryId: formData.buyCategoryId,
+          buyProductVariantId: formData.buyProductVariantId,
+          getProductId: formData.getProductId,
+          getCategoryId: formData.getCategoryId,
+          getProductVariantId: formData.getProductVariantId,
+          applyToCheapest: formData.applyToCheapest,
+          // Branch & category restrictions
+          branchIds: formData.branchIds,
+          categoryIds: formData.categoryIds,
+          // Codes
+          codes: formData.codes.length > 0 ? formData.codes : [],
         }),
       });
 
@@ -267,32 +380,110 @@ export function MobilePromoCodes() {
   const handleEdit = (promo: PromoCode) => {
     setSelectedPromo(promo);
     setFormData({
-      code: promo.codes && promo.codes.length > 0 ? promo.codes[0].code : '',
-      description: promo.name || '',
+      name: promo.name || '',
+      description: promo.description || '',
       discountType: promo.discountType,
       discountValue: promo.discountValue,
+      categoryId: (promo as any).categoryId || '',
       minOrderAmount: promo.minOrderAmount,
       maxUsage: promo.maxUsage,
+      usesPerCustomer: (promo as any).usesPerCustomer || null,
       startDate: new Date(promo.startDate).toISOString().split('T')[0],
       endDate: new Date(promo.endDate).toISOString().split('T')[0],
       isActive: promo.isActive,
+      allowStacking: (promo as any).allowStacking || false,
+      maxDiscountAmount: promo.maxDiscountAmount || null,
+      // BOGO fields
+      buyQuantity: (promo as any).buyQuantity || null,
+      getQuantity: (promo as any).getQuantity || null,
+      buyProductId: (promo as any).buyProductId || null,
+      buyCategoryId: (promo as any).buyCategoryId || null,
+      buyProductVariantId: (promo as any).buyProductVariantId || null,
+      getProductId: (promo as any).getProductId || null,
+      getCategoryId: (promo as any).getCategoryId || null,
+      getProductVariantId: (promo as any).getProductVariantId || null,
+      applyToCheapest: (promo as any).applyToCheapest || false,
+      // Branch & category restrictions
+      branchIds: ((promo as any).branchRestrictions || []).map((b: any) => b.branchId),
+      categoryIds: ((promo as any).categoryRestrictions || []).map((c: any) => c.categoryId),
+      // Codes
+      codes: (promo.codes || []).map((c: any) => ({
+        code: c.code,
+        isSingleUse: c.isSingleUse || false,
+        maxUses: c.maxUses,
+      })),
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
     setFormData({
-      code: '',
+      name: '',
       description: '',
       discountType: 'PERCENTAGE',
       discountValue: 10,
+      categoryId: '',
       minOrderAmount: null,
       maxUsage: null,
+      usesPerCustomer: null,
       startDate: '',
       endDate: '',
       isActive: true,
+      allowStacking: false,
+      maxDiscountAmount: null,
+      // BOGO fields
+      buyQuantity: null,
+      getQuantity: null,
+      buyProductId: null,
+      buyCategoryId: null,
+      buyProductVariantId: null,
+      getProductId: null,
+      getCategoryId: null,
+      getProductVariantId: null,
+      applyToCheapest: false,
+      // Branch & category restrictions
+      branchIds: [],
+      categoryIds: [],
+      // Codes
+      codes: [],
     });
     setSelectedPromo(null);
+    setBogoSectionExpanded(false);
+    setRestrictionsSectionExpanded(false);
+    setAdvancedSectionExpanded(false);
+  };
+
+  // Helper functions for codes management
+  const addCode = () => {
+    setFormData({
+      ...formData,
+      codes: [...formData.codes, { code: '', isSingleUse: false, maxUses: null }],
+    });
+  };
+
+  const removeCode = (index: number) => {
+    const newCodes = formData.codes.filter((_, i) => i !== index);
+    setFormData({ ...formData, codes: newCodes });
+  };
+
+  const updateCode = (index: number, field: string, value: any) => {
+    const newCodes = [...formData.codes];
+    newCodes[index] = { ...newCodes[index], [field]: value };
+    setFormData({ ...formData, codes: newCodes });
+  };
+
+  const toggleBranchSelection = (branchId: string) => {
+    const newBranchIds = formData.branchIds.includes(branchId)
+      ? formData.branchIds.filter(id => id !== branchId)
+      : [...formData.branchIds, branchId];
+    setFormData({ ...formData, branchIds: newBranchIds });
+  };
+
+  const toggleCategorySelection = (categoryId: string) => {
+    const newCategoryIds = formData.categoryIds.includes(categoryId)
+      ? formData.categoryIds.filter(id => id !== categoryId)
+      : [...formData.categoryIds, categoryId];
+    setFormData({ ...formData, categoryIds: newCategoryIds });
   };
 
   const getStatusBadge = (isActive: boolean, endDate: string) => {
@@ -569,154 +760,551 @@ export function MobilePromoCodes() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={selectedPromo ? (e) => { e.preventDefault(); handleUpdate(selectedPromo.id); } : handleSubmit}>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Promotion Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.description || ''}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Summer Sale"
-                  required
-                  className="h-11"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="code">Promo Code *</Label>
-                <Input
-                  id="code"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                  placeholder="SUMMER2024"
-                  required
-                  className="h-11 font-mono text-lg"
-                />
-                <p className="text-xs text-slate-500">Code will be automatically converted to uppercase</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="discountType">Discount Type *</Label>
-                <Select
-                  value={formData.discountType}
-                  onValueChange={(value: any) => setFormData({ ...formData, discountType: value })}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PERCENTAGE">
-                      <div className="flex items-center gap-2">
-                        <Percent className="h-4 w-4" />
-                        Percentage
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="FIXED_AMOUNT">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="h-4 w-4" />
-                        Fixed Amount
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="discountValue">
-                  {formData.discountType.includes('PERCENTAGE') ? 'Discount Percentage *' : 'Discount Amount *'}
-                </Label>
-                <div className="relative">
-                  {formData.discountType.includes('PERCENTAGE') ? (
-                    <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  ) : (
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  )}
-                  <Input
-                    id="discountValue"
-                    type="number"
-                    step={formData.discountType.includes('PERCENTAGE') ? '1' : '0.01'}
-                    min="0"
-                    max={formData.discountType.includes('PERCENTAGE') ? '100' : undefined}
-                    value={formData.discountValue}
-                    onChange={(e) => setFormData({ ...formData, discountValue: parseFloat(e.target.value) || 0 })}
-                    required
-                    className="h-11 pl-10"
-                  />
-                  {formData.discountType.includes('PERCENTAGE') && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            <ScrollArea className="max-h-[65vh] pr-4">
+              <div className="space-y-4 py-4">
+                {/* Basic Information */}
                 <div className="space-y-2">
-                  <Label htmlFor="startDate">Start Date *</Label>
+                  <Label htmlFor="name">Promotion Name *</Label>
                   <Input
-                    id="startDate"
-                    type="date"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Summer Sale"
                     required
                     className="h-11"
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="endDate">End Date *</Label>
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    required
-                    className="h-11"
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Brief description of the promotion..."
+                    rows={2}
+                    className="resize-none"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
+                {/* Discount Type */}
                 <div className="space-y-2">
-                  <Label htmlFor="minOrderAmount">Min Order Amount</Label>
+                  <Label htmlFor="discountType">Discount Type *</Label>
+                  <Select
+                    value={formData.discountType}
+                    onValueChange={(value: any) => {
+                      setFormData({ ...formData, discountType: value });
+                      if (value === 'BUY_X_GET_Y_FREE') {
+                        setBogoSectionExpanded(true);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PERCENTAGE">
+                        <div className="flex items-center gap-2">
+                          <Percent className="h-4 w-4" />
+                          <div>
+                            <p className="font-medium">Percentage</p>
+                            <p className="text-xs text-slate-500">Discount by %</p>
+                          </div>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="FIXED_AMOUNT">
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          <div>
+                            <p className="font-medium">Fixed Amount</p>
+                            <p className="text-xs text-slate-500">Discount by fixed amount</p>
+                          </div>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="CATEGORY_PERCENTAGE">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4" />
+                          <div>
+                            <p className="font-medium">Category %</p>
+                            <p className="text-xs text-slate-500">Discount specific category by %</p>
+                          </div>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="CATEGORY_FIXED">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4" />
+                          <div>
+                            <p className="font-medium">Category Fixed</p>
+                            <p className="text-xs text-slate-500">Discount specific category by amount</p>
+                          </div>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="BUY_X_GET_Y_FREE">
+                        <div className="flex items-center gap-2">
+                          <Gift className="h-4 w-4" />
+                          <div>
+                            <p className="font-medium">Buy X Get Y Free</p>
+                            <p className="text-xs text-slate-500">BOGO promotion</p>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Category selection for category-based discounts */}
+                {(formData.discountType === 'CATEGORY_PERCENTAGE' || formData.discountType === 'CATEGORY_FIXED') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="categoryId">Category *</Label>
+                    <Select
+                      value={formData.categoryId}
+                      onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Discount Value */}
+                <div className="space-y-2">
+                  <Label htmlFor="discountValue">
+                    {formData.discountType.includes('PERCENTAGE') ? 'Discount Percentage *' : 'Discount Amount *'}
+                  </Label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    {formData.discountType.includes('PERCENTAGE') ? (
+                      <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    ) : (
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    )}
                     <Input
-                      id="minOrderAmount"
+                      id="discountValue"
                       type="number"
-                      step="0.01"
+                      step={formData.discountType.includes('PERCENTAGE') ? '1' : '0.01'}
                       min="0"
-                      value={formData.minOrderAmount || ''}
-                      onChange={(e) => setFormData({ ...formData, minOrderAmount: parseFloat(e.target.value) || null })}
-                      placeholder="Optional"
+                      max={formData.discountType.includes('PERCENTAGE') ? '100' : undefined}
+                      value={formData.discountValue}
+                      onChange={(e) => setFormData({ ...formData, discountValue: parseFloat(e.target.value) || 0 })}
+                      required
                       className="h-11 pl-10"
+                    />
+                    {formData.discountType.includes('PERCENTAGE') && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Date Range */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="startDate">Start Date *</Label>
+                    <Input
+                      id="startDate"
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                      required
+                      className="h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate">End Date *</Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                      required
+                      className="h-11"
                     />
                   </div>
                 </div>
+
+                {/* Order Limits */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="minOrderAmount">Min Order</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        id="minOrderAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.minOrderAmount || ''}
+                        onChange={(e) => setFormData({ ...formData, minOrderAmount: parseFloat(e.target.value) || null })}
+                        placeholder="Optional"
+                        className="h-11 pl-10"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="maxUsage">Max Usage</Label>
+                    <Input
+                      id="maxUsage"
+                      type="number"
+                      min="1"
+                      value={formData.maxUsage || ''}
+                      onChange={(e) => setFormData({ ...formData, maxUsage: parseInt(e.target.value) || null })}
+                      placeholder="Unlimited"
+                      className="h-11"
+                    />
+                  </div>
+                </div>
+
+                {/* Advanced Settings - Collapsible */}
+                <div className="border rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setAdvancedSectionExpanded(!advancedSectionExpanded)}
+                    className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-slate-600" />
+                      <span className="font-medium text-sm">Advanced Settings</span>
+                    </div>
+                    {advancedSectionExpanded ? (
+                      <ChevronUp className="h-4 w-4 text-slate-600" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-slate-600" />
+                    )}
+                  </button>
+                  {advancedSectionExpanded && (
+                    <div className="p-3 space-y-4 border-t">
+                      {/* Allow Stacking */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="allowStacking" className="text-sm">Allow Stacking</Label>
+                          <p className="text-xs text-slate-500">Combine with other discounts</p>
+                        </div>
+                        <Switch
+                          id="allowStacking"
+                          checked={formData.allowStacking}
+                          onCheckedChange={(checked) => setFormData({ ...formData, allowStacking: checked })}
+                        />
+                      </div>
+
+                      {/* Uses Per Customer */}
+                      <div className="space-y-2">
+                        <Label htmlFor="usesPerCustomer" className="text-sm">Uses Per Customer</Label>
+                        <Input
+                          id="usesPerCustomer"
+                          type="number"
+                          min="1"
+                          value={formData.usesPerCustomer || ''}
+                          onChange={(e) => setFormData({ ...formData, usesPerCustomer: parseInt(e.target.value) || null })}
+                          placeholder="Unlimited"
+                          className="h-10"
+                        />
+                        <p className="text-xs text-slate-500">Limit how many times a customer can use this</p>
+                      </div>
+
+                      {/* Max Discount Amount */}
+                      <div className="space-y-2">
+                        <Label htmlFor="maxDiscountAmount" className="text-sm">Max Discount Amount</Label>
+                        <div className="relative">
+                          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          <Input
+                            id="maxDiscountAmount"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.maxDiscountAmount || ''}
+                            onChange={(e) => setFormData({ ...formData, maxDiscountAmount: parseFloat(e.target.value) || null })}
+                            placeholder="No limit"
+                            className="h-10 pl-10"
+                          />
+                        </div>
+                        <p className="text-xs text-slate-500">Maximum discount that can be applied</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* BOGO Settings - Only for BUY_X_GET_Y_FREE */}
+                {formData.discountType === 'BUY_X_GET_Y_FREE' && (
+                  <div className="border rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setBogoSectionExpanded(!bogoSectionExpanded)}
+                      className="w-full flex items-center justify-between p-3 bg-purple-50 hover:bg-purple-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Gift className="h-4 w-4 text-purple-600" />
+                        <span className="font-medium text-sm">BOGO Settings</span>
+                      </div>
+                      {bogoSectionExpanded ? (
+                        <ChevronUp className="h-4 w-4 text-purple-600" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-purple-600" />
+                      )}
+                    </button>
+                    {bogoSectionExpanded && (
+                      <div className="p-3 space-y-4 border-t">
+                        {/* Buy Quantity */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="buyQuantity" className="text-sm">Buy Quantity *</Label>
+                            <Input
+                              id="buyQuantity"
+                              type="number"
+                              min="1"
+                              value={formData.buyQuantity || ''}
+                              onChange={(e) => setFormData({ ...formData, buyQuantity: parseInt(e.target.value) || null })}
+                              placeholder="e.g., 1"
+                              className="h-10"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="getQuantity" className="text-sm">Get Quantity *</Label>
+                            <Input
+                              id="getQuantity"
+                              type="number"
+                              min="1"
+                              value={formData.getQuantity || ''}
+                              onChange={(e) => setFormData({ ...formData, getQuantity: parseInt(e.target.value) || null })}
+                              placeholder="e.g., 1"
+                              className="h-10"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Buy Product/Category */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">Buy From (Product or Category)</Label>
+                          <Select
+                            value={formData.buyProductId || formData.buyCategoryId || ''}
+                            onValueChange={(value) => {
+                              const menuItem = menuItems.find(m => m.id === value);
+                              if (menuItem) {
+                                setFormData({ ...formData, buyProductId: value, buyCategoryId: null });
+                              } else {
+                                setFormData({ ...formData, buyCategoryId: value, buyProductId: null });
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-10">
+                              <SelectValue placeholder="Select product or leave empty for all" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">All Products</SelectItem>
+                              <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Products</div>
+                              {menuItems.map((item) => (
+                                <SelectItem key={item.id} value={item.id}>
+                                  {item.name}
+                                </SelectItem>
+                              ))}
+                              <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Categories</div>
+                              {categories.map((cat) => (
+                                <SelectItem key={cat.id} value={cat.id}>
+                                  Category: {cat.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Get Product/Category */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">Get From (Product or Category)</Label>
+                          <Select
+                            value={formData.getProductId || formData.getCategoryId || ''}
+                            onValueChange={(value) => {
+                              const menuItem = menuItems.find(m => m.id === value);
+                              if (menuItem) {
+                                setFormData({ ...formData, getProductId: value, getCategoryId: null });
+                              } else {
+                                setFormData({ ...formData, getCategoryId: value, getProductId: null });
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-10">
+                              <SelectValue placeholder="Select product or leave empty for all" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">All Products</SelectItem>
+                              <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Products</div>
+                              {menuItems.map((item) => (
+                                <SelectItem key={item.id} value={item.id}>
+                                  {item.name}
+                                </SelectItem>
+                              ))}
+                              <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 mt-2">Categories</div>
+                              {categories.map((cat) => (
+                                <SelectItem key={cat.id} value={cat.id}>
+                                  Category: {cat.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Apply to Cheapest */}
+                        <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                          <div>
+                            <Label htmlFor="applyToCheapest" className="text-sm font-medium">Apply to Cheapest</Label>
+                            <p className="text-xs text-slate-500">Apply discount to cheapest eligible item</p>
+                          </div>
+                          <Switch
+                            id="applyToCheapest"
+                            checked={formData.applyToCheapest}
+                            onCheckedChange={(checked) => setFormData({ ...formData, applyToCheapest: checked })}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Restrictions - Branch & Category */}
+                <div className="border rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setRestrictionsSectionExpanded(!restrictionsSectionExpanded)}
+                    className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-slate-600" />
+                      <span className="font-medium text-sm">Restrictions</span>
+                    </div>
+                    {restrictionsSectionExpanded ? (
+                      <ChevronUp className="h-4 w-4 text-slate-600" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-slate-600" />
+                    )}
+                  </button>
+                  {restrictionsSectionExpanded && (
+                    <div className="p-3 space-y-4 border-t">
+                      {/* Branch Restrictions */}
+                      <div className="space-y-2">
+                        <Label className="text-sm">Branch Restrictions</Label>
+                        <p className="text-xs text-slate-500">Leave empty for all branches</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {branches.map((branch) => (
+                            <label
+                              key={branch.id}
+                              className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-slate-50"
+                            >
+                              <Checkbox
+                                checked={formData.branchIds.includes(branch.id)}
+                                onCheckedChange={() => toggleBranchSelection(branch.id)}
+                              />
+                              <span className="text-xs font-medium">{branch.branchName}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Category Restrictions */}
+                      <div className="space-y-2">
+                        <Label className="text-sm">Category Restrictions</Label>
+                        <p className="text-xs text-slate-500">Leave empty for all categories</p>
+                        <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                          {categories.map((category) => (
+                            <label
+                              key={category.id}
+                              className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-slate-50"
+                            >
+                              <Checkbox
+                                checked={formData.categoryIds.includes(category.id)}
+                                onCheckedChange={() => toggleCategorySelection(category.id)}
+                              />
+                              <span className="text-xs font-medium">{category.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Promo Codes */}
                 <div className="space-y-2">
-                  <Label htmlFor="maxUsage">Max Usage</Label>
-                  <Input
-                    id="maxUsage"
-                    type="number"
-                    min="1"
-                    value={formData.maxUsage || ''}
-                    onChange={(e) => setFormData({ ...formData, maxUsage: parseInt(e.target.value) || null })}
-                    placeholder="Unlimited"
-                    className="h-11"
+                  <div className="flex items-center justify-between">
+                    <Label>Promo Codes</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addCode}
+                      className="h-8"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Code
+                    </Button>
+                  </div>
+                  {formData.codes.length === 0 ? (
+                    <p className="text-xs text-slate-500 p-2 bg-slate-50 rounded text-center">
+                      No codes added. Click "Add Code" to create promo codes.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {formData.codes.map((codeObj, index) => (
+                        <div key={index} className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-2">
+                            <Input
+                              value={codeObj.code}
+                              onChange={(e) => updateCode(index, 'code', e.target.value.toUpperCase())}
+                              placeholder="CODE"
+                              className="h-9 font-mono text-sm"
+                            />
+                            <div className="flex gap-2">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={codeObj.maxUses || ''}
+                                onChange={(e) => updateCode(index, 'maxUses', parseInt(e.target.value) || null)}
+                                placeholder="Max uses"
+                                className="h-9 text-xs"
+                              />
+                              <label className="flex items-center gap-1 p-1 border rounded cursor-pointer">
+                                <Checkbox
+                                  checked={codeObj.isSingleUse}
+                                  onCheckedChange={(checked) => updateCode(index, 'isSingleUse', checked)}
+                                  className="h-4 w-4"
+                                />
+                                <span className="text-xs">Single use</span>
+                              </label>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeCode(index)}
+                            className="h-9 w-9 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Active Status */}
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div>
+                    <Label htmlFor="isActive" className="text-base font-medium">Active Status</Label>
+                    <p className="text-xs text-slate-500">Enable or disable this promotion</p>
+                  </div>
+                  <Switch
+                    id="isActive"
+                    checked={formData.isActive}
+                    onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
                   />
                 </div>
               </div>
-
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div>
-                  <Label htmlFor="isActive" className="text-base font-medium">Active Status</Label>
-                  <p className="text-xs text-slate-500">Enable or disable this promo code</p>
-                </div>
-                <Switch
-                  id="isActive"
-                  checked={formData.isActive}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
-                />
-              </div>
-            </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
+            </ScrollArea>
+            <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"

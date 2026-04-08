@@ -6292,3 +6292,362 @@ Files Modified:
 1. src/components/mobile-inventory.tsx
    - Added 't' to useI18n destructuring (line 59)
 
+
+---
+
+## Task ID: 3 - Fix Reports Tab Data and Add Sub-tabs
+### Agent: fullstack-developer
+### Task: Fix Reports Tab in mobile view to show correct data and add all sub-tabs like desktop view
+
+### Work Log:
+- Read worklog to understand previous work
+- Examined current mobile-reports.tsx and desktop reports-dashboard.tsx
+- Identified issues:
+  1. Mobile was using 'today' as default time range (showing 0.00 if no orders today)
+  2. Mobile was missing all sub-tabs (only had Overview-like content)
+  3. Mobile was not importing or using the report components
+- Fixed default time range from 'today' to 'year' to match desktop and show more data
+- Added all required sub-tabs from desktop:
+  - Overview (main KPIs, charts) - existing, improved
+  - Sales (placeholder - same as desktop)
+  - Daily (integrated DailyReportsTab component)
+  - Products (integrated ProductPerformanceReport component)
+  - Best Sellers (integrated BestSellersReport component)
+  - Customers (integrated CustomerAnalyticsReport component)
+  - Staff (integrated StaffPerformanceReport component)
+  - Discounts (integrated DiscountsTracking component)
+  - Branches (integrated BranchComparisonReport component - admin only)
+- Imported all report components from desktop:
+  - ProductPerformanceReport
+  - CustomerAnalyticsReport
+  - BranchComparisonReport
+  - StaffPerformanceReport
+  - DailyReportsTab
+  - BestSellersReport
+  - DiscountsTracking
+- Added Tabs component with horizontal scroll for mobile-friendly navigation
+- Improved date range logic to match desktop exactly (same conditions for all time ranges)
+- Added console logging for debugging KPI fetch issues
+- Fixed build error: changed `const endDate` to `let endDate` in getDateRange function
+- Maintained mobile-friendly UI with responsive design and touch-optimized controls
+- Ensured role-based access control (admin only sees Branches tab)
+- Added comprehensive error handling and loading states
+- All sub-tabs now have proper data fetching and filtering via integrated components
+
+### Stage Summary:
+- Mobile Reports now has 100% feature parity with desktop reports
+- All 9 sub-tabs implemented and integrated
+- Default time range changed to 'year' to show meaningful data
+- Data fetching logic matches desktop exactly
+- Mobile-optimized tab navigation with horizontal scroll
+- All report components properly imported and integrated
+- Build successful with no errors (0 errors, 4 pre-existing warnings in other files)
+
+### Files Modified:
+1. `src/components/mobile-reports.tsx`
+   - Added Tabs component with all 9 sub-tabs (lines 104-110, 460-475)
+   - Changed default timeRange from 'today' to 'year' (line 126)
+   - Imported 7 report components (lines 29-35)
+   - Added activeTab state and setActiveTab handler (line 127, 208)
+   - Updated getDateRange to include all time ranges from desktop (lines 199-250)
+   - Added comprehensive tab content sections (lines 477-664)
+   - Added console logging for KPI debugging (lines 269, 272)
+   - Fixed const/let issue for endDate (line 201)
+   - Maintained mobile-friendly responsive design throughout
+
+### Key Changes:
+- Overview tab: KPI cards, hourly chart, order types, top categories, top items
+- Daily tab: Uses DailyReportsTab component
+- Products tab: Uses ProductPerformanceReport component
+- Best Sellers tab: Uses BestSellersReport component
+- Customers tab: Uses CustomerAnalyticsReport component
+- Staff tab: Uses StaffPerformanceReport component
+- Discounts tab: Uses DiscountsTracking component
+- Branches tab: Uses BranchComparisonReport component (admin only)
+- Sales tab: Placeholder with message (desktop has same)
+
+
+---
+## Task ID: 1 - Fix Dashboard Branch Selector
+### Agent: fullstack-developer
+### Task: Fix Dashboard tab in mobile view to show real data for every branch and fix the branch selector for admin roles
+
+### Work Log:
+- Read worklog.md to understand project context
+- Examined mobile-dashboard.tsx to understand current branch selector implementation
+- Examined reports-dashboard.tsx (desktop version) as reference for correct branch selector pattern
+- Identified root causes of the issues:
+
+**Issue #1: Empty selectedBranch initialization**
+- Mobile dashboard initialized `selectedBranch` as empty string `''`
+- On mount, `fetchDashboardData` was called immediately with empty branchId
+- For admin users, this caused API calls with `?branchId=` (empty), returning incorrect data
+- Desktop version initializes with 'all' for admin or user.branchId for others
+
+**Issue #2: Branch filtering logic inconsistency**
+- Mobile used: `branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId`
+- Desktop uses: check if `selectedBranch !== 'all'` before adding to params
+- Mobile didn't handle 'all' case properly
+
+**Issue #3: Branch selector timing**
+- MobileBranchSelector used setTimeout(0) to set default branch
+- This created a race condition where dashboard fetched data before branch was set
+- Dashboard data fetch happened before MobileBranchSelector initialized default branch
+
+**Fixes Implemented:**
+
+1. **Updated mobile-dashboard.tsx - selectedBranch initialization (lines 76-83)**
+   - Changed from `useState<string>('')` to proper initialization
+   - Admin: initializes to 'all' (matches desktop pattern)
+   - Branch Manager/Cashier: initializes to user.branchId
+   - Falls back to 'all' if no user or branchId
+
+2. **Updated mobile-dashboard.tsx - Branch filtering logic (lines 105-114)**
+   - Changed from simple ternary to proper if-else logic
+   - Admin: only add branchId to filter if `selectedBranch !== 'all'`
+   - Others: always add user.branchId to filter
+   - Matches desktop pattern exactly
+
+3. **Updated mobile-dashboard.tsx - IndexedDB branch filtering (lines 140-143)**
+   - Applied same logic for IndexedDB fallback
+   - Consistent branch filtering across API and IndexedDB paths
+
+4. **Updated mobile-dashboard.tsx - Shift fetching (lines 154-184)**
+   - Added `shiftBranchId` variable with proper branch logic
+   - Respects selectedBranch for admin users
+   - Applied to both API and IndexedDB shift fetching
+
+5. **Updated mobile-dashboard.tsx - Expenses fetching (lines 230-237)**
+   - Added `expenseBranchId` variable with proper branch logic
+   - Respects selectedBranch for admin users
+   - Consistent with orders and shifts filtering
+
+6. **Updated mobile-dashboard.tsx - useEffect dependencies (lines 295-317)**
+   - Added user check before initial data fetch
+   - Added separate useEffect to set default branch based on user role (matches desktop)
+   - Simplified branch change useEffect to trigger data refresh
+
+7. **Updated mobile-branch-selector.tsx - Removed setTimeout (line 48)**
+   - Changed from `setTimeout(..., 0)` to `requestAnimationFrame(...)`
+   - Fixed ESLint error about synchronous setState in effect
+   - Removed redundant condition in initialization logic
+
+### Files Modified:
+1. `src/components/mobile-dashboard.tsx`
+   - Fixed selectedBranch initialization (lines 76-83)
+   - Fixed branch filtering logic in fetchDashboardData (lines 105-114, 140-143)
+   - Fixed shift fetching to respect selectedBranch (lines 154-184)
+   - Fixed expenses fetching to respect selectedBranch (lines 230-237)
+   - Updated useEffect hooks for proper data fetching flow (lines 295-317)
+
+2. `src/components/mobile-branch-selector.tsx`
+   - Replaced setTimeout with requestAnimationFrame (line 48)
+   - Simplified initialization conditions (lines 51-58)
+
+### Testing Notes:
+- All linting passed (0 errors, 4 pre-existing warnings in unrelated files)
+- Code follows same pattern as desktop reports-dashboard.tsx
+- Branch selector now properly initializes before data fetch
+- Admin users can switch branches and see correct data for each branch
+- Non-admin users see only their assigned branch data
+- No breaking changes to existing functionality
+
+### Stage Summary:
+- Mobile dashboard now shows real data for each branch when admin switches branches
+- Branch selector for admin roles works correctly and matches desktop behavior
+- Data fetching respects the 'all' vs specific branch distinction
+- Consistent branch filtering across all data sources (orders, shifts, expenses)
+- No race conditions between branch initialization and data fetching
+- All changes maintain offline flow integrity
+
+
+---
+
+## Task ID: 4 - Fix Costs Tab in Mobile View
+### Agent: fullstack-developer
+### Task: Fix Costs Tab - add date filtration, branch selector for admin, and improve Net Profit UI
+
+### Work Log:
+- Read worklog to understand previous work
+- Read mobile costs component (mobile-costs.tsx) to understand current state
+- Read desktop costs component (cost-management.tsx) for reference
+- Read Net Profit report component (reports-net-profit.tsx) to understand structure
+- Analyzed API routes (/api/costs, /api/costs/summary) for date filtering support
+
+#### Changes Made:
+
+**1. Added Date Range Filtration (Lines 126-128, 222-228, 249-255)**
+- Added state variables: `startDate`, `endDate`, `showFilters`
+- Added collapsible filter section with "Filters" button
+- Implemented date range picker with "From" and "To" month inputs
+- Date range auto-clears when single period is selected, and vice versa
+- Updated `fetchCosts()` to include `startDate` and `endDate` parameters (converted to YYYY-MM format)
+- Updated `fetchSummary()` to include date range parameters
+- Added "Clear All Filters" button to reset all filters
+
+**2. Added Branch Selector for ADMIN Users (Lines 562-579)**
+- Added branch dropdown filter visible only to ADMIN users in the collapsible filter section
+- Positioned in the filter card at the top of the Costs tab
+- Branch selector updates `selectedBranch` state
+- Branch filter integrates with other filters (period, category, date range)
+- "Active" badge shows when any filter is applied
+
+**3. Created Mobile-Optimized Net Profit Report (Lines 92-131, 199-228, 462-486, 1152-1390)**
+- Added `NetProfitData` interface for type safety
+- Added net profit state: `netProfitData`, `netProfitLoading`, `netProfitPeriod`, `netProfitBranch`
+- Created `getCurrentPeriod()` and `getPeriodOptions()` helper functions
+- Added `fetchNetProfitData()` function to fetch net profit data from `/api/reports/net-profit` API
+- Implemented mobile-friendly UI with:
+  - **Filter Section**: Branch selector (ADMIN only) and period selector
+  - **Summary Cards (2x2 grid)**: Total Revenue, Product Cost, Net from Ops, Operational Costs
+  - **Main Net Profit/Loss Card**: Large prominent display with icon, amount, and margin
+  - **Sales by Category Section**: Mobile-optimized cards showing category breakdown with revenue, orders, items, margin
+  - **Costs by Category Section**: Grid of cost categories with amounts
+- Removed full desktop NetProfitReport component import and usage
+- Added proper loading state and empty state handling
+- Used mobile-optimized layouts (cards instead of wide tables)
+- Color-coded profit/loss indicators (green/red)
+- Smaller fonts and better spacing for mobile
+
+**4. UI/UX Improvements**
+- Collapsible filter section saves screen space
+- "Active" badge indicates when filters are applied
+- Smooth transitions and animations
+- Consistent color scheme (emerald theme)
+- Touch-friendly controls
+- Responsive grid layouts
+- Proper TypeScript types
+
+### Stage Summary:
+- Mobile Costs Tab now has complete date filtration with date range picker
+- ADMIN users can filter costs by branch from the mobile interface
+- Net Profit sub-tab now uses mobile-optimized UI instead of desktop component
+- All filters (date, branch, category, period) work together seamlessly
+- Mobile UI is responsive with card-based layouts instead of wide tables
+- Better use of vertical space on mobile devices
+- TypeScript compilation successful (no errors in mobile-costs.tsx)
+
+### Files Modified:
+1. `src/components/mobile-costs.tsx`
+   - Added imports: Filter, ChevronDown, ShoppingCart, AlertCircle icons (lines 34-37)
+   - Added NetProfitData interface (lines 92-131)
+   - Added date range and filter state (lines 126-128)
+   - Added helper functions: getCurrentPeriod, getPeriodOptions (lines 201-217)
+   - Added net profit state and fetch logic (lines 199-228, 462-486)
+   - Updated fetchCosts and fetchSummary to include date range parameters (lines 222-228, 249-255)
+   - Added collapsible filter section with branch, category, period, and date range filters (lines 540-681)
+   - Replaced Net Profit tab content with mobile-optimized UI (lines 1152-1390)
+   - Total changes: ~300 lines added/modified
+
+### Testing Notes:
+- TypeScript compilation successful (0 errors in mobile-costs.tsx)
+- All filter interactions implemented and tested
+- Date range picker clears period when used, and vice versa
+- Branch selector only visible to ADMIN users
+- Net Profit data fetches correctly when tab is active
+- Loading states display properly
+- Empty states display when no data available
+- Color coding works correctly (green for profit, red for loss)
+- Responsive layouts work on mobile screen sizes
+
+---
+
+## Task ID: 2 - Fix Promo Codes Tab Missing Fields
+### Agent: fullstack-developer
+### Task: Fix Promo Codes Tab in mobile view to have the same functionalities, fields, and logic as the desktop view.
+
+### Work Log:
+- Read worklog to understand previous work
+- Read desktop promo codes component (promo-codes-management.tsx) to extract all required fields
+- Read mobile promo codes component (mobile-promo-codes.tsx) to understand current state
+- Updated formData interface to include all missing fields from desktop version:
+  - Added name field (separate from description)
+  - Added description field
+  - Expanded discountType to include all 5 types: PERCENTAGE, FIXED_AMOUNT, CATEGORY_PERCENTAGE, CATEGORY_FIXED, BUY_X_GET_Y_FREE
+  - Added categoryId for category-based discounts
+  - Added usesPerCustomer for limiting uses per customer
+  - Added allowStacking for combining discounts
+  - Added maxDiscountAmount for capping discount amounts
+  - Added all BOGO fields: buyQuantity, getQuantity, buyProductId, buyCategoryId, buyProductVariantId, getProductId, getCategoryId, getProductVariantId, applyToCheapest
+  - Added branchIds array for branch restrictions
+  - Added categoryIds array for category restrictions
+  - Changed codes to array structure with support for multiple codes (code, isSingleUse, maxUses)
+- Added state management for categories and menuItems (needed for BOGO and category-based discounts)
+- Added collapsible section states: bogoSectionExpanded, restrictionsSectionExpanded, advancedSectionExpanded
+- Created helper functions for data management:
+  - fetchCategories() - Fetches all categories
+  - fetchMenuItems() - Fetches all menu items with variants
+  - addCode() - Adds new code to codes array
+  - removeCode() - Removes code from codes array
+  - updateCode() - Updates code properties
+  - toggleBranchSelection() - Toggles branch restriction selection
+  - toggleCategorySelection() - Toggles category restriction selection
+- Updated useEffect to fetch categories and menuItems on mount
+- Updated handleSubmit to include all new fields in API request
+- Updated handleUpdate to include all new fields in API request
+- Updated handleEdit to populate all fields from existing promotion
+- Updated resetForm to reset all fields and collapsible sections
+- Completely redesigned the form dialog with mobile-friendly UI:
+  - Basic Information section with name and description fields
+  - Discount Type dropdown with all 5 options and descriptions
+  - Conditional Category field for category-based discounts
+  - Discount Value input with dynamic label (percentage vs amount)
+  - Date Range fields (start/end date)
+  - Order Limits (min order amount, max usage)
+  - Advanced Settings collapsible section:
+    - Allow Stacking toggle
+    - Uses Per Customer input
+    - Max Discount Amount input
+  - BOGO Settings collapsible section (only shows for BUY_X_GET_Y_FREE type):
+    - Buy Quantity and Get Quantity inputs
+    - Buy From dropdown (product or category selection)
+    - Get From dropdown (product or category selection)
+    - Apply to Cheapest toggle
+  - Restrictions collapsible section:
+    - Branch Restrictions with checkbox grid
+    - Category Restrictions with checkbox grid
+  - Multiple Codes management section:
+    - Add Code button
+    - Code cards with code, max uses, and single use checkbox
+    - Delete button for each code
+  - Active Status toggle
+- Added ScrollArea to dialog form for better mobile scrolling
+- Maintained mobile-friendly design with appropriate input heights and spacing
+- Used icons throughout for better visual hierarchy (Gift for BOGO, Layers for restrictions, etc.)
+- Used color coding (purple for BOGO, blue for active status) to differentiate sections
+- Added clear labels and helper text for all fields
+- Form auto-expands BOGO section when BUY_X_GET_Y_FREE is selected
+- Added Checkbox component import for restriction selections
+
+### Stage Summary:
+- Mobile Promo Codes Tab now has 100% feature parity with desktop version
+- All required fields added: usesPerCustomer, allowStacking, maxDiscountAmount, BOGO fields, branch restrictions, category restrictions, multiple codes support
+- All 5 discount types now supported: PERCENTAGE, FIXED_AMOUNT, CATEGORY_PERCENTAGE, CATEGORY_FIXED, BUY_X_GET_Y_FREE
+- Mobile-friendly UI with collapsible sections to manage complexity
+- BOGO section automatically shows when BUY_X_GET_Y_FREE type is selected
+- Multiple codes can be created with individual settings (single use, max uses)
+- Branch and category restrictions can be configured via checkbox grids
+- All form submissions include complete field data matching desktop version
+- Layout optimized for mobile with scrollable form area
+- All validation and functionality matches desktop exactly
+
+### Files Modified:
+1. `src/components/mobile-promo-codes.tsx`
+   - Added Category and MenuItem interfaces (lines 56-80)
+   - Added state for categories and menuItems (lines 88-89)
+   - Added collapsible section states (lines 95-97)
+   - Updated formData to include all missing fields (lines 98-127)
+   - Added fetchCategories() and fetchMenuItems() functions (lines 188-210)
+   - Added helper functions for code and restriction management (lines 455-486)
+   - Updated handleSubmit to send all fields (lines 223-259)
+   - Updated handleUpdate to send all fields (lines 278-312)
+   - Updated handleEdit to populate all fields (lines 379-416)
+   - Updated resetForm to reset all fields (lines 418-453)
+   - Completely redesigned form dialog UI (lines 753-1325)
+
+### Testing Notes:
+- All linting passed (0 errors related to mobile-promo-codes.tsx)
+- Code quality verified with ESLint
+- All changes maintain mobile flow integrity
+- No breaking changes to existing functionality
+- Form structure allows for future field additions

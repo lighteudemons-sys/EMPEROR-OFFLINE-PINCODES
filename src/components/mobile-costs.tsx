@@ -31,6 +31,10 @@ import {
   TrendingUp,
   Tag,
   RefreshCw,
+  Filter,
+  ChevronDown,
+  ShoppingCart,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import NetProfitReport from '@/components/reports-net-profit';
@@ -87,6 +91,47 @@ interface SummaryData {
   byPeriod: Record<string, { total: number; count: number }>;
 }
 
+interface NetProfitData {
+  period: string;
+  sales: {
+    revenue: number;
+    productCost: number;
+    netProfitFromOperations: number;
+    grossMargin: number;
+  };
+  costs: {
+    operational: number;
+    entries: number;
+    byCategory: Record<string, number>;
+  };
+  netProfit: {
+    amount: number;
+    margin: number;
+    isProfitable: boolean;
+  };
+  items: {
+    sold: number;
+    orders: number;
+  };
+  costsBreakdown: Array<{
+    id: string;
+    category: string;
+    amount: number;
+    branch: string;
+    notes: string | null;
+    date: Date;
+  }>;
+  categoryBreakdown: Array<{
+    category: string;
+    revenue: number;
+    orders: number;
+    itemsSold: number;
+    productCost: number;
+    netFromOperations: number;
+    grossMargin: number;
+  }>;
+}
+
 const iconMap: Record<string, any> = {
   Building2,
   Shield: Zap,
@@ -121,6 +166,9 @@ export function MobileCosts() {
   });
   const [selectedPeriod, setSelectedPeriod] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCost, setEditingCost] = useState<BranchCost | null>(null);
   const [formData, setFormData] = useState<CostFormData>({
@@ -156,7 +204,7 @@ export function MobileCosts() {
   };
 
   const getPeriodOptions = () => {
-    const periods: string[] = [];
+    const periods: Array<{ value: string; label: string }> = [];
     const now = new Date();
 
     for (let i = -2; i <= 12; i++) {
@@ -167,6 +215,17 @@ export function MobileCosts() {
 
     return periods;
   };
+
+  // Net Profit state
+  const [netProfitData, setNetProfitData] = useState<NetProfitData | null>(null);
+  const [netProfitLoading, setNetProfitLoading] = useState(false);
+  const [netProfitPeriod, setNetProfitPeriod] = useState<string>(getCurrentPeriod());
+  const [netProfitBranch, setNetProfitBranch] = useState<string>(() => {
+    if (currentUser?.role === 'BRANCH_MANAGER' && currentUser?.branchId) {
+      return currentUser.branchId;
+    }
+    return 'all';
+  });
 
   useEffect(() => {
     const fetchBranches = async () => {
@@ -201,11 +260,11 @@ export function MobileCosts() {
 
   useEffect(() => {
     fetchCosts();
-  }, [selectedBranch, selectedPeriod, selectedCategory]);
+  }, [selectedBranch, selectedPeriod, selectedCategory, startDate, endDate]);
 
   useEffect(() => {
     fetchSummary();
-  }, [selectedBranch, selectedPeriod, selectedCategory]);
+  }, [selectedBranch, selectedPeriod, selectedCategory, startDate, endDate]);
 
   const fetchCosts = async () => {
     setLoading(true);
@@ -214,6 +273,13 @@ export function MobileCosts() {
       if (selectedBranch !== 'all') params.append('branchId', selectedBranch);
       if (selectedPeriod !== 'all') params.append('period', selectedPeriod);
       if (selectedCategory !== 'all') params.append('costCategoryId', selectedCategory);
+      if (startDate && endDate) {
+        // Convert to YYYY-MM format for period filtering
+        const startPeriod = startDate.slice(0, 7);
+        const endPeriod = endDate.slice(0, 7);
+        params.append('startDate', startPeriod);
+        params.append('endDate', endPeriod);
+      }
 
       const response = await fetch(`/api/costs?${params.toString()}`);
       const data = await response.json();
@@ -234,6 +300,13 @@ export function MobileCosts() {
       if (selectedBranch !== 'all') params.append('branchId', selectedBranch);
       if (selectedPeriod !== 'all') params.append('period', selectedPeriod);
       if (selectedCategory !== 'all') params.append('costCategoryId', selectedCategory);
+      if (startDate && endDate) {
+        // Convert to YYYY-MM format for period filtering
+        const startPeriod = startDate.slice(0, 7);
+        const endPeriod = endDate.slice(0, 7);
+        params.append('startDate', startPeriod);
+        params.append('endDate', endPeriod);
+      }
 
       const response = await fetch(`/api/costs/summary?${params.toString()}`);
       const data = await response.json();
@@ -387,6 +460,33 @@ export function MobileCosts() {
     resetForm();
   }, [currentUser?.branchId]);
 
+  // Fetch Net Profit data when period or branch changes
+  useEffect(() => {
+    if (activeTab === 'net-profit' && netProfitPeriod) {
+      fetchNetProfitData();
+    }
+  }, [netProfitPeriod, netProfitBranch, activeTab]);
+
+  const fetchNetProfitData = async () => {
+    setNetProfitLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (netProfitBranch !== 'all') params.append('branchId', netProfitBranch);
+      if (netProfitPeriod) params.append('period', netProfitPeriod);
+
+      const response = await fetch(`/api/reports/net-profit?${params.toString()}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setNetProfitData(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch net profit data:', error);
+    } finally {
+      setNetProfitLoading(false);
+    }
+  };
+
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -518,6 +618,149 @@ export function MobileCosts() {
             </TabsList>
 
             <TabsContent value="costs" className="space-y-4 mt-4">
+              {/* Filters Section */}
+              <Card className="border-emerald-200">
+                <CardContent className="p-4">
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="w-full flex items-center justify-between py-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-emerald-600" />
+                      <span className="text-sm font-medium text-slate-700">Filters</span>
+                      {(selectedBranch !== 'all' || selectedPeriod !== 'all' || selectedCategory !== 'all' || startDate || endDate) && (
+                        <span className="bg-emerald-600 text-white text-xs px-2 py-0.5 rounded-full">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {showFilters && (
+                    <div className="mt-4 space-y-3">
+                      {/* Branch Filter - Only for ADMIN */}
+                      {currentUser?.role === 'ADMIN' && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Branch</Label>
+                          <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="All Branches" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Branches</SelectItem>
+                              {branches.map((branch) => (
+                                <SelectItem key={branch.id} value={branch.id}>
+                                  {branch.branchName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Category Filter */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Category</Label>
+                        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="All Categories" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Categories</SelectItem>
+                            {costCategories.map((category) => {
+                              const Icon = getIcon(category.icon);
+                              return (
+                                <SelectItem key={category.id} value={category.id}>
+                                  <div className="flex items-center gap-2">
+                                    <Icon className="h-4 w-4" />
+                                    {category.name}
+                                  </div>
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Period Filter */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Period</Label>
+                        <Select value={selectedPeriod} onValueChange={(value) => {
+                          setSelectedPeriod(value);
+                          // Clear date range when selecting a period
+                          if (value !== 'all') {
+                            setStartDate('');
+                            setEndDate('');
+                          }
+                        }}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="All Periods" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Periods</SelectItem>
+                            {getPeriodOptions().map((period) => (
+                              <SelectItem key={period.value} value={period.value}>
+                                {period.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Date Range Filter */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Date Range</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs text-slate-500">From</Label>
+                            <Input
+                              type="month"
+                              value={startDate}
+                              onChange={(e) => {
+                                setStartDate(e.target.value);
+                                setSelectedPeriod('all'); // Clear period when using date range
+                              }}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-slate-500">To</Label>
+                            <Input
+                              type="month"
+                              value={endDate}
+                              onChange={(e) => {
+                                setEndDate(e.target.value);
+                                setSelectedPeriod('all'); // Clear period when using date range
+                              }}
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Clear Filters Button */}
+                      {(selectedBranch !== 'all' || selectedPeriod !== 'all' || selectedCategory !== 'all' || startDate || endDate) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedBranch(currentUser?.role === 'ADMIN' ? 'all' : currentUser?.branchId || 'all');
+                            setSelectedPeriod('all');
+                            setSelectedCategory('all');
+                            setStartDate('');
+                            setEndDate('');
+                          }}
+                          className="w-full mt-2"
+                        >
+                          Clear All Filters
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {summary && (
                 <div className="grid grid-cols-2 gap-3">
                   <Card className="border-emerald-200">
@@ -909,11 +1152,243 @@ export function MobileCosts() {
             </TabsContent>
 
             <TabsContent value="net-profit" className="mt-4">
-              <Card>
+              {/* Net Profit Filters */}
+              <Card className="border-emerald-200 mb-4">
                 <CardContent className="p-4">
-                  <NetProfitReport />
+                  <div className="space-y-3">
+                    {/* Branch Filter - Only for ADMIN */}
+                    {currentUser?.role === 'ADMIN' && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Branch</Label>
+                        <Select value={netProfitBranch} onValueChange={setNetProfitBranch}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="All Branches" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Branches</SelectItem>
+                            {branches.map((branch) => (
+                              <SelectItem key={branch.id} value={branch.id}>
+                                {branch.branchName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Period Filter */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Period</Label>
+                      <Select value={netProfitPeriod} onValueChange={setNetProfitPeriod}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select period" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getPeriodOptions().map((period) => (
+                            <SelectItem key={period.value} value={period.value}>
+                              {period.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
+
+              {netProfitLoading ? (
+                <Card>
+                  <CardContent className="p-8">
+                    <div className="flex flex-col items-center justify-center gap-4">
+                      <div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full"></div>
+                      <p className="text-sm text-slate-600">Loading net profit data...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : netProfitData ? (
+                <>
+                  {/* Main Summary Cards */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {/* Total Revenue */}
+                    <Card className="border-emerald-200">
+                      <CardContent className="p-3">
+                        <p className="text-xs text-emerald-700 mb-1">Total Revenue</p>
+                        <p className="text-lg font-bold text-emerald-900">
+                          {formatCurrency(netProfitData.sales.revenue)}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {netProfitData.items.orders} orders
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Product Cost */}
+                    <Card className="border-red-200">
+                      <CardContent className="p-3">
+                        <p className="text-xs text-red-700 mb-1">Product Cost</p>
+                        <p className="text-lg font-bold text-red-900">
+                          {formatCurrency(netProfitData.sales.productCost)}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {netProfitData.items.sold} items
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Net from Operations */}
+                    <Card className={`border-2 ${netProfitData.sales.netProfitFromOperations >= 0 ? 'border-green-200' : 'border-red-200'}`}>
+                      <CardContent className="p-3">
+                        <p className="text-xs text-slate-700 mb-1">Net from Ops</p>
+                        <p className={`text-lg font-bold ${netProfitData.sales.netProfitFromOperations >= 0 ? 'text-green-900' : 'text-red-900'}`}>
+                          {formatCurrency(Math.abs(netProfitData.sales.netProfitFromOperations))}
+                        </p>
+                        <p className={`text-xs mt-1 ${netProfitData.sales.grossMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {netProfitData.sales.grossMargin.toFixed(1)}% margin
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Operational Costs */}
+                    <Card className="border-amber-200">
+                      <CardContent className="p-3">
+                        <p className="text-xs text-amber-700 mb-1">Op. Costs</p>
+                        <p className="text-lg font-bold text-amber-900">
+                          {formatCurrency(netProfitData.costs.operational)}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {netProfitData.costs.entries} entries
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Net Profit/Loss Summary Card */}
+                  <Card className={`border-2 mb-4 ${netProfitData.netProfit.isProfitable ? 'border-green-300 bg-gradient-to-br from-green-50 to-emerald-50' : 'border-red-300 bg-gradient-to-br from-red-50 to-orange-50'}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${netProfitData.netProfit.isProfitable ? 'bg-green-500' : 'bg-red-500'}`}>
+                            {netProfitData.netProfit.isProfitable ? (
+                              <TrendingUp className="h-5 w-5 text-white" />
+                            ) : (
+                              <TrendingDown className="h-5 w-5 text-white" />
+                            )}
+                          </div>
+                          <div>
+                            <h3 className={`text-lg font-bold ${netProfitData.netProfit.isProfitable ? 'text-green-900' : 'text-red-900'}`}>
+                              {netProfitData.netProfit.isProfitable ? 'صافي الربح' : 'صافي الخسارة'}
+                            </h3>
+                            <p className="text-xs text-slate-600">
+                              {getPeriodLabel(netProfitData.period)}
+                            </p>
+                          </div>
+                        </div>
+                        <p className={`text-2xl font-bold ${netProfitData.netProfit.isProfitable ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(Math.abs(netProfitData.netProfit.amount))}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mt-4">
+                        <div className="p-2 bg-white/50 rounded-lg">
+                          <p className="text-xs text-slate-600">Net Margin</p>
+                          <p className={`text-lg font-bold ${netProfitData.netProfit.isProfitable ? 'text-green-700' : 'text-red-700'}`}>
+                            {netProfitData.netProfit.margin.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="p-2 bg-white/50 rounded-lg">
+                          <p className="text-xs text-slate-600">Formula</p>
+                          <p className="text-xs text-slate-800 font-medium mt-1">
+                            Sales - Costs
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Sales by Category - Collapsible */}
+                  {netProfitData.categoryBreakdown.length > 0 && (
+                    <Card className="mb-4">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <ShoppingCart className="h-4 w-4 text-emerald-600" />
+                          Sales by Category
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {netProfitData.categoryBreakdown.map((cat) => (
+                            <div key={cat.category} className="p-3 bg-slate-50 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-slate-700">{cat.category}</span>
+                                <span className={`text-sm font-bold ${cat.netFromOperations >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formatCurrency(cat.netFromOperations)}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                                <div>
+                                  <span className="text-slate-500">Revenue:</span>{' '}
+                                  {formatCurrency(cat.revenue)}
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">Orders:</span>{' '}
+                                  {cat.orders}
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">Items:</span>{' '}
+                                  {cat.itemsSold}
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">Margin:</span>{' '}
+                                  <span className={cat.grossMargin >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                    {cat.grossMargin.toFixed(1)}%
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Costs by Category - Collapsible */}
+                  {Object.keys(netProfitData.costs.byCategory).length > 0 && (
+                    <Card className="mb-4">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Package className="h-4 w-4 text-emerald-600" />
+                          Costs by Category
+                        </CardTitle>
+                        <CardDescription>
+                          Total: {formatCurrency(netProfitData.costs.operational)}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(netProfitData.costs.byCategory)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([category, amount]) => (
+                              <div key={category} className="p-2 bg-slate-50 rounded-lg">
+                                <p className="text-xs font-medium text-slate-600 truncate mb-1">{category}</p>
+                                <p className="text-base font-bold text-slate-900">{formatCurrency(amount)}</p>
+                              </div>
+                            ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <Card>
+                  <CardContent className="p-8">
+                    <div className="flex flex-col items-center justify-center gap-4">
+                      <AlertCircle className="h-12 w-12 text-slate-300" />
+                      <p className="text-sm text-slate-600 text-center">
+                        No net profit data available for the selected period and branch.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
         </div>

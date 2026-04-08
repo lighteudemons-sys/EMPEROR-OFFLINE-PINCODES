@@ -40,17 +40,18 @@ export function MobileBranchSelector({ className = '', selectedBranch: parentSel
   // Set default branch on mount (only once) if no parent selectedBranch provided
   useEffect(() => {
     console.log('[MobileBranchSelector] Init effect - user:', user?.role, 'branches:', branches.length, 'parentSelectedBranch:', parentSelectedBranch, 'initialized:', hasInitialized.current);
+    // Only set default if parent is not controlling the branch (no parentSelectedBranch)
     if (user?.role === 'ADMIN' && branches.length > 0 && !hasInitialized.current && !parentSelectedBranch) {
       const defaultBranchId = branches[0].id;
       console.log('[MobileBranchSelector] Setting default branch:', defaultBranchId);
-      // Use setTimeout to avoid synchronous setState in effect
-      setTimeout(() => {
+      // Use requestAnimationFrame to avoid synchronous setState warning
+      requestAnimationFrame(() => {
         setInternalBranch(defaultBranchId);
         onBranchChange?.(defaultBranchId);
         hasInitialized.current = true;
         console.log('[MobileBranchSelector] Default branch set and notified parent');
-      }, 0);
-    } else if (parentSelectedBranch && !hasInitialized.current) {
+      });
+    } else if (parentSelectedBranch) {
       // Parent controls the branch, just mark as initialized
       console.log('[MobileBranchSelector] Parent controls branch, marking as initialized');
       hasInitialized.current = true;

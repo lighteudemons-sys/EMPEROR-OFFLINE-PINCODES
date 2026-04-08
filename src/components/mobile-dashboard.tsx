@@ -72,7 +72,15 @@ export function MobileDashboard() {
   const { currency, t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  // Initialize selectedBranch based on user role - similar to desktop version
+  const [selectedBranch, setSelectedBranch] = useState<string>(() => {
+    if (user?.role === 'ADMIN') {
+      return 'all'; // Will be updated to first branch after branches load
+    } else if (user?.branchId) {
+      return user.branchId;
+    }
+    return 'all';
+  });
   const [stats, setStats] = useState<DashboardStats>({
     todayRevenue: 0,
     orderCount: 0,
@@ -94,9 +102,16 @@ export function MobileDashboard() {
       const startOfDay = new Date(today.setHours(0, 0, 0, 0));
       const endOfDay = new Date(today.setHours(23, 59, 59, 999));
 
-      // Determine branch filter: For admin, use selectedBranch; for others, use user's branch
-      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
-      const branchFilter = branchId ? `?branchId=${branchId}` : '';
+      // Determine branch filter: For admin, use selectedBranch (if not 'all'); for others, use user's branch
+      // This matches the desktop pattern
+      let branchFilter = '';
+      if (user?.role === 'ADMIN') {
+        if (selectedBranch && selectedBranch !== 'all') {
+          branchFilter = `?branchId=${selectedBranch}`;
+        }
+      } else if (user?.branchId) {
+        branchFilter = `?branchId=${user.branchId}`;
+      }
 
       // Fetch today's orders from API first
       let todayOrders: any[] = [];
@@ -120,8 +135,9 @@ export function MobileDashboard() {
         await storage.init();
         const allOrders = await storage.getAllOrders();
 
-        // Filter by branch if branchId is specified
+        // Filter by branch using the same logic as API
         let filteredOrders = allOrders;
+        const branchId = user?.role === 'ADMIN' ? (selectedBranch !== 'all' ? selectedBranch : null) : user?.branchId;
         if (branchId) {
           filteredOrders = allOrders.filter((order: any) => order.branchId === branchId);
         }
@@ -135,11 +151,12 @@ export function MobileDashboard() {
       const todayRevenue = todayOrders.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0);
       const orderCount = todayOrders.length;
 
-      // Get current shift
+      // Get current shift - respect selectedBranch for admin
       let openShift: any = null;
+      const shiftBranchId = user?.role === 'ADMIN' ? (selectedBranch !== 'all' ? selectedBranch : user?.branchId) : user?.branchId;
       try {
         const params = new URLSearchParams({
-          branchId: user?.branchId || '',
+          branchId: shiftBranchId || '',
           cashierId: user?.id || '',
           status: 'open',
         });
@@ -161,7 +178,7 @@ export function MobileDashboard() {
         const allShifts = await storage.getAllShifts();
         openShift = allShifts.find((s: any) =>
           s.cashierId === user?.id &&
-          s.branchId === user?.branchId &&
+          s.branchId === shiftBranchId &&
           !s.isClosed
         );
       }
@@ -210,13 +227,14 @@ export function MobileDashboard() {
         });
       });
 
-      // Add recent expenses
+      // Add recent expenses - respect selectedBranch for admin
       let todayExpenses: any[] = [];
       try {
         const today = new Date();
         const startOfDay = new Date(today.setHours(0, 0, 0, 0));
         const endOfDay = new Date(today.setHours(23, 59, 59, 999));
-        const response = await fetch(`/api/daily-expenses?branchId=${user?.branchId}&startDate=${startOfDay.toISOString()}&endDate=${endOfDay.toISOString()}`);
+        const expenseBranchId = user?.role === 'ADMIN' ? (selectedBranch !== 'all' ? selectedBranch : user?.branchId) : user?.branchId;
+        const response = await fetch(`/api/daily-expenses?branchId=${expenseBranchId}&startDate=${startOfDay.toISOString()}&endDate=${endOfDay.toISOString()}`);
         if (response.ok) {
           const data = await response.json();
           todayExpenses = data.expenses || [];
@@ -275,16 +293,30 @@ export function MobileDashboard() {
     }
   };
 
+  // Fetch dashboard data when user is available
   useEffect(() => {
-    fetchDashboardData();
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
+
+  // Set default branch based on user role (matches desktop pattern)
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'ADMIN') {
+        setSelectedBranch('all');
+      } else if (user.branchId) {
+        setSelectedBranch(user.branchId);
+      }
+    }
   }, [user]);
 
   // Refetch dashboard data when branch changes (for admin)
   useEffect(() => {
-    if (selectedBranch && user?.role === 'ADMIN') {
+    if (user && (user.role === 'ADMIN' || selectedBranch)) {
       fetchDashboardData();
     }
-  }, [selectedBranch, user?.role]);
+  }, [selectedBranch]);
 
   const handleRefresh = () => {
     fetchDashboardData(true);

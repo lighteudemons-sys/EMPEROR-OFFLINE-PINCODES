@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   BarChart3,
@@ -29,6 +30,8 @@ import {
   ArrowDownRight,
   X,
   Coffee,
+  Users,
+  Tag,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -43,6 +46,15 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
+
+// Import report components
+import ProductPerformanceReport from './reports-products';
+import CustomerAnalyticsReport from './reports-customers';
+import BranchComparisonReport from './reports-branches';
+import StaffPerformanceReport from './reports-staff';
+import DailyReportsTab from './reports-daily';
+import BestSellersReport from './reports-best-sellers';
+import DiscountsTracking from './discounts-tracking';
 
 interface Branch {
   id: string;
@@ -94,9 +106,13 @@ interface TopItem {
 
 const timeRanges = [
   { value: 'today', label: 'Today', days: 1 },
+  { value: 'yesterday', label: 'Yesterday', days: 1 },
   { value: 'week', label: 'This Week', days: 7 },
+  { value: 'lastWeek', label: 'Last Week', days: 7 },
   { value: 'month', label: 'This Month', days: 30 },
-  { value: 'custom', label: 'Custom', days: 0 },
+  { value: 'lastMonth', label: 'Last Month', days: 30 },
+  { value: 'quarter', label: 'This Quarter', days: 90 },
+  { value: 'year', label: 'This Year', days: 365 },
 ];
 
 const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6'];
@@ -114,7 +130,7 @@ export function MobileReports() {
     }
     return 'all';
   });
-  const [timeRange, setTimeRange] = useState('today');
+  const [timeRange, setTimeRange] = useState('year'); // Changed to 'year' to show more data
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [kpiData, setKPIData] = useState<KPIData | null>(null);
@@ -123,6 +139,7 @@ export function MobileReports() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Fetch branches
   useEffect(() => {
@@ -153,9 +170,11 @@ export function MobileReports() {
 
   // Fetch data when filters change
   useEffect(() => {
-    fetchKPIs();
-    fetchTopItems();
-  }, [selectedBranch, timeRange, customStartDate, customEndDate]);
+    if (activeTab === 'overview') {
+      fetchKPIs();
+      fetchTopItems();
+    }
+  }, [selectedBranch, timeRange, customStartDate, customEndDate, activeTab]);
 
   // Role-based access control - same as desktop
   const canAccessBranchFeatures = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
@@ -179,53 +198,61 @@ export function MobileReports() {
 
   const getDateRange = () => {
     const now = new Date();
-    let startDate: Date;
-    let endDate: Date;
-    let modifiedStartDate: Date;
-    let modifiedEndDate: Date;
+    let endDate = new Date(now);
+    let startDate = new Date(now);
 
+    // Set start time to 00:00:00 and end time to 23:59:59 for proper day filtering
     if (timeRange === 'today') {
-      startDate = new Date(now);
       startDate.setHours(0, 0, 0, 0);
-      modifiedStartDate = startDate;
-      endDate = new Date(now);
       endDate.setHours(23, 59, 59, 999);
-      modifiedEndDate = endDate;
+    } else if (timeRange === 'yesterday') {
+      startDate.setDate(now.getDate() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setDate(now.getDate() - 1);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'lastWeek') {
+      startDate.setDate(now.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setDate(now.getDate() - 1);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'lastMonth') {
+      startDate.setMonth(now.getMonth() - 1);
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setMonth(now.getMonth());
+      endDate.setDate(0);
+      endDate.setHours(23, 59, 59, 999);
     } else if (timeRange === 'week') {
-      startDate = new Date(now);
       const dayOfWeek = startDate.getDay();
       startDate.setDate(startDate.getDate() - dayOfWeek);
-      modifiedStartDate = new Date(startDate);
-      modifiedStartDate.setHours(0, 0, 0, 0);
-      endDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
       endDate.setHours(23, 59, 59, 999);
-      modifiedEndDate = endDate;
     } else if (timeRange === 'month') {
-      startDate = new Date(now);
       startDate.setDate(1);
-      modifiedStartDate = new Date(startDate);
-      modifiedStartDate.setHours(0, 0, 0, 0);
-      endDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
       endDate.setHours(23, 59, 59, 999);
-      modifiedEndDate = endDate;
+    } else if (timeRange === 'quarter') {
+      startDate.setMonth(startDate.getMonth() - 3);
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'year') {
+      startDate.setMonth(0, 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
     } else if (timeRange === 'custom' && customStartDate && customEndDate) {
       startDate = new Date(customStartDate);
-      modifiedStartDate = new Date(startDate);
-      modifiedStartDate.setHours(0, 0, 0, 0);
-      endDate = new Date(customEndDate);
-      modifiedEndDate = new Date(endDate);
-      modifiedEndDate.setHours(23, 59, 59, 999);
-    } else {
-      // Default to today if no valid range
-      startDate = new Date(now);
       startDate.setHours(0, 0, 0, 0);
-      modifiedStartDate = startDate;
-      endDate = new Date(now);
+      endDate = new Date(customEndDate);
       endDate.setHours(23, 59, 59, 999);
-      modifiedEndDate = endDate;
+    } else {
+      // Default to year if no valid range
+      startDate.setMonth(0, 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
     }
 
-    return { startDate: modifiedStartDate, endDate: modifiedEndDate };
+    return { startDate, endDate };
   };
 
   const fetchKPIs = async () => {
@@ -244,13 +271,17 @@ export function MobileReports() {
       params.append('startDate', startDate.toISOString());
       params.append('endDate', endDate.toISOString());
 
+      console.log('[Mobile Reports] Fetching KPIs with params:', params.toString());
       const response = await fetch(`/api/reports/kpi?${params.toString()}`);
       const data = await response.json();
+
+      console.log('[Mobile Reports] KPI Response:', data);
 
       if (data.success) {
         setKPIData(data.data);
       } else {
         console.error('[Mobile Reports] API Error:', data.error);
+        showErrorToast('Error', data.error || 'Failed to load reports data');
       }
     } catch (error) {
       console.error('Failed to fetch KPIs:', error);
@@ -274,7 +305,6 @@ export function MobileReports() {
       }
       params.append('startDate', startDate.toISOString());
       params.append('endDate', endDate.toISOString());
-      // Note: best-sellers API doesn't support limit param, we'll slice client-side
 
       const response = await fetch(`/api/reports/best-sellers?${params.toString()}`);
       const data = await response.json();
@@ -324,7 +354,7 @@ export function MobileReports() {
     );
   };
 
-  if (loading && !kpiData) {
+  if (loading && !kpiData && activeTab === 'overview') {
     return (
       <div className="p-4 space-y-4">
         <Skeleton className="h-20 w-full" />
@@ -423,267 +453,380 @@ export function MobileReports() {
         </div>
       </div>
 
-      <ScrollArea className="h-[calc(100vh-300px)]">
-        <div className="p-4 space-y-4">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <Card className="shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                    <DollarSign className="h-5 w-5 text-emerald-600" />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-600 mb-1">Total Sales</p>
-                <p className="text-xl font-bold text-slate-900">
-                  {formatCurrency(kpiData?.revenue.total || 0)}
-                </p>
-                {kpiData?.revenue.growth !== undefined && (
-                  <div className="mt-2">
-                    <GrowthBadge value={kpiData.revenue.growth} />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="px-4 mt-4">
+        <TabsList className="bg-white dark:bg-slate-800 overflow-x-auto w-full justify-start mb-4">
+          <TabsTrigger value="overview" className="text-xs">
+            <BarChart3 className="h-3 w-3 mr-1" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="sales" className="text-xs">
+            <ShoppingCart className="h-3 w-3 mr-1" />
+            Sales
+          </TabsTrigger>
+          <TabsTrigger value="daily" className="text-xs">
+            <Calendar className="h-3 w-3 mr-1" />
+            Daily
+          </TabsTrigger>
+          <TabsTrigger value="products" className="text-xs">
+            <Package className="h-3 w-3 mr-1" />
+            Products
+          </TabsTrigger>
+          <TabsTrigger value="best-sellers" className="text-xs">
+            <TrendingUp className="h-3 w-3 mr-1" />
+            Best Sellers
+          </TabsTrigger>
+          <TabsTrigger value="customers" className="text-xs">
+            <Users className="h-3 w-3 mr-1" />
+            Customers
+          </TabsTrigger>
+          <TabsTrigger value="staff" className="text-xs">
+            <Users className="h-3 w-3 mr-1" />
+            Staff
+          </TabsTrigger>
+          <TabsTrigger value="discounts" className="text-xs">
+            <Tag className="h-3 w-3 mr-1" />
+            Discounts
+          </TabsTrigger>
+          {user?.role === 'ADMIN' && (
+            <TabsTrigger value="branches" className="text-xs">
+              <Store className="h-3 w-3 mr-1" />
+              Branches
+            </TabsTrigger>
+          )}
+        </TabsList>
 
-            <Card className="shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <ShoppingCart className="h-5 w-5 text-blue-600" />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-600 mb-1">Total Orders</p>
-                <p className="text-xl font-bold text-slate-900">
-                  {kpiData?.orders.total || 0}
-                </p>
-                {kpiData?.orders.growth !== undefined && (
-                  <div className="mt-2">
-                    <GrowthBadge value={kpiData.orders.growth} />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                    <Target className="h-5 w-5 text-purple-600" />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-600 mb-1">Avg Order</p>
-                <p className="text-xl font-bold text-slate-900">
-                  {formatCurrency(kpiData?.orders.avgValue || 0)}
-                </p>
-                <p className="text-xs text-slate-500 mt-2">Per transaction</p>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
-                    <AlertCircle className="h-5 w-5 text-red-600" />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-600 mb-1">Refund Rate</p>
-                <p className="text-xl font-bold text-slate-900">
-                  {(kpiData?.refunds.rate || 0).toFixed(1)}%
-                </p>
-                <p className="text-xs text-slate-500 mt-2">
-                  {kpiData?.refunds.count || 0} refunds
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Hourly Sales Chart */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-emerald-600" />
-                Hourly Sales
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Peak: {formatHour(kpiData?.peakHour.hour || 0)} ({formatCurrency(kpiData?.peakHour.revenue || 0)})
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-48">
-                {kpiData?.hourlySales && kpiData.hourlySales.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={kpiData.hourlySales}>
-                      <XAxis
-                        dataKey="hour"
-                        tickFormatter={formatHour}
-                        tick={{ fontSize: 10 }}
-                      />
-                      <YAxis
-                        tickFormatter={(value) => formatCurrency(value, currency)}
-                        tick={{ fontSize: 10 }}
-                      />
-                      <Tooltip
-                        formatter={(value: any) => [formatCurrency(value, currency), 'Revenue']}
-                        labelFormatter={formatHour}
-                        contentStyle={{ fontSize: '12px' }}
-                      />
-                      <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-slate-500 text-sm">
-                    No hourly data available
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Order Types */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Coffee className="h-4 w-4 text-emerald-600" />
-                Order Types
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Utensils className="h-4 w-4 text-emerald-600" />
-                    <span className="text-sm font-medium">Dine-In</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-emerald-700">{kpiData?.orderTypes.dineIn.count || 0}</p>
-                    <p className="text-xs text-emerald-600">{formatCurrency(kpiData?.orderTypes.dineIn.revenue || 0)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4 text-amber-600" />
-                    <span className="text-sm font-medium">Take-Away</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-amber-700">{kpiData?.orderTypes.takeAway.count || 0}</p>
-                    <p className="text-xs text-amber-600">{formatCurrency(kpiData?.orderTypes.takeAway.revenue || 0)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Truck className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium">Delivery</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-blue-700">{kpiData?.orderTypes.delivery.count || 0}</p>
-                    <p className="text-xs text-blue-600">{formatCurrency(kpiData?.orderTypes.delivery.revenue || 0)}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Categories */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Package className="h-4 w-4 text-emerald-600" />
-                Top Categories
-              </CardTitle>
-              <CardDescription className="text-xs">Revenue by category</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {!kpiData?.topCategories || kpiData.topCategories.length === 0 ? (
-                  <p className="text-center text-sm text-slate-500 py-4">No category data</p>
-                ) : (
-                  kpiData.topCategories.slice(0, 5).map((category, index) => (
-                    <div key={category.category} className="flex items-center gap-3">
-                      <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-600 text-xs">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium text-slate-900">{category.category}</span>
-                          <span className="text-sm font-bold text-emerald-600">
-                            {formatCurrency(category.revenue)}
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-200 rounded-full h-2">
-                          <div
-                            className="bg-emerald-600 h-2 rounded-full transition-all"
-                            style={{
-                              width: `${((category.revenue / (kpiData.topCategories[0]?.revenue || 1)) * 100)}%`
-                            }}
-                          />
-                        </div>
-                      </div>
+        <ScrollArea className="h-[calc(100vh-450px)]">
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-4">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                      <DollarSign className="h-5 w-5 text-emerald-600" />
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  </div>
+                  <p className="text-xs text-slate-600 mb-1">Total Sales</p>
+                  <p className="text-xl font-bold text-slate-900">
+                    {formatCurrency(kpiData?.revenue.total || 0, currency)}
+                  </p>
+                  {kpiData?.revenue.growth !== undefined && (
+                    <div className="mt-2">
+                      <GrowthBadge value={kpiData.revenue.growth} />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-          {/* Top Items */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-emerald-600" />
-                Top Selling Items
-              </CardTitle>
-              <CardDescription className="text-xs">Best performers</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {topItems.length === 0 ? (
-                  <p className="text-center text-sm text-slate-500 py-4">No items data</p>
-                ) : (
-                  topItems.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-600 text-sm">
+              <Card className="shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <ShoppingCart className="h-5 w-5 text-blue-600" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 mb-1">Total Orders</p>
+                  <p className="text-xl font-bold text-slate-900">
+                    {kpiData?.orders.total || 0}
+                  </p>
+                  {kpiData?.orders.growth !== undefined && (
+                    <div className="mt-2">
+                      <GrowthBadge value={kpiData.orders.growth} />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                      <Target className="h-5 w-5 text-purple-600" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 mb-1">Avg Order</p>
+                  <p className="text-xl font-bold text-slate-900">
+                    {formatCurrency(kpiData?.orders.avgValue || 0, currency)}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">Per transaction</p>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 mb-1">Refund Rate</p>
+                  <p className="text-xl font-bold text-slate-900">
+                    {(kpiData?.refunds.rate || 0).toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    {kpiData?.refunds.count || 0} refunds
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Hourly Sales Chart */}
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                  Hourly Sales
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Peak: {formatHour(kpiData?.peakHour.hour || 0)} ({formatCurrency(kpiData?.peakHour.revenue || 0, currency)})
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48">
+                  {kpiData?.hourlySales && kpiData.hourlySales.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={kpiData.hourlySales}>
+                        <XAxis
+                          dataKey="hour"
+                          tickFormatter={formatHour}
+                          tick={{ fontSize: 10 }}
+                        />
+                        <YAxis
+                          tickFormatter={(value) => formatCurrency(value, currency)}
+                          tick={{ fontSize: 10 }}
+                        />
+                        <Tooltip
+                          formatter={(value: any) => [formatCurrency(value, currency), 'Revenue']}
+                          labelFormatter={formatHour}
+                          contentStyle={{ fontSize: '12px' }}
+                        />
+                        <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-slate-500 text-sm">
+                      No hourly data available
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Order Types */}
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Coffee className="h-4 w-4 text-emerald-600" />
+                  Order Types
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Utensils className="h-4 w-4 text-emerald-600" />
+                      <span className="text-sm font-medium">Dine-In</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-emerald-700">{kpiData?.orderTypes.dineIn.count || 0}</p>
+                      <p className="text-xs text-emerald-600">{formatCurrency(kpiData?.orderTypes.dineIn.revenue || 0, currency)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart className="h-4 w-4 text-amber-600" />
+                      <span className="text-sm font-medium">Take-Away</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-amber-700">{kpiData?.orderTypes.takeAway.count || 0}</p>
+                      <p className="text-xs text-amber-600">{formatCurrency(kpiData?.orderTypes.takeAway.revenue || 0, currency)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Truck className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-medium">Delivery</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-blue-700">{kpiData?.orderTypes.delivery.count || 0}</p>
+                      <p className="text-xs text-blue-600">{formatCurrency(kpiData?.orderTypes.delivery.revenue || 0, currency)}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Categories */}
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Package className="h-4 w-4 text-emerald-600" />
+                  Top Categories
+                </CardTitle>
+                <CardDescription className="text-xs">Revenue by category</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {!kpiData?.topCategories || kpiData.topCategories.length === 0 ? (
+                    <p className="text-center text-sm text-slate-500 py-4">No category data</p>
+                  ) : (
+                    kpiData.topCategories.slice(0, 5).map((category, index) => (
+                      <div key={category.category} className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-600 text-xs">
                           {index + 1}
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{item.name}</p>
-                          <p className="text-xs text-slate-500">{item.quantity} sold</p>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-slate-900">{category.category}</span>
+                            <span className="text-sm font-bold text-emerald-600">
+                              {formatCurrency(category.revenue, currency)}
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-2">
+                            <div
+                              className="bg-emerald-600 h-2 rounded-full transition-all"
+                              style={{
+                                width: `${((category.revenue / (kpiData.topCategories[0]?.revenue || 1)) * 100)}%`
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
-                      <span className="text-sm font-bold text-emerald-600">
-                        {formatCurrency(item.revenue)}
-                      </span>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Items */}
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                  Top Selling Items
+                </CardTitle>
+                <CardDescription className="text-xs">Best performers</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {topItems.length === 0 ? (
+                    <p className="text-center text-sm text-slate-500 py-4">No items data</p>
+                  ) : (
+                    topItems.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-600 text-sm">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{item.name}</p>
+                            <p className="text-xs text-slate-500">{item.quantity} sold</p>
+                          </div>
+                        </div>
+                        <span className="text-sm font-bold text-emerald-600">
+                          {formatCurrency(item.revenue, currency)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Export Button */}
+            <Button
+              className="w-full h-14 bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => {
+                const { startDate, endDate } = getDateRange();
+                setExportStartDate(startDate.toISOString().split('T')[0]);
+                setExportEndDate(endDate.toISOString().split('T')[0]);
+                setExportDialogOpen(true);
+              }}
+            >
+              <Download className="w-5 h-5 mr-2" />
+              Export Report
+            </Button>
+
+            {/* Footer */}
+            <div className="text-center text-xs text-slate-500 pb-4">
+              <p>Reports Dashboard v2.0</p>
+            </div>
+          </TabsContent>
+
+          {/* Sales Tab - Placeholder for now */}
+          <TabsContent value="sales">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold">Sales Reports</CardTitle>
+                <CardDescription className="text-xs">
+                  View detailed sales data and order history
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-center text-sm text-slate-500 py-8">
+                  Sales reports tab is available in desktop view
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Daily Reports Tab */}
+          <TabsContent value="daily">
+            <div className="space-y-4">
+              <DailyReportsTab />
+            </div>
+          </TabsContent>
+
+          {/* Products Tab */}
+          <TabsContent value="products">
+            <div className="space-y-4">
+              <ProductPerformanceReport />
+            </div>
+          </TabsContent>
+
+          {/* Best Sellers Tab */}
+          <TabsContent value="best-sellers">
+            <div className="space-y-4">
+              <BestSellersReport />
+            </div>
+          </TabsContent>
+
+          {/* Customers Tab */}
+          <TabsContent value="customers">
+            <div className="space-y-4">
+              <CustomerAnalyticsReport />
+            </div>
+          </TabsContent>
+
+          {/* Staff Tab */}
+          <TabsContent value="staff">
+            <div className="space-y-4">
+              <StaffPerformanceReport />
+            </div>
+          </TabsContent>
+
+          {/* Discounts Tab */}
+          <TabsContent value="discounts">
+            <div className="space-y-4">
+              <DiscountsTracking />
+            </div>
+          </TabsContent>
+
+          {/* Branches Tab - Admin only */}
+          {user?.role === 'ADMIN' && (
+            <TabsContent value="branches">
+              <div className="space-y-4">
+                <BranchComparisonReport />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Export Button */}
-          <Button
-            className="w-full h-14 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => {
-              const { startDate, endDate } = getDateRange();
-              setExportStartDate(startDate.toISOString().split('T')[0]);
-              setExportEndDate(endDate.toISOString().split('T')[0]);
-              setExportDialogOpen(true);
-            }}
-          >
-            <Download className="w-5 h-5 mr-2" />
-            Export Report
-          </Button>
-
-          {/* Footer */}
-          <div className="text-center text-xs text-slate-500 pb-4">
-            <p>Reports Dashboard v2.0</p>
-          </div>
-        </div>
-      </ScrollArea>
+            </TabsContent>
+          )}
+        </ScrollArea>
+      </Tabs>
 
       {/* Export Dialog */}
       <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
