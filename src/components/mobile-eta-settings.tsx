@@ -31,6 +31,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useI18n } from '@/lib/i18n-context';
 import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
 import { MobileBranchSelector } from '@/components/mobile-branch-selector';
 
