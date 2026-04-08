@@ -3889,6 +3889,7 @@ const translations = {
     'promo.mobile.failed.update': 'فشل تحديث العرض',
     'promo.mobile.failed.delete': 'فشل حذف العرض',
     'promo.mobile.confirm.delete': 'هل أنت متأكد من حذف هذا العرض؟',
+  },
 };
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);

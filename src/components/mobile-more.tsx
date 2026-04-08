@@ -405,14 +405,14 @@ export function MobileMore() {
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
         <SheetContent side="right" className="w-full sm:max-w-md">
           <SheetHeader className="px-6 pt-6">
-            <SheetTitle>App Settings</SheetTitle>
+            <SheetTitle>{t('settings.title')}</SheetTitle>
           </SheetHeader>
 
           <ScrollArea className="h-[calc(100vh-120px)] px-6 py-4">
             <div className="space-y-6">
               {/* Language */}
               <div>
-                <h4 className="text-sm font-semibold text-slate-900 mb-3">Language</h4>
+                <h4 className="text-sm font-semibold text-slate-900 mb-3">{t('settings.language')}</h4>
                 <Card>
                   <CardContent className="p-2">
                     <div className="grid grid-cols-2 gap-2">
@@ -443,7 +443,7 @@ export function MobileMore() {
                 <Card>
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600">Used</span>
+                      <span className="text-slate-600">{t('dashboard.mobile.stat.items')}</span>
                       <span className="font-medium">{formatStorage(storageInfo.used)}</span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -471,7 +471,7 @@ export function MobileMore() {
                       onClick={handleSync}
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
-                      Sync Now
+                      {t('btn.sync')}
                     </Button>
                   </CardContent>
                 </Card>

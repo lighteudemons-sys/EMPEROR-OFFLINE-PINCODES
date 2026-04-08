@@ -495,8 +495,8 @@ export function MobileDashboard() {
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    // Navigate to Money tab to view shift details
-                    window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-money' }));
+                    // Navigate to Shifts tab to view shift details
+                    window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-shifts' }));
                   }}
                 >
                   {t('dashboard.view.details')}
@@ -518,7 +518,8 @@ export function MobileDashboard() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-money' }));
+                      // Navigate to Shifts tab to open shift
+                      window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-shifts' }));
                     }}
                   >
                     Open
@@ -546,7 +547,8 @@ export function MobileDashboard() {
                 variant="outline"
                 className="h-24 flex-col gap-2 bg-white hover:bg-red-50 hover:border-red-300"
                 onClick={() => {
-                  window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-money' }));
+                  // Navigate to POS and open expense dialog
+                  window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-pos' }));
                   setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('add-expense'));
                   }, 100);
@@ -559,7 +561,8 @@ export function MobileDashboard() {
                 variant="outline"
                 className="h-24 flex-col gap-2 bg-white hover:bg-blue-50 hover:border-blue-300"
                 onClick={() => {
-                  window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-money' }));
+                  // Navigate to Shifts tab to open shift
+                  window.dispatchEvent(new CustomEvent('mobile-tab-change', { detail: 'mobile-shifts' }));
                 }}
               >
                 <Clock className="w-6 h-6 text-blue-600" />

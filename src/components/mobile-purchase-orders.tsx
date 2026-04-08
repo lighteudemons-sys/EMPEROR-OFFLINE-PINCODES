@@ -736,7 +736,7 @@ export function MobilePurchaseOrders() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="font-semibold text-slate-900">{order.orderNumber}</h4>
-                              <Badge className={getStatusColor(order.status)} variant="secondary" className="text-xs">
+                              <Badge className={`${getStatusColor(order.status)} text-xs`} variant="secondary">
                                 {order.status}
                               </Badge>
                             </div>
