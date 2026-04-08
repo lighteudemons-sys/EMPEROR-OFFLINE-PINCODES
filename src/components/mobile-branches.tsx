@@ -1,45 +1,44 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Switch } from '@/components/ui/switch';
-import { 
-  Store, 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  Phone, 
-  MapPin, 
-  Key, 
-  CheckCircle, 
-  Clock, 
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Building2,
+  Plus,
+  Search,
   RefreshCw,
+  Pencil,
+  Trash2,
+  Key,
+  Phone,
+  MapPin,
+  Clock,
   AlertTriangle,
   Shield,
-  Lock
+  ChevronLeft,
+  LayoutDashboard,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
 import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/auth-context';
 
 interface Branch {
   id: string;
   branchName: string;
   licenseKey: string;
-  licenseExpiresAt: Date;
+  licenseExpiresAt: string;
   isActive: boolean;
   isRevoked?: boolean;
   phone?: string;
   address?: string;
-  lastSyncAt?: Date;
+  lastSyncAt?: string;
   menuVersion: number;
-  createdAt: Date;
+  createdAt: string;
 }
 
 interface BranchFormData {
@@ -51,10 +50,12 @@ interface BranchFormData {
 }
 
 export function MobileBranches() {
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [formData, setFormData] = useState<BranchFormData>({
     branchName: '',
@@ -63,9 +64,11 @@ export function MobileBranches() {
     phone: '',
     address: '',
   });
-  const [loading, setLoading] = useState(false);
 
-  // Fetch branches from database
+  useEffect(() => {
+    fetchBranches();
+  }, []);
+
   const fetchBranches = async () => {
     setLoading(true);
     try {
@@ -73,20 +76,9 @@ export function MobileBranches() {
       const data = await response.json();
 
       if (response.ok && data.branches) {
-        const branchesList = data.branches.map((branch: any) => ({
-          id: branch.id,
-          branchName: branch.branchName,
-          licenseKey: branch.licenseKey,
-          licenseExpiresAt: new Date(branch.licenseExpiresAt),
-          isActive: branch.isActive,
-          isRevoked: branch.licenses?.[0]?.isRevoked || false,
-          phone: branch.phone || undefined,
-          address: branch.address || undefined,
-          lastSyncAt: branch.lastSyncAt ? new Date(branch.lastSyncAt) : undefined,
-          menuVersion: branch.menuVersion || 1,
-          createdAt: new Date(branch.createdAt),
-        }));
-        setBranches(branchesList);
+        setBranches(data.branches);
+      } else {
+        showErrorToast('Error', data.error || 'Failed to fetch branches');
       }
     } catch (error) {
       console.error('Failed to fetch branches:', error);
@@ -96,11 +88,6 @@ export function MobileBranches() {
     }
   };
 
-  useEffect(() => {
-    fetchBranches();
-  }, []);
-
-  // Format license key for display (truncate with dots in middle)
   const formatLicenseKey = (key: string) => {
     if (!key || key.length < 8) return key;
     const start = key.substring(0, 4);
@@ -108,15 +95,50 @@ export function MobileBranches() {
     return `${start}••••••••${end}`;
   };
 
+  const filteredBranches = branches.filter((branch) =>
+    branch.branchName.toLowerCase().includes(search.toLowerCase()) ||
+    branch.licenseKey.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const getLicenseStatus = (branch: Branch) => {
+    if (branch.isRevoked) {
+      return { status: 'revoked', color: 'bg-red-600', text: 'Revoked' };
+    }
+
+    const daysUntilExpiry = Math.ceil(
+      (new Date(branch.licenseExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysUntilExpiry < 0) return { status: 'expired', color: 'bg-red-500', text: 'Expired' };
+    if (daysUntilExpiry < 30) return { status: 'warning', color: 'bg-amber-500', text: `${daysUntilExpiry} days left` };
+    return { status: 'valid', color: 'bg-green-500', text: `Valid until ${new Date(branch.licenseExpiresAt).toLocaleDateString()}` };
+  };
+
+  const getSyncStatus = (branch: Branch) => {
+    if (!branch.lastSyncAt) return { status: 'never', color: 'bg-slate-500' };
+
+    const minutesSinceSync = (Date.now() - new Date(branch.lastSyncAt).getTime()) / (1000 * 60);
+
+    if (minutesSinceSync < 10) return { status: 'recent', color: 'bg-green-500' };
+    if (minutesSinceSync < 60) return { status: 'ok', color: 'bg-blue-500' };
+    if (minutesSinceSync < 1440) return { status: 'delayed', color: 'bg-amber-500' };
+    return { status: 'offline', color: 'bg-red-500' };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+
+    // Only admins can manage branches
+    if (currentUser?.role !== 'ADMIN') {
+      showErrorToast('Error', 'Only admins can manage branches');
+      return;
+    }
+
     try {
       const expirationDate = new Date();
       expirationDate.setDate(expirationDate.getDate() + parseInt(formData.expirationDays));
 
       if (editingBranch) {
-        // Update existing branch
         const response = await fetch('/api/branches', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -135,10 +157,8 @@ export function MobileBranches() {
           throw new Error(data.error || 'Failed to update branch');
         }
 
-        showSuccessToast('Success', 'Branch updated successfully!');
-        await fetchBranches(); // Refresh the list
+        showSuccessToast('Success', 'Branch updated successfully');
       } else {
-        // Create new branch
         const response = await fetch('/api/branches', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -156,24 +176,27 @@ export function MobileBranches() {
           throw new Error(data.error || 'Failed to create branch');
         }
 
-        showSuccessToast('Success', 'Branch created successfully!');
-        await fetchBranches(); // Refresh the list
+        showSuccessToast('Success', 'Branch created successfully');
       }
 
-      setDialogOpen(false);
+      fetchBranches();
+      setIsDialogOpen(false);
       resetForm();
     } catch (error) {
       console.error('Failed to save branch:', error);
       showErrorToast('Error', error instanceof Error ? error.message : 'Failed to save branch');
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleEdit = (branch: Branch) => {
+    if (currentUser?.role !== 'ADMIN') {
+      showErrorToast('Error', 'Only admins can edit branches');
+      return;
+    }
+
     setEditingBranch(branch);
     const daysUntilExpiry = Math.ceil(
-      (branch.licenseExpiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      (new Date(branch.licenseExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
     );
     setFormData({
       branchName: branch.branchName,
@@ -182,14 +205,19 @@ export function MobileBranches() {
       phone: branch.phone || '',
       address: branch.address || '',
     });
-    setDialogOpen(true);
+    setIsDialogOpen(true);
   };
 
-  const handleDelete = async (branchId: string) => {
+  const handleDelete = async (branch: Branch) => {
+    if (currentUser?.role !== 'ADMIN') {
+      showErrorToast('Error', 'Only admins can delete branches');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this branch? This will revoke the license.')) return;
-    setLoading(true);
+
     try {
-      const response = await fetch(`/api/branches?id=${branchId}`, {
+      const response = await fetch(`/api/branches?id=${branch.id}`, {
         method: 'DELETE',
       });
 
@@ -198,27 +226,30 @@ export function MobileBranches() {
         throw new Error(data.error || 'Failed to delete branch');
       }
 
-      showSuccessToast('Success', 'Branch deleted successfully!');
-      await fetchBranches(); // Refresh the list
+      showSuccessToast('Success', 'Branch deleted successfully');
+      fetchBranches();
     } catch (error) {
       console.error('Failed to delete branch:', error);
       showErrorToast('Error', error instanceof Error ? error.message : 'Failed to delete branch');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const toggleBranchStatus = async (branchId: string, currentStatus: boolean) => {
-    const action = currentStatus ? 'deactivate' : 'activate';
+  const toggleBranchStatus = async (branch: Branch) => {
+    if (currentUser?.role !== 'ADMIN') {
+      showErrorToast('Error', 'Only admins can change branch status');
+      return;
+    }
+
+    const action = branch.isActive ? 'deactivate' : 'activate';
     if (!confirm(`Are you sure you want to ${action} this branch?`)) return;
-    setLoading(true);
+
     try {
       const response = await fetch('/api/branches', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: branchId,
-          isActive: !currentStatus,
+          id: branch.id,
+          isActive: !branch.isActive,
         }),
       });
 
@@ -227,13 +258,11 @@ export function MobileBranches() {
         throw new Error(data.error || 'Failed to update branch status');
       }
 
-      showSuccessToast('Success', `Branch ${action}d successfully!`);
-      await fetchBranches(); // Refresh the list
+      showSuccessToast('Success', `Branch ${action}d successfully`);
+      fetchBranches();
     } catch (error) {
       console.error('Failed to toggle branch status:', error);
       showErrorToast('Error', error instanceof Error ? error.message : 'Failed to update branch status');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -248,339 +277,401 @@ export function MobileBranches() {
     });
   };
 
-  const getSyncStatus = (branch: Branch) => {
-    if (!branch.lastSyncAt) return { status: 'Never', color: 'bg-slate-500' };
-
-    const minutesSinceSync = (Date.now() - branch.lastSyncAt.getTime()) / (1000 * 60);
-
-    if (minutesSinceSync < 10) return { status: 'Recent', color: 'bg-green-500' };
-    if (minutesSinceSync < 60) return { status: 'OK', color: 'bg-blue-500' };
-    if (minutesSinceSync < 1440) return { status: 'Delayed', color: 'bg-amber-500' };
-    return { status: 'Offline', color: 'bg-red-500' };
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   };
 
-  const getLicenseStatus = (branch: Branch) => {
-    // Check if license is revoked first
-    if (branch.isRevoked) {
-      return { status: 'Revoked', color: 'bg-red-600', badgeColor: 'bg-red-100 text-red-700' };
-    }
+  if (selectedBranch) {
+    const licenseStatus = getLicenseStatus(selectedBranch);
+    const syncStatus = getSyncStatus(selectedBranch);
 
-    const daysUntilExpiry = Math.ceil(
-      (branch.licenseExpiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (daysUntilExpiry < 0) return { status: 'Expired', color: 'bg-red-500', badgeColor: 'bg-red-100 text-red-700' };
-    if (daysUntilExpiry < 30) return { status: `${daysUntilExpiry} days left`, color: 'bg-amber-500', badgeColor: 'bg-amber-100 text-amber-700' };
-    return { status: 'Valid', color: 'bg-green-500', badgeColor: 'bg-green-100 text-green-700' };
-  };
-
-  const filteredBranches = branches.filter((branch) =>
-    branch.branchName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    branch.licenseKey.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Only Admins can manage branches
-  const canManageBranches = user?.role === 'ADMIN';
-
-  return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 text-white px-4 pt-12 pb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
-            <Store className="w-7 h-7" />
-          </div>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">Branches</h1>
-            <p className="text-indigo-100 text-sm">Manage branch licenses</p>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="bg-white/10 border-white/20">
-            <CardContent className="p-3">
-              <p className="text-indigo-100 text-xs">Total</p>
-              <p className="text-lg font-bold">{branches.length}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white/10 border-white/20">
-            <CardContent className="p-3">
-              <p className="text-indigo-100 text-xs">Active</p>
-              <p className="text-lg font-bold">{branches.filter(b => b.isActive).length}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white/10 border-white/20">
-            <CardContent className="p-3">
-              <p className="text-indigo-100 text-xs">Inactive</p>
-              <p className="text-lg font-bold">{branches.filter(b => !b.isActive).length}</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      <div className="p-4 space-y-4">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <Input
-            placeholder="Search branches..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 h-12 bg-white"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-
-        {/* Add Branch Button (Admin Only) */}
-        {canManageBranches && (
+    return (
+      <div className="h-full flex flex-col bg-slate-50">
+        {/* Header */}
+        <div className="bg-gradient-to-br from-slate-600 to-slate-700 text-white px-4 py-4 flex items-center gap-3">
           <Button
-            onClick={() => { resetForm(); setDialogOpen(true); }}
-            className="w-full h-14 text-lg bg-indigo-600 hover:bg-indigo-700"
+            variant="ghost"
+            size="icon"
+            className="text-white hover:bg-white/20"
+            onClick={() => setSelectedBranch(null)}
           >
-            <Plus className="w-5 h-5 mr-2" />
-            Add Branch
+            <ChevronLeft className="h-5 w-5" />
           </Button>
-        )}
+          <div className="flex-1">
+            <h1 className="text-lg font-bold truncate">{selectedBranch.branchName}</h1>
+            <p className="text-slate-100 text-sm">Branch Details</p>
+          </div>
+        </div>
 
-        {/* Branches List */}
-        <ScrollArea className="h-[calc(100vh-420px)]">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-              <div className="animate-spin h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full mb-3" />
-              <p>Loading branches...</p>
-            </div>
-          ) : filteredBranches.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-              <Store className="w-16 h-16 mb-4 text-slate-300" />
-              <p className="font-medium">No branches found</p>
-              <p className="text-sm">
-                {searchTerm ? 'Try a different search term' : 'Add your first branch to get started'}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3 pb-4">
-              {filteredBranches.map((branch) => {
-                const syncStatus = getSyncStatus(branch);
-                const licenseStatus = getLicenseStatus(branch);
-                return (
-                  <Card key={branch.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      {/* Branch Header */}
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <Store className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <h3 className="font-semibold text-slate-900">{branch.branchName}</h3>
-                            <Badge className={`${licenseStatus.badgeColor} text-xs`}>
-                              {licenseStatus.status === 'Valid' ? <CheckCircle className="h-3 w-3 mr-1" /> : <AlertTriangle className="h-3 w-3 mr-1" />}
-                              {licenseStatus.status}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-1 text-sm text-slate-600 mb-1">
-                            <Key className="h-3.5 w-3.5 flex-shrink-0" />
-                            <code className="text-xs bg-slate-100 px-2 py-0.5 rounded truncate">
-                              {formatLicenseKey(branch.licenseKey)}
-                            </code>
-                          </div>
-                        </div>
-                      </div>
+        <ScrollArea className="flex-1 p-4">
+          <div className="space-y-4">
+            {/* Status */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Status</span>
+                  <Badge variant={selectedBranch.isActive ? 'default' : 'secondary'}>
+                    {selectedBranch.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
 
-                      {/* Branch Details */}
-                      <div className="space-y-2 mb-3">
-                        {branch.phone && (
-                          <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <Phone className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                            <span className="break-all">{branch.phone}</span>
-                          </div>
-                        )}
-                        {branch.address && (
-                          <div className="flex items-start gap-2 text-sm text-slate-600">
-                            <MapPin className="h-4 w-4 flex-shrink-0 text-slate-400 mt-0.5" />
-                            <span className="break-all">{branch.address}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <div className={`w-2 h-2 rounded-full ${syncStatus.color} flex-shrink-0`} />
-                          <span className="capitalize">{syncStatus.status}</span>
-                          <span className="text-slate-400">•</span>
-                          <span>Menu v{branch.menuVersion}</span>
-                        </div>
-                        {branch.lastSyncAt && (
-                          <div className="flex items-center gap-2 text-sm text-slate-500">
-                            <Clock className="h-3.5 w-3.5 flex-shrink-0" />
-                            <span>
-                              {Math.floor((Date.now() - branch.lastSyncAt.getTime()) / 60000)} minutes ago
-                            </span>
-                          </div>
-                        )}
-                      </div>
+            {/* License Status */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-slate-600" />
+                  License Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${licenseStatus.color}`} />
+                  <span className="font-medium">{licenseStatus.text}</span>
+                  {licenseStatus.status === 'warning' && (
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  )}
+                  {licenseStatus.status === 'revoked' && (
+                    <Shield className="h-4 w-4 text-red-600" />
+                  )}
+                </div>
+                <div className="p-2 bg-slate-100 rounded-lg">
+                  <code className="text-xs font-mono">{formatLicenseKey(selectedBranch.licenseKey)}</code>
+                </div>
+                <p className="text-sm text-slate-600">
+                  Expires: {formatDate(selectedBranch.licenseExpiresAt)}
+                </p>
+              </CardContent>
+            </Card>
 
-                      {/* Status Toggle */}
-                      <div className="flex items-center justify-between py-2 border-t border-slate-200 mb-3">
-                        <div className="flex items-center gap-2">
-                          {branch.isActive ? (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                          ) : (
-                            <Lock className="h-5 w-5 text-slate-400" />
-                          )}
-                          <span className="text-sm font-medium text-slate-700">
-                            {branch.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                        {canManageBranches && (
-                          <Switch
-                            checked={branch.isActive}
-                            onCheckedChange={() => toggleBranchStatus(branch.id, branch.isActive)}
-                          />
-                        )}
-                      </div>
+            {/* Sync Status */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-slate-600" />
+                  Sync Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${syncStatus.color}`} />
+                    <span className="font-medium capitalize">{syncStatus.status}</span>
+                  </div>
+                  <span className="text-sm text-slate-600">v{selectedBranch.menuVersion}</span>
+                </div>
+                {selectedBranch.lastSyncAt && (
+                  <p className="text-xs text-slate-500">
+                    Last sync: {Math.floor((Date.now() - new Date(selectedBranch.lastSyncAt).getTime()) / 60000)} minutes ago
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
-                      {/* Actions */}
-                      {canManageBranches && (
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(branch)}
-                            className="flex-1 h-11"
-                          >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDelete(branch.id)}
-                            className="h-11 px-4"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+            {/* Contact Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-slate-600" />
+                  Contact Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {selectedBranch.phone && (
+                  <div className="flex items-start gap-3">
+                    <Phone className="h-5 w-5 text-slate-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-600">Phone</p>
+                      <p className="font-medium">{selectedBranch.phone}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedBranch.address && (
+                  <div className="flex items-start gap-3">
+                    <MapPin className="h-5 w-5 text-slate-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-600">Address</p>
+                      <p className="font-medium">{selectedBranch.address}</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Created Date */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Created</span>
+                  <span className="font-medium">{formatDate(selectedBranch.createdAt)}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Actions - Admin Only */}
+            {currentUser?.role === 'ADMIN' && (
+              <>
+                <Button
+                  className="w-full h-14 bg-slate-600 hover:bg-slate-700"
+                  onClick={() => {
+                    setSelectedBranch(null);
+                    handleEdit(selectedBranch);
+                  }}
+                >
+                  <Pencil className="h-5 w-5 mr-2" />
+                  Edit Branch
+                </Button>
+              </>
+            )}
+          </div>
         </ScrollArea>
       </div>
+    );
+  }
 
-      {/* Add/Edit Branch Dialog (Admin Only) */}
-      {canManageBranches && (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingBranch ? 'Edit Branch' : 'Add New Branch'}</DialogTitle>
-              <DialogDescription>
-                {editingBranch 
-                  ? 'Update branch information and license details' 
-                  : 'Enter branch details and license information to add a new branch'
-                }
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="branchName">Branch Name *</Label>
+  return (
+    <div className="h-full flex flex-col bg-slate-50">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-slate-600 to-slate-700 text-white px-4 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-xl font-bold">Branches</h1>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="bg-white/20 hover:bg-white/30 text-white"
+            onClick={fetchBranches}
+          >
+            <RefreshCw className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
+          <Input
+            placeholder="Search branches..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 bg-white/20 border-white/30 text-white placeholder:text-white/60 h-12"
+          />
+        </div>
+      </div>
+
+      {/* Branch List */}
+      <ScrollArea className="flex-1 p-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin h-8 w-8 border-4 border-slate-500 border-t-transparent rounded-full"></div>
+          </div>
+        ) : filteredBranches.length === 0 ? (
+          <Card className="text-center py-12">
+            <CardContent>
+              <Building2 className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 mb-4">No branches found</p>
+              {currentUser?.role === 'ADMIN' && (
+                <Button
+                  className="bg-slate-600 hover:bg-slate-700"
+                  onClick={() => setIsDialogOpen(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Branch
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {filteredBranches.map((branch) => {
+              const licenseStatus = getLicenseStatus(branch);
+              const syncStatus = getSyncStatus(branch);
+
+              return (
+                <Card
+                  key={branch.id}
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => setSelectedBranch(branch)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-lg truncate">{branch.branchName}</h3>
+                        <p className="text-sm text-slate-600 font-mono truncate">
+                          {formatLicenseKey(branch.licenseKey)}
+                        </p>
+                      </div>
+                      <Badge variant={branch.isActive ? 'default' : 'secondary'}>
+                        {branch.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm mb-2">
+                      <div className="flex items-center gap-1">
+                        <div className={`w-2 h-2 rounded-full ${licenseStatus.color}`} />
+                        <span className="text-xs text-slate-600 truncate">{licenseStatus.text}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className={`w-2 h-2 rounded-full ${syncStatus.color}`} />
+                        <span className="text-xs text-slate-600 capitalize">{syncStatus.status}</span>
+                      </div>
+                    </div>
+                    {currentUser?.role === 'ADMIN' && (
+                      <div className="flex gap-2 mt-3 pt-3 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex-1 h-10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleBranchStatus(branch);
+                          }}
+                        >
+                          {branch.isActive ? 'Deactivate' : 'Activate'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(branch);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 text-red-600 hover:text-red-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(branch);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </ScrollArea>
+
+      {/* Add Branch Button - Admin Only */}
+      {currentUser?.role === 'ADMIN' && (
+        <div className="p-4 bg-white border-t">
+          <Button
+            className="w-full h-14 bg-slate-600 hover:bg-slate-700"
+            onClick={() => setIsDialogOpen(true)}
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Branch
+          </Button>
+        </div>
+      )}
+
+      {/* Add/Edit Branch Dialog - Admin Only */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingBranch ? 'Edit Branch' : 'Add New Branch'}</DialogTitle>
+            <DialogDescription>
+              {editingBranch ? 'Update branch information' : 'Create a new branch with license'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="branchName">Branch Name *</Label>
+                <Input
+                  id="branchName"
+                  value={formData.branchName}
+                  onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+                  placeholder="e.g., Downtown"
+                  required
+                  className="h-12"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="licenseKey">License Key *</Label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
-                    id="branchName"
-                    value={formData.branchName}
-                    onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
-                    placeholder="e.g., Downtown"
+                    id="licenseKey"
+                    value={formData.licenseKey}
+                    onChange={(e) => setFormData({ ...formData, licenseKey: e.target.value })}
+                    placeholder="LIC-XXXX-YYYY-ZZZZ"
+                    className="pl-10 font-mono h-12"
                     required
-                    className="h-12"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="licenseKey">License Key *</Label>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                    <Input
-                      id="licenseKey"
-                      value={formData.licenseKey}
-                      onChange={(e) => setFormData({ ...formData, licenseKey: e.target.value })}
-                      placeholder="LIC-XXXX-YYYY-ZZZZ"
-                      className="pl-10 h-12 font-mono"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="e.g., +20 123 456 7890"
-                      className="pl-10 h-12"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                    <Input
-                      id="address"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="e.g., 123 Main Street, Cairo, Egypt"
-                      className="pl-10 h-12"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expirationDays">License Duration (days) *</Label>
-                  <Input
-                    id="expirationDays"
-                    type="number"
-                    min="1"
-                    value={formData.expirationDays}
-                    onChange={(e) => setFormData({ ...formData, expirationDays: e.target.value })}
-                    placeholder="365"
-                    required
-                    className="h-12"
-                  />
-                  <p className="text-xs text-slate-500">
-                    License will expire {formData.expirationDays} days from creation
-                  </p>
                 </div>
               </div>
-              <DialogFooter className="flex-col sm:flex-row gap-2">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => { setDialogOpen(false); resetForm(); }} 
-                  className="w-full sm:w-auto h-12"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  className="w-full sm:w-auto h-12 bg-indigo-600 hover:bg-indigo-700"
-                  disabled={loading}
-                >
-                  {loading ? 'Saving...' : (editingBranch ? 'Update Branch' : 'Add Branch')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="e.g., +20 123 456 7890"
+                    className="pl-10 h-12"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="address">Address</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="e.g., 123 Main Street"
+                    className="pl-10 h-12"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="expirationDays">License Duration (days) *</Label>
+                <Input
+                  id="expirationDays"
+                  type="number"
+                  min="1"
+                  value={formData.expirationDays}
+                  onChange={(e) => setFormData({ ...formData, expirationDays: e.target.value })}
+                  placeholder="365"
+                  required
+                  className="h-12"
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { setIsDialogOpen(false); resetForm(); }}
+                className="w-full sm:w-auto h-12"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-slate-600 hover:bg-slate-700 w-full sm:w-auto h-12"
+              >
+                {editingBranch ? 'Update' : 'Create'} Branch
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

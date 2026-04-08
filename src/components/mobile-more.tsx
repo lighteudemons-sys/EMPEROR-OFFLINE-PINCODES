@@ -20,6 +20,11 @@ import { MobileReceiptSettings } from '@/components/mobile-receipt-settings';
 import { MobileDeliveryAreas } from '@/components/mobile-delivery-areas';
 import { MobileCouriers } from '@/components/mobile-couriers';
 import { MobileETASettings } from '@/components/mobile-eta-settings';
+import { MobileSuppliers } from '@/components/mobile-suppliers';
+import { MobilePurchaseOrders } from '@/components/mobile-purchase-orders';
+import { MobileAuditLogs } from '@/components/mobile-audit-logs';
+import { MobileUsers } from '@/components/mobile-users';
+import { MobileBranches } from '@/components/mobile-branches';
 import {
   User,
   LogOut,
@@ -74,7 +79,7 @@ export function MobileMore() {
   
   // Mobile view sheets
   const [mobileViewOpen, setMobileViewOpen] = useState(false);
-  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'delivery' | 'analytics' | 'loyalty' | 'promo-codes' | 'receipt' | 'delivery-areas' | 'couriers' | 'eta-settings' | null>(null);
+  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'delivery' | 'analytics' | 'loyalty' | 'promo-codes' | 'receipt' | 'delivery-areas' | 'couriers' | 'eta-settings' | 'suppliers' | 'purchase-orders' | 'audit-logs' | 'users' | 'branches' | null>(null);
 
   useEffect(() => {
     const fetchStorageInfo = async () => {
@@ -258,20 +263,42 @@ export function MobileMore() {
       return;
     }
 
+    if (feature.id === 'suppliers') {
+      setCurrentMobileView('suppliers');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'purchase-orders') {
+      setCurrentMobileView('purchase-orders');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'audit-logs') {
+      setCurrentMobileView('audit-logs');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'users') {
+      setCurrentMobileView('users');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'branches') {
+      setCurrentMobileView('branches');
+      setMobileViewOpen(true);
+      return;
+    }
+
     // For other features, show message that they are available on desktop
     showSuccessToast('Desktop Feature', `${feature.name} is available on desktop view. Rotate your device or use a larger screen.`);
 
     // Optionally, still try to switch to desktop view
     // Note: This may not work well on actual mobile devices due to screen size
-    const featureToTabMap: Record<string, string> = {
-      'suppliers': 'suppliers',
-      'purchase-orders': 'purchase-orders',
-      'reports': 'reports',
-      'analytics': 'reports',
-      'audit-logs': 'audit-logs',
-      'users': 'users',
-      'branches': 'branches',
-    };
+    const featureToTabMap: Record<string, string> = {};
 
     const targetTab = featureToTabMap[feature.id];
 
@@ -524,6 +551,11 @@ export function MobileMore() {
           {currentMobileView === 'delivery-areas' && <MobileDeliveryAreas />}
           {currentMobileView === 'couriers' && <MobileCouriers />}
           {currentMobileView === 'eta-settings' && <MobileETASettings />}
+          {currentMobileView === 'suppliers' && <MobileSuppliers />}
+          {currentMobileView === 'purchase-orders' && <MobilePurchaseOrders />}
+          {currentMobileView === 'audit-logs' && <MobileAuditLogs />}
+          {currentMobileView === 'users' && <MobileUsers />}
+          {currentMobileView === 'branches' && <MobileBranches />}
         </SheetContent>
       </Sheet>
     </div>

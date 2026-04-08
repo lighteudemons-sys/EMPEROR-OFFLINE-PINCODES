@@ -1,19 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useI18n } from '@/lib/i18n-context';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import {
-  Building, Plus, Search, Edit, Trash2, Phone, Mail, MapPin,
-  CheckCircle, XCircle, RefreshCw, Package, X
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { 
+  Building, 
+  Phone, 
+  Mail, 
+  Plus, 
+  Search, 
+  X, 
+  Package, 
+  DollarSign,
+  RefreshCw,
+  ArrowLeft
 } from 'lucide-react';
 import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
 
@@ -35,15 +40,12 @@ interface Supplier {
 }
 
 export function MobileSuppliers() {
-  const { t } = useI18n();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     contactPerson: '',
@@ -53,29 +55,42 @@ export function MobileSuppliers() {
     notes: '',
   });
 
-  // Fetch suppliers on mount and when filters change
   useEffect(() => {
     fetchSuppliers();
-  }, [searchQuery, statusFilter]);
+  }, [search]);
 
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (searchQuery) params.append('search', searchQuery);
-      if (statusFilter !== 'all') params.append('isActive', statusFilter === 'active' ? 'true' : 'false');
+      if (search) params.append('search', search);
 
       const response = await fetch(`/api/suppliers?${params.toString()}`);
-      const data = await response.json();
-
       if (response.ok) {
-        setSuppliers(data.suppliers || []);
-      } else {
-        showErrorToast('Error', data.error || t('suppliers.error.fetch'));
+        const data = await response.json();
+        const suppliersWithStats = await Promise.all(
+          data.suppliers.map(async (supplier: Supplier) => {
+            try {
+              const analyticsRes = await fetch(`/api/suppliers/${supplier.id}/analytics`);
+              if (analyticsRes.ok) {
+                const analyticsData = await analyticsRes.json();
+                return {
+                  ...supplier,
+                  totalSpent: analyticsData.analytics.summary.totalSpent,
+                  lastOrderDate: analyticsData.analytics.summary.lastOrderDate,
+                };
+              }
+            } catch (error) {
+              console.error('Failed to fetch supplier analytics:', error);
+            }
+            return supplier;
+          })
+        );
+        setSuppliers(suppliersWithStats);
       }
     } catch (error) {
       console.error('Failed to fetch suppliers:', error);
-      showErrorToast('Error', t('suppliers.error.fetch'));
+      showErrorToast('Error', 'Failed to load suppliers');
     } finally {
       setLoading(false);
     }
@@ -94,19 +109,18 @@ export function MobileSuppliers() {
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
-
       if (response.ok) {
-        showSuccessToast('Success', editingSupplier ? t('suppliers.success.updated') : t('suppliers.success.created'));
-        setDialogOpen(false);
-        resetForm();
+        showSuccessToast('Success', `Supplier ${editingSupplier ? 'updated' : 'created'} successfully`);
         fetchSuppliers();
+        setIsDialogOpen(false);
+        resetForm();
       } else {
-        showErrorToast('Error', data.error || t('suppliers.error.save'));
+        const data = await response.json();
+        showErrorToast('Error', data.error || 'Failed to save supplier');
       }
     } catch (error) {
       console.error('Failed to save supplier:', error);
-      showErrorToast('Error', t('suppliers.error.save'));
+      showErrorToast('Error', 'Failed to save supplier');
     }
   };
 
@@ -120,58 +134,7 @@ export function MobileSuppliers() {
       address: supplier.address || '',
       notes: supplier.notes || '',
     });
-    setDialogOpen(true);
-  };
-
-  const handleDelete = (supplier: Supplier) => {
-    setDeletingSupplier(supplier);
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!deletingSupplier) return;
-
-    try {
-      const response = await fetch(`/api/suppliers/${deletingSupplier.id}`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showSuccessToast('Success', t('suppliers.success.deactivated'));
-        setDeleteDialogOpen(false);
-        setDeletingSupplier(null);
-        fetchSuppliers();
-      } else {
-        showErrorToast('Error', data.error || t('suppliers.error.deactivate'));
-      }
-    } catch (error) {
-      console.error('Failed to deactivate supplier:', error);
-      showErrorToast('Error', t('suppliers.error.deactivate'));
-    }
-  };
-
-  const handleToggleStatus = async (supplier: Supplier) => {
-    try {
-      const response = await fetch(`/api/suppliers/${supplier.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !supplier.isActive }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showSuccessToast('Success', t(`suppliers.success.${!supplier.isActive ? 'activated' : 'deactivated'}`));
-        fetchSuppliers();
-      } else {
-        showErrorToast('Error', data.error || t('suppliers.error.status'));
-      }
-    } catch (error) {
-      console.error('Failed to toggle supplier status:', error);
-      showErrorToast('Error', t('suppliers.error.status'));
-    }
+    setIsDialogOpen(true);
   };
 
   const resetForm = () => {
@@ -186,359 +149,362 @@ export function MobileSuppliers() {
     setEditingSupplier(null);
   };
 
-  const handleCall = (phone: string) => {
-    window.location.href = `tel:${phone}`;
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
   };
 
-  const handleEmail = (email: string) => {
-    window.location.href = `mailto:${email}`;
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   };
 
-  const filteredSuppliers = suppliers;
-
-  const activeCount = suppliers.filter(s => s.isActive).length;
-  const inactiveCount = suppliers.length - activeCount;
-  const totalOrders = suppliers.reduce((sum, s) => sum + (s._count?.purchaseOrders || 0), 0);
-
-  return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white px-4 pt-12 pb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
-            <Building className="w-7 h-7" />
-          </div>
+  if (selectedSupplier) {
+    return (
+      <div className="h-full flex flex-col bg-slate-50">
+        {/* Header */}
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white px-4 py-4 flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white hover:bg-white/20"
+            onClick={() => setSelectedSupplier(null)}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">{t('suppliers.mobile.title')}</h1>
-            <p className="text-emerald-100 text-sm">{t('suppliers.mobile.description')}</p>
+            <h1 className="text-lg font-bold truncate">{selectedSupplier.name}</h1>
+            <p className="text-emerald-100 text-sm">Supplier Details</p>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="bg-white/10 border-white/20">
-            <CardContent className="p-3">
-              <p className="text-emerald-100 text-xs">{t('suppliers.total')}</p>
-              <p className="text-lg font-bold">{suppliers.length}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white/10 border-white/20">
-            <CardContent className="p-3">
-              <p className="text-emerald-100 text-xs">{t('suppliers.active')}</p>
-              <p className="text-lg font-bold">{activeCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white/10 border-white/20">
-            <CardContent className="p-3">
-              <p className="text-emerald-100 text-xs">{t('suppliers.orders')}</p>
-              <p className="text-lg font-bold">{totalOrders}</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+        <ScrollArea className="flex-1 p-4">
+          <div className="space-y-4">
+            {/* Status Badge */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Status</span>
+                  <Badge className={selectedSupplier.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}>
+                    {selectedSupplier.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
 
-      <div className="p-4 space-y-4">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <Input
-            placeholder={t('suppliers.search')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 bg-white"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+            {/* Contact Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Building className="h-5 w-5 text-emerald-600" />
+                  Contact Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {selectedSupplier.contactPerson && (
+                  <div className="flex items-start gap-3">
+                    <Building className="h-5 w-5 text-slate-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-600">Contact Person</p>
+                      <p className="font-medium">{selectedSupplier.contactPerson}</p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-start gap-3">
+                  <Phone className="h-5 w-5 text-slate-400 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-600">Phone</p>
+                    <p className="font-medium">{selectedSupplier.phone}</p>
+                  </div>
+                </div>
+                {selectedSupplier.email && (
+                  <div className="flex items-start gap-3">
+                    <Mail className="h-5 w-5 text-slate-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-600">Email</p>
+                      <p className="font-medium">{selectedSupplier.email}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedSupplier.address && (
+                  <div className="flex items-start gap-3">
+                    <Building className="h-5 w-5 text-slate-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-600">Address</p>
+                      <p className="font-medium">{selectedSupplier.address}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedSupplier.notes && (
+                  <div className="flex items-start gap-3">
+                    <div className="h-5 w-5 flex items-center justify-center text-slate-400 mt-0.5">
+                      📝
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-600">Notes</p>
+                      <p className="font-medium">{selectedSupplier.notes}</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Statistics */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Statistics</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                      <Package className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600">Total Orders</p>
+                      <p className="font-bold text-lg">{selectedSupplier._count?.purchaseOrders || 0}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <DollarSign className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600">Total Spent</p>
+                      <p className="font-bold text-lg">{formatCurrency(selectedSupplier.totalSpent || 0)}</p>
+                    </div>
+                  </div>
+                </div>
+                {selectedSupplier.lastOrderDate && (
+                  <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <Package className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-600">Last Order</p>
+                        <p className="font-bold text-lg">{formatDate(selectedSupplier.lastOrderDate)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Actions */}
+            <Button
+              className="w-full h-14 bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => handleEdit(selectedSupplier)}
             >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-
-        {/* Status Filter */}
-        <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
-          <SelectTrigger className="h-12 bg-white">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('suppliers.all')}</SelectItem>
-            <SelectItem value="active">{t('suppliers.active.only')}</SelectItem>
-            <SelectItem value="inactive">{t('suppliers.inactive.only')}</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Add Button */}
-        <Button
-          onClick={() => { resetForm(); setDialogOpen(true); }}
-          className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          {t('suppliers.add')}
-        </Button>
-
-        {/* Suppliers List */}
-        <ScrollArea className="h-[calc(100vh-420px)]">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-              <div className="animate-spin h-10 w-10 border-4 border-emerald-600 border-t-transparent rounded-full mb-3" />
-              <p>{t('suppliers.loading')}</p>
-            </div>
-          ) : filteredSuppliers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-              <Building className="w-16 h-16 mb-4 text-slate-300" />
-              <p className="font-medium">{t('suppliers.not.found')}</p>
-              <p className="text-sm">{t('suppliers.add.first')}</p>
-            </div>
-          ) : (
-            <div className="space-y-3 pb-4">
-              {filteredSuppliers.map((supplier) => (
-                <Card key={supplier.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    {/* Header with name and status */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <h3 className="font-semibold text-slate-900 text-base">{supplier.name}</h3>
-                          {supplier.isActive ? (
-                            <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1 h-6">
-                              <CheckCircle className="h-3 w-3" />
-                              {t('suppliers.active')}
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="text-xs gap-1 h-6">
-                              <XCircle className="h-3 w-3" />
-                              {t('suppliers.inactive.only')}
-                            </Badge>
-                          )}
-                        </div>
-                        {supplier.contactPerson && (
-                          <p className="text-sm text-slate-600">{supplier.contactPerson}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Contact Information */}
-                    <div className="space-y-2 mb-3">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <Phone className="h-4 w-4 flex-shrink-0" />
-                        <span className="break-all">{supplier.phone}</span>
-                      </div>
-                      {supplier.email && (
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <Mail className="h-4 w-4 flex-shrink-0" />
-                          <span className="break-all">{supplier.email}</span>
-                        </div>
-                      )}
-                      {supplier.address && (
-                        <div className="flex items-start gap-2 text-sm text-slate-600">
-                          <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span className="break-all">{supplier.address}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Order Statistics */}
-                    <div className="bg-slate-50 rounded-lg p-3 mb-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Package className="h-4 w-4 text-emerald-600" />
-                        <span className="font-medium text-slate-700">
-                          {supplier._count?.purchaseOrders || 0} {t('suppliers.orders.count')}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Contact Buttons */}
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleCall(supplier.phone)}
-                        className="h-10 text-green-700 border-green-300 hover:bg-green-50"
-                      >
-                        <Phone className="w-4 h-4 mr-2" />
-                        {t('suppliers.call')}
-                      </Button>
-                      {supplier.email && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEmail(supplier.email!)}
-                          className="h-10 text-blue-700 border-blue-300 hover:bg-blue-50"
-                        >
-                          <Mail className="w-4 h-4 mr-2" />
-                          {t('suppliers.email')}
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(supplier)}
-                        className="flex-1 h-10"
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        {t('suppliers.edit')}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleToggleStatus(supplier)}
-                        className={`flex-1 h-10 ${supplier.isActive ? 'text-orange-600 border-orange-300 hover:bg-orange-50' : 'text-green-600 border-green-300 hover:bg-green-50'}`}
-                      >
-                        {supplier.isActive ? (
-                          <>
-                            <XCircle className="w-4 h-4 mr-2" />
-                            {t('suppliers.deactivate')}
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            {t('suppliers.activate')}
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDelete(supplier)}
-                        className="h-10 px-3"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+              Edit Supplier
+            </Button>
+          </div>
         </ScrollArea>
       </div>
+    );
+  }
 
-      {/* Supplier Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+  return (
+    <div className="h-full flex flex-col bg-slate-50">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white px-4 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-xl font-bold">Suppliers</h1>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="bg-white/20 hover:bg-white/30 text-white"
+            onClick={fetchSuppliers}
+          >
+            <RefreshCw className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
+          <Input
+            placeholder="Search suppliers..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 bg-white/20 border-white/30 text-white placeholder:text-white/60"
+          />
+          {search && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white/60 hover:text-white"
+              onClick={() => setSearch('')}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Supplier List */}
+      <ScrollArea className="flex-1 p-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
+          </div>
+        ) : suppliers.length === 0 ? (
+          <Card className="text-center py-12">
+            <CardContent>
+              <Building className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 mb-4">No suppliers found</p>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => setIsDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Supplier
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {suppliers.map((supplier) => (
+              <Card
+                key={supplier.id}
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => setSelectedSupplier(supplier)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-lg truncate">{supplier.name}</h3>
+                      {supplier.contactPerson && (
+                        <p className="text-sm text-slate-600 truncate">{supplier.contactPerson}</p>
+                      )}
+                    </div>
+                    <Badge className={supplier.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}>
+                      {supplier.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-slate-600">
+                    <div className="flex items-center gap-1">
+                      <Package className="h-4 w-4" />
+                      <span>{supplier._count?.purchaseOrders || 0} orders</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="h-4 w-4" />
+                      <span>{formatCurrency(supplier.totalSpent || 0)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+
+      {/* Add Supplier Button */}
+      <div className="p-4 bg-white border-t">
+        <Button
+          className="w-full h-14 bg-emerald-600 hover:bg-emerald-700"
+          onClick={() => setIsDialogOpen(true)}
+        >
+          <Plus className="h-5 w-5 mr-2" />
+          Add Supplier
+        </Button>
+      </div>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingSupplier ? t('suppliers.edit.title') : t('suppliers.add.title')}</DialogTitle>
+            <DialogTitle>{editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
             <DialogDescription>
-              {editingSupplier ? t('suppliers.edit.description') : t('suppliers.add.description')}
+              {editingSupplier ? 'Update supplier information' : 'Enter details for the new supplier'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t('suppliers.name')} *</Label>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Supplier Name *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder={t('suppliers.name.placeholder')}
                   required
-                  className="h-11"
+                  className="h-12"
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="contactPerson">{t('suppliers.contactPerson')}</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="contactPerson">Contact Person</Label>
                 <Input
                   id="contactPerson"
                   value={formData.contactPerson}
                   onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                  placeholder={t('suppliers.contactPerson.placeholder')}
-                  className="h-11"
+                  className="h-12"
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">{t('suppliers.phoneNumber')} *</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Phone *</Label>
                 <Input
                   id="phone"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder={t('suppliers.phoneNumber.placeholder')}
                   required
-                  className="h-11"
+                  className="h-12"
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">{t('suppliers.emailAddress')}</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder={t('suppliers.emailAddress.placeholder')}
-                  className="h-11"
+                  className="h-12"
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="address">{t('suppliers.address')}</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="address">Address</Label>
                 <Input
                   id="address"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder={t('suppliers.address.placeholder')}
-                  className="h-11"
+                  className="h-12"
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">{t('suppliers.notes')}</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Notes</Label>
                 <Input
                   id="notes"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder={t('suppliers.notes.placeholder')}
-                  className="h-11"
+                  className="h-12"
                 />
               </div>
             </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => { setDialogOpen(false); resetForm(); }}
-                className="w-full sm:w-auto h-11"
+            <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => { setIsDialogOpen(false); resetForm(); }} 
+                className="w-full sm:w-auto h-12"
               >
-                {t('btn.cancel')}
+                Cancel
               </Button>
-              <Button
-                type="submit"
-                className="w-full sm:w-auto h-11 bg-emerald-600 hover:bg-emerald-700"
+              <Button 
+                type="submit" 
+                className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto h-12"
               >
-                {editingSupplier ? t('suppliers.update') : t('suppliers.create')} {t('suppliers.mobile.title').slice(0, -1)}
+                {editingSupplier ? 'Update' : 'Create'} Supplier
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('suppliers.deactivate.title')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('suppliers.deactivate.confirm', { name: deletingSupplier?.name })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeletingSupplier(null)}>{t('btn.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {t('suppliers.deactivate')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
