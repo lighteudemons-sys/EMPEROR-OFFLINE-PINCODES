@@ -160,35 +160,48 @@ export function MobileReports() {
     const now = new Date();
     let startDate: Date;
     let endDate: Date;
+    let modifiedStartDate: Date;
+    let modifiedEndDate: Date;
 
     if (timeRange === 'today') {
       startDate = new Date(now);
       startDate.setHours(0, 0, 0, 0);
+      modifiedStartDate = startDate;
       endDate = new Date(now);
       endDate.setHours(23, 59, 59, 999);
+      modifiedEndDate = endDate;
     } else if (timeRange === 'week') {
       startDate = new Date(now);
       const dayOfWeek = startDate.getDay();
       startDate.setDate(startDate.getDate() - dayOfWeek);
-      const modifiedStartDate = new Date(startDate);
+      modifiedStartDate = new Date(startDate);
       modifiedStartDate.setHours(0, 0, 0, 0);
       endDate = new Date(now);
       endDate.setHours(23, 59, 59, 999);
+      modifiedEndDate = endDate;
     } else if (timeRange === 'month') {
       startDate = new Date(now);
       startDate.setDate(1);
-      const modifiedStartDate = new Date(startDate);
+      modifiedStartDate = new Date(startDate);
       modifiedStartDate.setHours(0, 0, 0, 0);
       endDate = new Date(now);
       endDate.setHours(23, 59, 59, 999);
-      endDate.setMonth(endDate.getMonth() + 1);
+      modifiedEndDate = endDate;
     } else if (timeRange === 'custom' && customStartDate && customEndDate) {
       startDate = new Date(customStartDate);
-      const modifiedStartDate = new Date(startDate);
+      modifiedStartDate = new Date(startDate);
       modifiedStartDate.setHours(0, 0, 0, 0);
       endDate = new Date(customEndDate);
-      const modifiedEndDate = new Date(endDate);
+      modifiedEndDate = new Date(endDate);
       modifiedEndDate.setHours(23, 59, 59, 999);
+    } else {
+      // Default to today if no valid range
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+      modifiedStartDate = startDate;
+      endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+      modifiedEndDate = endDate;
     }
 
     return { startDate: modifiedStartDate, endDate: modifiedEndDate };
