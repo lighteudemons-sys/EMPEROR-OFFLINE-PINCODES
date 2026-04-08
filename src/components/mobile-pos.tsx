@@ -3674,6 +3674,7 @@ export function MobilePOS() {
                     <Input
                       id="customInput"
                       type="number"
+                      inputMode="decimal"
                       step="0.001"
                       min="0.001"
                       placeholder={customPriceMode === 'weight' ? '1.0' : formatCurrency(selectedItemForVariant?.price || 0)}
@@ -3684,6 +3685,7 @@ export function MobilePOS() {
                           : setCustomPriceValue(e.target.value)
                       }
                       className="text-lg font-semibold text-center"
+                      autoFocus
                     />
                     {customPriceMode === 'weight' && customVariantValue && (
                       <p className="text-sm text-slate-500 text-center">

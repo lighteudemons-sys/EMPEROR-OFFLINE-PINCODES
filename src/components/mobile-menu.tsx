@@ -1150,7 +1150,8 @@ export function MobileMenu() {
 
         {/* Variants Tab */}
         <TabsContent value="variants" className="mt-0">
-          <div className="p-4 space-y-4">
+          <ScrollArea className="h-[calc(100vh-280px)]">
+            <div className="p-4 space-y-4">
             {/* Variant Types Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -1323,7 +1324,8 @@ export function MobileMenu() {
                 </>
               )}
             </div>
-          </div>
+            </div>
+          </ScrollArea>
         </TabsContent>
       </Tabs>
 
