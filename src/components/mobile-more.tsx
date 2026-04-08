@@ -538,24 +538,50 @@ export function MobileMore() {
       {/* Mobile View Sheet */}
       <Sheet open={mobileViewOpen} onOpenChange={setMobileViewOpen}>
         <SheetContent side="right" className="w-full sm:max-w-md p-0">
-          {currentMobileView === 'menu' && <MobileMenu />}
-          {currentMobileView === 'inventory' && <MobileInventory />}
-          {currentMobileView === 'customers' && <MobileCustomers />}
-          {currentMobileView === 'tables' && <MobileTables />}
-          {currentMobileView === 'reports' && <MobileReports />}
-          {currentMobileView === 'delivery' && <MobileDelivery />}
-          {currentMobileView === 'analytics' && <MobileAnalytics />}
-          {currentMobileView === 'loyalty' && <MobileLoyalty />}
-          {currentMobileView === 'promo-codes' && <MobilePromoCodes />}
-          {currentMobileView === 'receipt' && <MobileReceiptSettings />}
-          {currentMobileView === 'delivery-areas' && <MobileDeliveryAreas />}
-          {currentMobileView === 'couriers' && <MobileCouriers />}
-          {currentMobileView === 'eta-settings' && <MobileETASettings />}
-          {currentMobileView === 'suppliers' && <MobileSuppliers />}
-          {currentMobileView === 'purchase-orders' && <MobilePurchaseOrders />}
-          {currentMobileView === 'audit-logs' && <MobileAuditLogs />}
-          {currentMobileView === 'users' && <MobileUsers />}
-          {currentMobileView === 'branches' && <MobileBranches />}
+          {currentMobileView && (
+            <SheetHeader className="px-6 pt-6 pb-4">
+              <SheetTitle className="sr-only">
+                {currentMobileView === 'menu' && 'Menu Management'}
+                {currentMobileView === 'inventory' && 'Inventory'}
+                {currentMobileView === 'customers' && 'Customers'}
+                {currentMobileView === 'tables' && 'Tables'}
+                {currentMobileView === 'reports' && 'Reports'}
+                {currentMobileView === 'delivery' && 'Delivery'}
+                {currentMobileView === 'analytics' && 'Analytics'}
+                {currentMobileView === 'loyalty' && 'Loyalty Program'}
+                {currentMobileView === 'promo-codes' && 'Promo Codes'}
+                {currentMobileView === 'receipt' && 'Receipt Settings'}
+                {currentMobileView === 'delivery-areas' && 'Delivery Areas'}
+                {currentMobileView === 'couriers' && 'Couriers'}
+                {currentMobileView === 'eta-settings' && 'ETA Settings'}
+                {currentMobileView === 'suppliers' && 'Suppliers'}
+                {currentMobileView === 'purchase-orders' && 'Purchase Orders'}
+                {currentMobileView === 'audit-logs' && 'Audit Logs'}
+                {currentMobileView === 'users' && 'Users'}
+                {currentMobileView === 'branches' && 'Branches'}
+              </SheetTitle>
+            </SheetHeader>
+          )}
+          <div className="h-full overflow-auto">
+            {currentMobileView === 'menu' && <MobileMenu />}
+            {currentMobileView === 'inventory' && <MobileInventory />}
+            {currentMobileView === 'customers' && <MobileCustomers />}
+            {currentMobileView === 'tables' && <MobileTables />}
+            {currentMobileView === 'reports' && <MobileReports />}
+            {currentMobileView === 'delivery' && <MobileDelivery />}
+            {currentMobileView === 'analytics' && <MobileAnalytics />}
+            {currentMobileView === 'loyalty' && <MobileLoyalty />}
+            {currentMobileView === 'promo-codes' && <MobilePromoCodes />}
+            {currentMobileView === 'receipt' && <MobileReceiptSettings />}
+            {currentMobileView === 'delivery-areas' && <MobileDeliveryAreas />}
+            {currentMobileView === 'couriers' && <MobileCouriers />}
+            {currentMobileView === 'eta-settings' && <MobileETASettings />}
+            {currentMobileView === 'suppliers' && <MobileSuppliers />}
+            {currentMobileView === 'purchase-orders' && <MobilePurchaseOrders />}
+            {currentMobileView === 'audit-logs' && <MobileAuditLogs />}
+            {currentMobileView === 'users' && <MobileUsers />}
+            {currentMobileView === 'branches' && <MobileBranches />}
+          </div>
         </SheetContent>
       </Sheet>
     </div>
