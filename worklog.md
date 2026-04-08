@@ -6186,3 +6186,65 @@ Successfully implemented Arabic translations for the first batch of mobile compo
 - No desktop functionality modified
 - All changes maintain existing functionality
 
+
+---
+Task ID: 1
+Agent: zai-web-dev
+Task: Fix Motorcycle icon error in mobile-couriers.tsx
+
+Work Log:
+- Read build log showing error: "Export Motorcycle doesn't exist in target module"
+- Read mobile-couriers.tsx to locate Motorcycle icon usage
+- Replaced Motorcycle icon with Truck icon in import statement (line 14)
+- Replaced Motorcycle icon usage with Truck icon in vehicle info display (line 360)
+- Ran lint check - passed with 0 errors (4 pre-existing warnings in unrelated files)
+- Dev server is running and ready
+
+Stage Summary:
+- Fixed build error caused by non-existent Motorcycle icon in lucide-react
+- Truck icon is a suitable replacement for delivery vehicle information
+- Build should now succeed without errors
+- All changes follow project code style
+
+Files Modified:
+1. src/components/mobile-couriers.tsx
+   - Changed import from Motorcycle to Truck (line 14)
+   - Changed icon usage from Motorcycle to Truck (line 360)
+
+---
+Task ID: 2-7
+Agent: zai-web-dev
+Task: Complete remaining mobile view fixes for Emperor Coffee POS
+
+Work Log:
+- Fixed Motorcycle icon error in mobile-couriers.tsx by replacing with Truck icon
+- Verified Money tab removal (already done - no Money tab in mobile view)
+- Verified Orders tab fixes (already done - no Active sub-tab, branch filtering working)
+- Enhanced mobile Dashboard for admin users:
+  - Added MobileBranchSelector component import
+  - Added selectedBranch state
+  - Updated fetchDashboardData to filter by branch for admins
+  - Added useEffect to refetch data when branch changes
+  - Added MobileBranchSelector to header UI
+- Verified Inventory mobile fixes (already done - branch selector and Transaction History both implemented)
+
+Stage Summary:
+- All mobile view fixes from original list have been completed
+- Motorcycle icon build error fixed
+- Admins can now switch between branches in mobile Dashboard
+- Dashboard data filters correctly by selected branch
+- No code errors (0 errors, 4 pre-existing warnings in unrelated files)
+- Dev server running successfully
+
+Files Modified:
+1. src/components/mobile-couriers.tsx
+   - Changed Motorcycle icon to Truck in import (line 14)
+   - Changed Motorcycle icon usage to Truck (line 360)
+
+2. src/components/mobile-dashboard.tsx
+   - Added MobileBranchSelector import (line 32)
+   - Added selectedBranch state (line 75)
+   - Updated fetchDashboardData with branch filtering (lines 97-133)
+   - Added branch change useEffect (lines 282-287)
+   - Added MobileBranchSelector to header (lines 340-344)
+

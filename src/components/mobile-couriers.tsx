@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   UserCog, Plus, Edit, Trash2, Phone, Mail, Search, X,
-  CheckCircle, XCircle, Package, Motorcycle, RefreshCw
+  CheckCircle, XCircle, Package, Truck, RefreshCw
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-context';
 import { useAuth } from '@/lib/auth-context';
@@ -357,7 +357,7 @@ export function MobileCouriers() {
                       )}
                       {courier.vehicleInfo && (
                         <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <Motorcycle className="h-4 w-4 flex-shrink-0" />
+                          <Truck className="h-4 w-4 flex-shrink-0" />
                           <span>{courier.vehicleInfo}</span>
                         </div>
                       )}

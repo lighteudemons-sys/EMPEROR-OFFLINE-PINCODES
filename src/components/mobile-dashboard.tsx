@@ -29,6 +29,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
 import { formatCurrency } from '@/lib/utils';
 import { OfflineStatusIndicator } from '@/components/offline-status-indicator';
+import { MobileBranchSelector } from '@/components/mobile-branch-selector';
 import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 
@@ -71,6 +72,7 @@ export function MobileDashboard() {
   const { currency, t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [stats, setStats] = useState<DashboardStats>({
     todayRevenue: 0,
     orderCount: 0,
@@ -92,10 +94,14 @@ export function MobileDashboard() {
       const startOfDay = new Date(today.setHours(0, 0, 0, 0));
       const endOfDay = new Date(today.setHours(23, 59, 59, 999));
 
+      // Determine branch filter: For admin, use selectedBranch; for others, use user's branch
+      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+      const branchFilter = branchId ? `?branchId=${branchId}` : '';
+
       // Fetch today's orders from API first
       let todayOrders: any[] = [];
       try {
-        const response = await fetch('/api/orders');
+        const response = await fetch(`/api/orders${branchFilter}`);
         if (response.ok) {
           const data = await response.json();
           const allOrders = data.orders || [];
@@ -113,7 +119,14 @@ export function MobileDashboard() {
         const storage = getIndexedDBStorage();
         await storage.init();
         const allOrders = await storage.getAllOrders();
-        todayOrders = allOrders.filter((order: any) => {
+
+        // Filter by branch if branchId is specified
+        let filteredOrders = allOrders;
+        if (branchId) {
+          filteredOrders = allOrders.filter((order: any) => order.branchId === branchId);
+        }
+
+        todayOrders = filteredOrders.filter((order: any) => {
           const orderDate = new Date(order.createdAt || order.orderTimestamp);
           return orderDate >= startOfDay && orderDate <= endOfDay;
         });
@@ -266,6 +279,13 @@ export function MobileDashboard() {
     fetchDashboardData();
   }, [user]);
 
+  // Refetch dashboard data when branch changes (for admin)
+  useEffect(() => {
+    if (selectedBranch && user?.role === 'ADMIN') {
+      fetchDashboardData();
+    }
+  }, [selectedBranch, user?.role]);
+
   const handleRefresh = () => {
     fetchDashboardData(true);
   };
@@ -316,6 +336,13 @@ export function MobileDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 pb-20">
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-4 pt-12 pb-6">
+        {/* Branch Selector for Admins */}
+        <MobileBranchSelector
+          className="mb-4"
+          selectedBranch={selectedBranch}
+          onBranchChange={setSelectedBranch}
+        />
+
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Coffee className="w-8 h-8" />
