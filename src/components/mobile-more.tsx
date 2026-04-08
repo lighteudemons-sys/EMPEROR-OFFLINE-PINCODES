@@ -42,6 +42,7 @@ import {
   Tag,
   BarChart3,
   TrendingUp,
+  TrendingDown,
   FileText,
   Shield,
   Building2,
