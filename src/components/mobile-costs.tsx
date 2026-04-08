@@ -33,7 +33,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { NetProfitReport } from '@/components/reports-net-profit';
+import NetProfitReport from '@/components/reports-net-profit';
 import { formatCurrency } from '@/lib/utils';
 import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
 
