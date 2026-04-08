@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useI18n } from '@/lib/i18n-context';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,7 @@ interface Supplier {
 }
 
 export function MobileSuppliers() {
+  const { t } = useI18n();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,11 +71,11 @@ export function MobileSuppliers() {
       if (response.ok) {
         setSuppliers(data.suppliers || []);
       } else {
-        showErrorToast('Error', data.error || 'Failed to fetch suppliers');
+        showErrorToast('Error', data.error || t('suppliers.error.fetch'));
       }
     } catch (error) {
       console.error('Failed to fetch suppliers:', error);
-      showErrorToast('Error', 'Failed to fetch suppliers');
+      showErrorToast('Error', t('suppliers.error.fetch'));
     } finally {
       setLoading(false);
     }
@@ -95,16 +97,16 @@ export function MobileSuppliers() {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccessToast('Success', editingSupplier ? 'Supplier updated successfully!' : 'Supplier created successfully!');
+        showSuccessToast('Success', editingSupplier ? t('suppliers.success.updated') : t('suppliers.success.created'));
         setDialogOpen(false);
         resetForm();
         fetchSuppliers();
       } else {
-        showErrorToast('Error', data.error || 'Failed to save supplier');
+        showErrorToast('Error', data.error || t('suppliers.error.save'));
       }
     } catch (error) {
       console.error('Failed to save supplier:', error);
-      showErrorToast('Error', 'Failed to save supplier');
+      showErrorToast('Error', t('suppliers.error.save'));
     }
   };
 
@@ -137,16 +139,16 @@ export function MobileSuppliers() {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccessToast('Success', 'Supplier deactivated successfully!');
+        showSuccessToast('Success', t('suppliers.success.deactivated'));
         setDeleteDialogOpen(false);
         setDeletingSupplier(null);
         fetchSuppliers();
       } else {
-        showErrorToast('Error', data.error || 'Failed to deactivate supplier');
+        showErrorToast('Error', data.error || t('suppliers.error.deactivate'));
       }
     } catch (error) {
       console.error('Failed to deactivate supplier:', error);
-      showErrorToast('Error', 'Failed to deactivate supplier');
+      showErrorToast('Error', t('suppliers.error.deactivate'));
     }
   };
 
@@ -161,14 +163,14 @@ export function MobileSuppliers() {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccessToast('Success', `Supplier ${!supplier.isActive ? 'activated' : 'deactivated'} successfully!`);
+        showSuccessToast('Success', t(`suppliers.success.${!supplier.isActive ? 'activated' : 'deactivated'}`));
         fetchSuppliers();
       } else {
-        showErrorToast('Error', data.error || 'Failed to update supplier status');
+        showErrorToast('Error', data.error || t('suppliers.error.status'));
       }
     } catch (error) {
       console.error('Failed to toggle supplier status:', error);
-      showErrorToast('Error', 'Failed to update supplier status');
+      showErrorToast('Error', t('suppliers.error.status'));
     }
   };
 
@@ -207,8 +209,8 @@ export function MobileSuppliers() {
             <Building className="w-7 h-7" />
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">Suppliers</h1>
-            <p className="text-emerald-100 text-sm">Manage your supplier database</p>
+            <h1 className="text-xl font-bold">{t('suppliers.mobile.title')}</h1>
+            <p className="text-emerald-100 text-sm">{t('suppliers.mobile.description')}</p>
           </div>
         </div>
 
@@ -216,19 +218,19 @@ export function MobileSuppliers() {
         <div className="grid grid-cols-3 gap-3">
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-emerald-100 text-xs">Total</p>
+              <p className="text-emerald-100 text-xs">{t('suppliers.total')}</p>
               <p className="text-lg font-bold">{suppliers.length}</p>
             </CardContent>
           </Card>
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-emerald-100 text-xs">Active</p>
+              <p className="text-emerald-100 text-xs">{t('suppliers.active')}</p>
               <p className="text-lg font-bold">{activeCount}</p>
             </CardContent>
           </Card>
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-emerald-100 text-xs">Orders</p>
+              <p className="text-emerald-100 text-xs">{t('suppliers.orders')}</p>
               <p className="text-lg font-bold">{totalOrders}</p>
             </CardContent>
           </Card>
@@ -240,7 +242,7 @@ export function MobileSuppliers() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <Input
-            placeholder="Search suppliers..."
+            placeholder={t('suppliers.search')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 h-12 bg-white"
@@ -261,9 +263,9 @@ export function MobileSuppliers() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Suppliers</SelectItem>
-            <SelectItem value="active">Active Only</SelectItem>
-            <SelectItem value="inactive">Inactive Only</SelectItem>
+            <SelectItem value="all">{t('suppliers.all')}</SelectItem>
+            <SelectItem value="active">{t('suppliers.active.only')}</SelectItem>
+            <SelectItem value="inactive">{t('suppliers.inactive.only')}</SelectItem>
           </SelectContent>
         </Select>
 
@@ -273,7 +275,7 @@ export function MobileSuppliers() {
           className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700"
         >
           <Plus className="w-5 h-5 mr-2" />
-          Add Supplier
+          {t('suppliers.add')}
         </Button>
 
         {/* Suppliers List */}
@@ -281,13 +283,13 @@ export function MobileSuppliers() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <div className="animate-spin h-10 w-10 border-4 border-emerald-600 border-t-transparent rounded-full mb-3" />
-              <p>Loading suppliers...</p>
+              <p>{t('suppliers.loading')}</p>
             </div>
           ) : filteredSuppliers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <Building className="w-16 h-16 mb-4 text-slate-300" />
-              <p className="font-medium">No suppliers found</p>
-              <p className="text-sm">Add your first supplier to get started</p>
+              <p className="font-medium">{t('suppliers.not.found')}</p>
+              <p className="text-sm">{t('suppliers.add.first')}</p>
             </div>
           ) : (
             <div className="space-y-3 pb-4">
@@ -302,12 +304,12 @@ export function MobileSuppliers() {
                           {supplier.isActive ? (
                             <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1 h-6">
                               <CheckCircle className="h-3 w-3" />
-                              Active
+                              {t('suppliers.active')}
                             </Badge>
                           ) : (
                             <Badge variant="secondary" className="text-xs gap-1 h-6">
                               <XCircle className="h-3 w-3" />
-                              Inactive
+                              {t('suppliers.inactive.only')}
                             </Badge>
                           )}
                         </div>
@@ -342,7 +344,7 @@ export function MobileSuppliers() {
                       <div className="flex items-center gap-2 text-sm">
                         <Package className="h-4 w-4 text-emerald-600" />
                         <span className="font-medium text-slate-700">
-                          {supplier._count?.purchaseOrders || 0} orders
+                          {supplier._count?.purchaseOrders || 0} {t('suppliers.orders.count')}
                         </span>
                       </div>
                     </div>
@@ -356,7 +358,7 @@ export function MobileSuppliers() {
                         className="h-10 text-green-700 border-green-300 hover:bg-green-50"
                       >
                         <Phone className="w-4 h-4 mr-2" />
-                        Call
+                        {t('suppliers.call')}
                       </Button>
                       {supplier.email && (
                         <Button
@@ -366,7 +368,7 @@ export function MobileSuppliers() {
                           className="h-10 text-blue-700 border-blue-300 hover:bg-blue-50"
                         >
                           <Mail className="w-4 h-4 mr-2" />
-                          Email
+                          {t('suppliers.email')}
                         </Button>
                       )}
                     </div>
@@ -380,7 +382,7 @@ export function MobileSuppliers() {
                         className="flex-1 h-10"
                       >
                         <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        {t('suppliers.edit')}
                       </Button>
                       <Button
                         variant="outline"
@@ -391,12 +393,12 @@ export function MobileSuppliers() {
                         {supplier.isActive ? (
                           <>
                             <XCircle className="w-4 h-4 mr-2" />
-                            Deactivate
+                            {t('suppliers.deactivate')}
                           </>
                         ) : (
                           <>
                             <CheckCircle className="w-4 h-4 mr-2" />
-                            Activate
+                            {t('suppliers.activate')}
                           </>
                         )}
                       </Button>
@@ -421,78 +423,78 @@ export function MobileSuppliers() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
+            <DialogTitle>{editingSupplier ? t('suppliers.edit.title') : t('suppliers.add.title')}</DialogTitle>
             <DialogDescription>
-              {editingSupplier ? 'Update supplier information' : 'Enter details for the new supplier'}
+              {editingSupplier ? t('suppliers.edit.description') : t('suppliers.add.description')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Supplier Name *</Label>
+                <Label htmlFor="name">{t('suppliers.name')} *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., Fresh Foods Co."
+                  placeholder={t('suppliers.name.placeholder')}
                   required
                   className="h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="contactPerson">Contact Person</Label>
+                <Label htmlFor="contactPerson">{t('suppliers.contactPerson')}</Label>
                 <Input
                   id="contactPerson"
                   value={formData.contactPerson}
                   onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                  placeholder="e.g., John Smith"
+                  placeholder={t('suppliers.contactPerson.placeholder')}
                   className="h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number *</Label>
+                <Label htmlFor="phone">{t('suppliers.phoneNumber')} *</Label>
                 <Input
                   id="phone"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="e.g., 01012345678"
+                  placeholder={t('suppliers.phoneNumber.placeholder')}
                   required
                   className="h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t('suppliers.emailAddress')}</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="e.g., supplier@example.com"
+                  placeholder={t('suppliers.emailAddress.placeholder')}
                   className="h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
+                <Label htmlFor="address">{t('suppliers.address')}</Label>
                 <Input
                   id="address"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="e.g., 123 Business Street, City"
+                  placeholder={t('suppliers.address.placeholder')}
                   className="h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
+                <Label htmlFor="notes">{t('suppliers.notes')}</Label>
                 <Input
                   id="notes"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Additional notes..."
+                  placeholder={t('suppliers.notes.placeholder')}
                   className="h-11"
                 />
               </div>
@@ -504,13 +506,13 @@ export function MobileSuppliers() {
                 onClick={() => { setDialogOpen(false); resetForm(); }}
                 className="w-full sm:w-auto h-11"
               >
-                Cancel
+                {t('btn.cancel')}
               </Button>
               <Button
                 type="submit"
                 className="w-full sm:w-auto h-11 bg-emerald-600 hover:bg-emerald-700"
               >
-                {editingSupplier ? 'Update' : 'Create'} Supplier
+                {editingSupplier ? t('suppliers.update') : t('suppliers.create')} {t('suppliers.mobile.title').slice(0, -1)}
               </Button>
             </DialogFooter>
           </form>
@@ -521,19 +523,18 @@ export function MobileSuppliers() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate Supplier</AlertDialogTitle>
+            <AlertDialogTitle>{t('suppliers.deactivate.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to deactivate "{deletingSupplier?.name}"? This will mark the supplier as inactive
-              but will preserve all historical data.
+              {t('suppliers.deactivate.confirm', { name: deletingSupplier?.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeletingSupplier(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setDeletingSupplier(null)}>{t('btn.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-red-600 hover:bg-red-700"
             >
-              Deactivate
+              {t('suppliers.deactivate')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

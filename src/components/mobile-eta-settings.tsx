@@ -63,6 +63,7 @@ interface ETASettings {
 
 export function MobileETASettings() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [settings, setSettings] = useState<ETASettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

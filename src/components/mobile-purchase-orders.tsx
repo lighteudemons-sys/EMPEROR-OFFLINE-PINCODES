@@ -71,7 +71,7 @@ interface PurchaseOrderItem {
 }
 
 export function MobilePurchaseOrders() {
-  const { currency } = useI18n();
+  const { t, currency } = useI18n();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('orders');
   const [selectedBranch, setSelectedBranch] = useState('');
@@ -171,7 +171,7 @@ export function MobilePurchaseOrders() {
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
-      showErrorToast('Error', 'Failed to load purchase orders');
+      showErrorToast('Error', t('purchase.error.load'));
     } finally {
       setLoading(false);
     }
@@ -263,7 +263,7 @@ export function MobilePurchaseOrders() {
       };
 
       if (orderData.items.length === 0) {
-        showErrorToast('Error', 'Please add at least one item');
+        showErrorToast('Error', t('purchase.error.add.item'));
         return;
       }
 
@@ -292,7 +292,7 @@ export function MobilePurchaseOrders() {
       const data = await response.json();
 
       if (!response.ok) {
-        showErrorToast('Error', data.error || 'Failed to save order');
+        showErrorToast('Error', data.error || t('purchase.error.save'));
         return;
       }
 

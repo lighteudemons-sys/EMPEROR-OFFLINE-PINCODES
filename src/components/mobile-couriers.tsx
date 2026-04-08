@@ -40,7 +40,7 @@ interface Branch {
 }
 
 export function MobileCouriers() {
-  const { currency } = useI18n();
+  const { currency, t } = useI18n();
   const { user } = useAuth();
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -96,11 +96,11 @@ export function MobileCouriers() {
       if (response.ok) {
         setCouriers(data.couriers || []);
       } else {
-        showErrorToast('Error', data.error || 'Failed to fetch couriers');
+        showErrorToast(t('error'), data.error || t('couriers.fetch.failed'));
       }
     } catch (error) {
       console.error('Failed to fetch couriers:', error);
-      showErrorToast('Error', 'Failed to fetch couriers');
+      showErrorToast(t('error'), t('couriers.fetch.failed'));
     } finally {
       setLoading(false);
     }
@@ -122,16 +122,16 @@ export function MobileCouriers() {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccessToast('Success', editingCourier ? 'Courier updated successfully!' : 'Courier added successfully!');
+        showSuccessToast(t('success'), editingCourier ? t('couriers.update.success') : t('couriers.create.success'));
         setDialogOpen(false);
         resetForm();
         fetchCouriers();
       } else {
-        showErrorToast('Error', data.error || 'Failed to save courier');
+        showErrorToast(t('error'), data.error || t('couriers.save.failed'));
       }
     } catch (error) {
       console.error('Failed to save courier:', error);
-      showErrorToast('Error', 'Failed to save courier');
+      showErrorToast(t('error'), t('couriers.save.failed'));
     }
   };
 
@@ -164,16 +164,16 @@ export function MobileCouriers() {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccessToast('Success', 'Courier deleted successfully!');
+        showSuccessToast(t('success'), t('couriers.delete.success'));
         setDeleteDialogOpen(false);
         setDeletingCourier(null);
         fetchCouriers();
       } else {
-        showErrorToast('Error', data.error || 'Failed to delete courier');
+        showErrorToast(t('error'), data.error || t('couriers.delete.failed'));
       }
     } catch (error) {
       console.error('Failed to delete courier:', error);
-      showErrorToast('Error', 'Failed to delete courier');
+      showErrorToast(t('error'), t('couriers.delete.failed'));
     }
   };
 
@@ -188,14 +188,14 @@ export function MobileCouriers() {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccessToast('Success', `Courier ${!courier.isActive ? 'activated' : 'deactivated'} successfully!`);
+        showSuccessToast(t('success'), t('couriers.toggle.success', { action: !courier.isActive ? t('activated') : t('deactivated') }));
         fetchCouriers();
       } else {
-        showErrorToast('Error', data.error || 'Failed to update courier status');
+        showErrorToast(t('error'), data.error || t('couriers.status.update.failed'));
       }
     } catch (error) {
       console.error('Failed to toggle courier status:', error);
-      showErrorToast('Error', 'Failed to update courier status');
+      showErrorToast(t('error'), t('couriers.status.update.failed'));
     }
   };
 
@@ -240,8 +240,8 @@ export function MobileCouriers() {
             <UserCog className="w-7 h-7" />
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">Couriers</h1>
-            <p className="text-purple-100 text-sm">Manage delivery team</p>
+            <h1 className="text-xl font-bold">{t('couriers.title')}</h1>
+            <p className="text-purple-100 text-sm">{t('couriers.description')}</p>
           </div>
         </div>
 
@@ -249,19 +249,19 @@ export function MobileCouriers() {
         <div className="grid grid-cols-3 gap-3">
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-purple-100 text-xs">Active</p>
+              <p className="text-purple-100 text-xs">{t('couriers.stats.active')}</p>
               <p className="text-lg font-bold">{activeCount}</p>
             </CardContent>
           </Card>
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-purple-100 text-xs">Orders</p>
+              <p className="text-purple-100 text-xs">{t('couriers.stats.orders')}</p>
               <p className="text-lg font-bold">{totalOrders}</p>
             </CardContent>
           </Card>
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-purple-100 text-xs">Revenue</p>
+              <p className="text-purple-100 text-xs">{t('couriers.stats.revenue')}</p>
               <p className="text-lg font-bold">{currency} {totalRevenue.toFixed(0)}</p>
             </CardContent>
           </Card>
@@ -276,7 +276,7 @@ export function MobileCouriers() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <Input
-            placeholder="Search couriers..."
+            placeholder={t('couriers.search.placeholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 h-12 bg-white"
@@ -297,7 +297,7 @@ export function MobileCouriers() {
           className="w-full h-14 text-lg bg-purple-600 hover:bg-purple-700"
         >
           <Plus className="w-5 h-5 mr-2" />
-          Add Courier
+          {t('couriers.add')}
         </Button>
 
         {/* Couriers List */}
@@ -305,13 +305,13 @@ export function MobileCouriers() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <div className="animate-spin h-10 w-10 border-4 border-purple-600 border-t-transparent rounded-full mb-3" />
-              <p>Loading couriers...</p>
+              <p>{t('couriers.loading')}</p>
             </div>
           ) : filteredCouriers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <UserCog className="w-16 h-16 mb-4 text-slate-300" />
-              <p className="font-medium">No couriers found</p>
-              <p className="text-sm">Add your first courier to get started</p>
+              <p className="font-medium">{t('couriers.not.found')}</p>
+              <p className="text-sm">{t('couriers.add.first')}</p>
             </div>
           ) : (
             <div className="space-y-3 pb-4">
@@ -326,12 +326,12 @@ export function MobileCouriers() {
                           {courier.isActive ? (
                             <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1 h-6">
                               <CheckCircle className="h-3 w-3" />
-                              Active
+                              {t('active')}
                             </Badge>
                           ) : (
                             <Badge variant="secondary" className="text-xs gap-1 h-6">
                               <XCircle className="h-3 w-3" />
-                              Inactive
+                              {t('inactive')}
                             </Badge>
                           )}
                         </div>
@@ -369,7 +369,7 @@ export function MobileCouriers() {
                         <div className="flex items-center gap-2 text-sm text-purple-900">
                           <Package className="h-4 w-4" />
                           <span className="font-medium">
-                            {courier._count?.orders || 0} orders
+                            {courier._count?.orders || 0} {t('couriers.orders')}
                           </span>
                         </div>
                         {courier.totalRevenue !== undefined && (
@@ -390,7 +390,7 @@ export function MobileCouriers() {
                           className="h-10 text-green-700 border-green-300 hover:bg-green-50"
                         >
                           <Phone className="w-4 h-4 mr-2" />
-                          Call
+                          {t('couriers.call')}
                         </Button>
                         {courier.email && (
                           <Button
@@ -400,7 +400,7 @@ export function MobileCouriers() {
                             className="h-10 text-blue-700 border-blue-300 hover:bg-blue-50"
                           >
                             <Mail className="w-4 h-4 mr-2" />
-                            Email
+                            {t('couriers.email')}
                           </Button>
                         )}
                       </div>
@@ -415,7 +415,7 @@ export function MobileCouriers() {
                         className="flex-1 h-10"
                       >
                         <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        {t('edit')}
                       </Button>
                       <Button
                         variant="outline"
@@ -426,12 +426,12 @@ export function MobileCouriers() {
                         {courier.isActive ? (
                           <>
                             <XCircle className="w-4 h-4 mr-2" />
-                            Deactivate
+                            {t('deactivate')}
                           </>
                         ) : (
                           <>
                             <CheckCircle className="w-4 h-4 mr-2" />
-                            Activate
+                            {t('activate')}
                           </>
                         )}
                       </Button>
@@ -457,52 +457,52 @@ export function MobileCouriers() {
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingCourier ? 'Edit Courier' : 'Add New Courier'}
+              {editingCourier ? t('couriers.dialog.edit.title') : t('couriers.dialog.add.title')}
             </DialogTitle>
             <DialogDescription>
-              {editingCourier ? 'Update courier information' : 'Enter details for the new courier'}
+              {editingCourier ? t('couriers.dialog.edit.description') : t('couriers.dialog.add.description')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name *</Label>
+                <Label htmlFor="name">{t('couriers.form.name')} *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter courier name"
+                  placeholder={t('couriers.form.name.placeholder')}
                   required
                   className="h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone">{t('couriers.form.phone')}</Label>
                 <Input
                   id="phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="e.g., 01012345678"
+                  placeholder={t('couriers.form.phone.placeholder')}
                   className="h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t('couriers.form.email')}</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="e.g., courier@example.com"
+                  placeholder={t('couriers.form.email.placeholder')}
                   className="h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="vehicleInfo">Vehicle Information (Optional)</Label>
+                <Label htmlFor="vehicleInfo">{t('couriers.form.vehicle')}</Label>
                 <Input
                   id="vehicleInfo"
                   value={formData.vehicleInfo}
@@ -514,14 +514,14 @@ export function MobileCouriers() {
 
               {user?.role === 'ADMIN' && (
                 <div className="space-y-2">
-                  <Label htmlFor="branch">Branch *</Label>
+                  <Label htmlFor="branch">{t('couriers.form.branch')} *</Label>
                   <Select
                     value={formData.branchId}
                     onValueChange={(value) => setFormData({ ...formData, branchId: value })}
                     required
                   >
                     <SelectTrigger className="h-11">
-                      <SelectValue placeholder="Select branch" />
+                      <SelectValue placeholder={t('couriers.form.branch.select')} />
                     </SelectTrigger>
                     <SelectContent>
                       {branches.map((branch) => (
@@ -542,7 +542,7 @@ export function MobileCouriers() {
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                   className="h-5 w-5 rounded border-gray-300 focus:ring-primary"
                 />
-                <Label htmlFor="isActive" className="text-sm cursor-pointer">Active (can receive orders)</Label>
+                <Label htmlFor="isActive" className="text-sm cursor-pointer">{t('couriers.form.active')}</Label>
               </div>
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -552,13 +552,13 @@ export function MobileCouriers() {
                 onClick={() => { setDialogOpen(false); resetForm(); }}
                 className="w-full sm:w-auto h-11"
               >
-                Cancel
+                {t('cancel')}
               </Button>
               <Button
                 type="submit"
                 className="w-full sm:w-auto h-11 bg-purple-600 hover:bg-purple-700"
               >
-                {editingCourier ? 'Update' : 'Add'} Courier
+                {editingCourier ? t('update') : t('add')} {t('couriers.courier')}
               </Button>
             </DialogFooter>
           </form>
@@ -569,14 +569,14 @@ export function MobileCouriers() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete Courier</DialogTitle>
+            <DialogTitle>{t('couriers.delete.title')}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <p className="text-slate-700">
-              Are you sure you want to delete "{deletingCourier?.name}"? This action cannot be undone.
+              {t('couriers.delete.confirm', { name: deletingCourier?.name })}
             </p>
             <p className="text-sm text-slate-500 mt-2">
-              Any active orders assigned to this courier will need to be reassigned.
+              {t('couriers.delete.warning')}
             </p>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -585,14 +585,14 @@ export function MobileCouriers() {
               onClick={() => { setDeleteDialogOpen(false); setDeletingCourier(null); }}
               className="w-full sm:w-auto h-11"
             >
-              Cancel
+              {t('cancel')}
             </Button>
             <Button
               variant="destructive"
               onClick={confirmDelete}
               className="w-full sm:w-auto h-11"
             >
-              Delete
+              {t('delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

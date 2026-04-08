@@ -316,7 +316,7 @@ export function MobileMenu() {
       setCategoryDialogOpen(false);
       resetCategoryForm();
       await fetchCategories();
-      showSuccessToast('Success', editingCategory ? 'Category updated!' : 'Category created!');
+      showSuccessToast('Success', editingCategory ? t('menu.mobile.success.category.updated') : t('menu.mobile.success.category.created'));
     } catch (error) {
       showErrorToast('Error', 'Failed to save category');
     } finally {
@@ -337,7 +337,7 @@ export function MobileMenu() {
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm('Are you sure you want to delete this category?')) return;
+    if (!confirm(t('menu.mobile.delete.category.confirm'))) return;
 
     const response = await fetch(`/api/categories/${categoryId}`, {
       method: 'DELETE',
@@ -351,7 +351,7 @@ export function MobileMenu() {
     }
 
     await fetchCategories();
-    showSuccessToast('Success', 'Category deleted!');
+    showSuccessToast('Success', t('menu.mobile.success.category.deleted'));
   };
 
   const resetCategoryForm = () => {
@@ -399,7 +399,7 @@ export function MobileMenu() {
       resetVariantTypeForm();
       await fetchVariantTypes();
       await fetchVariantTypesForVariantsTab();
-      showSuccessToast('Success', editingVariantType ? 'Variant type updated!' : 'Variant type created!');
+      showSuccessToast('Success', editingVariantType ? t('menu.mobile.success.variant.type.updated') : t('menu.mobile.success.variant.type.created'));
     } catch (error) {
       showErrorToast('Error', 'Failed to save variant type');
     } finally {
@@ -419,7 +419,7 @@ export function MobileMenu() {
   };
 
   const handleDeleteVariantType = async (variantTypeId: string) => {
-    if (!confirm('Are you sure you want to delete this variant type? All its options will also be deleted.')) return;
+    if (!confirm(t('menu.mobile.delete.variant.type.confirm'))) return;
 
     try {
       const response = await fetch(`/api/variant-types/${variantTypeId}`, {
@@ -435,7 +435,7 @@ export function MobileMenu() {
 
       await fetchVariantTypes();
       await fetchVariantTypesForVariantsTab();
-      showSuccessToast('Success', 'Variant type deleted!');
+      showSuccessToast('Success', t('menu.mobile.success.variant.type.deleted'));
     } catch (error) {
       showErrorToast('Error', 'Failed to delete variant type');
     }
@@ -485,7 +485,7 @@ export function MobileMenu() {
       resetVariantOptionForm();
       await fetchVariantTypes();
       await fetchVariantTypesForVariantsTab();
-      showSuccessToast('Success', editingVariantOption ? 'Variant option updated!' : 'Variant option created!');
+      showSuccessToast('Success', editingVariantOption ? t('menu.mobile.success.variant.option.updated') : t('menu.mobile.success.variant.option.created'));
     } catch (error) {
       showErrorToast('Error', 'Failed to save variant option');
     } finally {
@@ -506,7 +506,7 @@ export function MobileMenu() {
   };
 
   const handleDeleteVariantOption = async (variantOptionId: string) => {
-    if (!confirm('Are you sure you want to delete this variant option?')) return;
+    if (!confirm(t('menu.mobile.delete.variant.option.confirm'))) return;
 
     try {
       const response = await fetch(`/api/variant-options/${variantOptionId}`, {
@@ -522,7 +522,7 @@ export function MobileMenu() {
 
       await fetchVariantTypes();
       await fetchVariantTypesForVariantsTab();
-      showSuccessToast('Success', 'Variant option deleted!');
+      showSuccessToast('Success', t('menu.mobile.success.variant.option.deleted'));
     } catch (error) {
       showErrorToast('Error', 'Failed to delete variant option');
     }
@@ -662,7 +662,7 @@ export function MobileMenu() {
       setItemDialogOpen(false);
       resetItemForm();
       await fetchMenuItems();
-      showSuccessToast('Success', editingItem ? 'Item updated!' : 'Item created!');
+      showSuccessToast('Success', editingItem ? t('menu.mobile.success.item.updated') : t('menu.mobile.success.item.created'));
     } catch (error) {
       showErrorToast('Error', error instanceof Error ? error.message : 'Failed to save item');
     } finally {
@@ -698,7 +698,7 @@ export function MobileMenu() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    if (!confirm('Are you sure you want to delete this menu item?')) return;
+    if (!confirm(t('menu.mobile.delete.item.confirm'))) return;
     
     setLoading(true);
     try {
@@ -712,7 +712,7 @@ export function MobileMenu() {
       }
 
       await fetchMenuItems();
-      showSuccessToast('Success', 'Item deleted!');
+      showSuccessToast('Success', t('menu.mobile.success.item.deleted'));
     } catch (error) {
       showErrorToast('Error', error instanceof Error ? error.message : 'Failed to delete item');
     } finally {
@@ -737,7 +737,7 @@ export function MobileMenu() {
   };
 
   const handleDeleteVariant = async (variantId: string) => {
-    if (!confirm('Are you sure you want to delete this variant?')) return;
+    if (!confirm(t('menu.mobile.delete.variant.confirm'))) return;
     
     try {
       const response = await fetch(`/api/menu-item-variants/${variantId}`, {
@@ -754,7 +754,7 @@ export function MobileMenu() {
       if (editingItem) {
         await fetchItemVariants(editingItem.id);
       }
-      showSuccessToast('Success', 'Variant deleted!');
+      showSuccessToast('Success', t('menu.mobile.success.variant.deleted'));
     } catch (error) {
       showErrorToast('Error', 'Failed to delete variant');
     }
@@ -861,8 +861,8 @@ export function MobileMenu() {
             <Coffee className="w-7 h-7" />
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">Menu Management</h1>
-            <p className="text-emerald-100 text-sm">Manage items and categories</p>
+            <h1 className="text-xl font-bold">{t('menu.mobile.title')}</h1>
+            <p className="text-emerald-100 text-sm">{t('menu.mobile.description')}</p>
           </div>
         </div>
 
@@ -873,9 +873,9 @@ export function MobileMenu() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="bg-white border-b border-slate-200 px-4 pt-4">
           <TabsList className="w-full grid grid-cols-3">
-            <TabsTrigger value="items">Items</TabsTrigger>
-            <TabsTrigger value="categories">Categories</TabsTrigger>
-            <TabsTrigger value="variants">Variants</TabsTrigger>
+            <TabsTrigger value="items">{t('menu.mobile.tab.items')}</TabsTrigger>
+            <TabsTrigger value="categories">{t('menu.mobile.tab.categories')}</TabsTrigger>
+            <TabsTrigger value="variants">{t('menu.mobile.tab.variants')}</TabsTrigger>
           </TabsList>
         </div>
 
@@ -887,7 +887,7 @@ export function MobileMenu() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <Input
-                  placeholder="Search menu items..."
+                  placeholder={t('menu.mobile.search.placeholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 h-12 bg-white"
@@ -904,10 +904,10 @@ export function MobileMenu() {
 
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="h-12">
-                  <SelectValue placeholder="All Categories" />
+                  <SelectValue placeholder={t('menu.mobile.filter.all')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="all">{t('menu.mobile.filter.all')}</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.name} ({cat._count?.menuItems || 0})
@@ -923,7 +923,7 @@ export function MobileMenu() {
               className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700"
             >
               <Plus className="w-5 h-5 mr-2" />
-              Add Menu Item
+              {t('menu.mobile.add.item')}
             </Button>
 
             {/* Items List */}
@@ -931,13 +931,13 @@ export function MobileMenu() {
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                   <div className="animate-spin h-10 w-10 border-4 border-emerald-600 border-t-transparent rounded-full mb-3" />
-                  <p>Loading menu items...</p>
+                  <p>{t('menu.mobile.loading.items')}</p>
                 </div>
               ) : filteredItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                   <Coffee className="w-16 h-16 mb-4 text-slate-300" />
-                  <p className="font-medium">No menu items found</p>
-                  <p className="text-sm">Add your first item to get started</p>
+                  <p className="font-medium">{t('menu.mobile.no.items')}</p>
+                  <p className="text-sm">{t('menu.mobile.no.items.hint')}</p>
                 </div>
               ) : (
                 <div className="space-y-3 pb-4">
@@ -970,14 +970,14 @@ export function MobileMenu() {
                                       {item.hasVariants && (
                                         <Badge variant="outline" className="text-xs">
                                           <Layers className="w-3 h-3 mr-1" />
-                                          Variants
+                                          {t('menu.mobile.variants')}
                                         </Badge>
                                       )}
                                     </div>
                                     <p className="text-sm text-slate-600">{item.category}</p>
                                   </div>
                                   <Badge variant={item.isActive ? 'default' : 'secondary'} className={item.isActive ? 'bg-emerald-600' : ''}>
-                                    {item.isActive ? 'Active' : 'Inactive'}
+                                    {item.isActive ? t('menu.mobile.active') : t('menu.mobile.inactive')}
                                   </Badge>
                                 </div>
                                 <div className="mt-2 flex items-center justify-between">
@@ -1031,7 +1031,7 @@ export function MobileMenu() {
                         <div className="mt-0 bg-slate-50 border-t-0 rounded-b-lg border border-slate-200 p-4">
                           <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
                             <Layers className="h-4 w-4" />
-                            Variants
+                            {t('menu.mobile.variants')}
                           </h4>
                           {item.variants && item.variants.length > 0 ? (
                             <div className="space-y-2">
@@ -1065,7 +1065,7 @@ export function MobileMenu() {
                               ))}
                             </div>
                           ) : (
-                            <p className="text-sm text-slate-500 italic">No variants configured</p>
+                            <p className="text-sm text-slate-500 italic">{t('menu.mobile.no.variants')}</p>
                           )}
                         </div>
                       )}
@@ -1085,15 +1085,15 @@ export function MobileMenu() {
               className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700"
             >
               <Plus className="w-5 h-5 mr-2" />
-              Add Category
+              {t('menu.mobile.add.category')}
             </Button>
 
             <ScrollArea className="h-[calc(100vh-300px)]">
               {categories.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                   <Layers className="w-16 h-16 mb-4 text-slate-300" />
-                  <p className="font-medium">No categories found</p>
-                  <p className="text-sm">Add your first category to organize items</p>
+                  <p className="font-medium">{t('menu.mobile.no.categories')}</p>
+                  <p className="text-sm">{t('menu.mobile.no.categories.hint')}</p>
                 </div>
               ) : (
                 <div className="space-y-3 pb-4">

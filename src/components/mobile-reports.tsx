@@ -158,29 +158,40 @@ export function MobileReports() {
 
   const getDateRange = () => {
     const now = new Date();
-    const endDate = new Date(now);
-    let startDate = new Date(now);
+    let startDate: Date;
+    let endDate: Date;
 
     if (timeRange === 'today') {
+      startDate = new Date(now);
       startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
       endDate.setHours(23, 59, 59, 999);
     } else if (timeRange === 'week') {
+      startDate = new Date(now);
       const dayOfWeek = startDate.getDay();
       startDate.setDate(startDate.getDate() - dayOfWeek);
-      startDate.setHours(0, 0, 0, 0);
+      const modifiedStartDate = new Date(startDate);
+      modifiedStartDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
       endDate.setHours(23, 59, 59, 999);
     } else if (timeRange === 'month') {
+      startDate = new Date(now);
       startDate.setDate(1);
-      startDate.setHours(0, 0, 0, 0);
+      const modifiedStartDate = new Date(startDate);
+      modifiedStartDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
       endDate.setHours(23, 59, 59, 999);
+      endDate.setMonth(endDate.getMonth() + 1);
     } else if (timeRange === 'custom' && customStartDate && customEndDate) {
       startDate = new Date(customStartDate);
-      startDate.setHours(0, 0, 0, 0);
+      const modifiedStartDate = new Date(startDate);
+      modifiedStartDate.setHours(0, 0, 0, 0);
       endDate = new Date(customEndDate);
-      endDate.setHours(23, 59, 59, 999);
+      const modifiedEndDate = new Date(endDate);
+      modifiedEndDate.setHours(23, 59, 59, 999);
     }
 
-    return { startDate, endDate };
+    return { startDate: modifiedStartDate, endDate: modifiedEndDate };
   };
 
   const fetchKPIs = async () => {

@@ -32,7 +32,7 @@ interface DeliveryArea {
 }
 
 export function MobileDeliveryAreas() {
-  const { currency } = useI18n();
+  const { currency, t } = useI18n();
   const { user } = useAuth();
   const [areas, setAreas] = useState<DeliveryArea[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,11 +65,11 @@ export function MobileDeliveryAreas() {
       if (response.ok) {
         setAreas(data.areas || []);
       } else {
-        showErrorToast('Error', data.error || 'Failed to fetch delivery areas');
+        showErrorToast(t('error'), data.error || t('delivery.areas.fetch.failed'));
       }
     } catch (error) {
       console.error('Failed to fetch delivery areas:', error);
-      showErrorToast('Error', 'Failed to fetch delivery areas');
+      showErrorToast(t('error'), t('delivery.areas.fetch.failed'));
     } finally {
       setLoading(false);
     }
@@ -95,16 +95,16 @@ export function MobileDeliveryAreas() {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccessToast('Success', editingArea ? 'Delivery area updated successfully!' : 'Delivery area created successfully!');
+        showSuccessToast(t('success'), editingArea ? t('delivery.areas.update.success') : t('delivery.areas.create.success'));
         setDialogOpen(false);
         resetForm();
         fetchAreas();
       } else {
-        showErrorToast('Error', data.error || 'Failed to save delivery area');
+        showErrorToast(t('error'), data.error || t('delivery.areas.save.failed'));
       }
     } catch (error) {
       console.error('Failed to save delivery area:', error);
-      showErrorToast('Error', 'Failed to save delivery area');
+      showErrorToast(t('error'), t('delivery.areas.save.failed'));
     }
   };
 
@@ -134,16 +134,16 @@ export function MobileDeliveryAreas() {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccessToast('Success', 'Delivery area deleted successfully!');
+        showSuccessToast(t('success'), t('delivery.areas.delete.success'));
         setDeleteDialogOpen(false);
         setDeletingArea(null);
         fetchAreas();
       } else {
-        showErrorToast('Error', data.error || 'Failed to delete delivery area');
+        showErrorToast(t('error'), data.error || t('delivery.areas.delete.failed'));
       }
     } catch (error) {
       console.error('Failed to delete delivery area:', error);
-      showErrorToast('Error', 'Failed to delete delivery area');
+      showErrorToast(t('error'), t('delivery.areas.delete.failed'));
     }
   };
 
@@ -158,14 +158,14 @@ export function MobileDeliveryAreas() {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccessToast('Success', `Delivery area ${!area.isActive ? 'activated' : 'deactivated'} successfully!`);
+        showSuccessToast(t('success'), t('delivery.areas.toggle.success', { action: !area.isActive ? t('activated') : t('deactivated') }));
         fetchAreas();
       } else {
-        showErrorToast('Error', data.error || 'Failed to update delivery area status');
+        showErrorToast(t('error'), data.error || t('delivery.areas.status.update.failed'));
       }
     } catch (error) {
       console.error('Failed to toggle delivery area status:', error);
-      showErrorToast('Error', 'Failed to update delivery area status');
+      showErrorToast(t('error'), t('delivery.areas.status.update.failed'));
     }
   };
 
@@ -197,8 +197,8 @@ export function MobileDeliveryAreas() {
             <MapPin className="w-7 h-7" />
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">Delivery Areas</h1>
-            <p className="text-orange-100 text-sm">Manage delivery zones and fees</p>
+            <h1 className="text-xl font-bold">{t('delivery.areas.title')}</h1>
+            <p className="text-orange-100 text-sm">{t('delivery.areas.description')}</p>
           </div>
         </div>
 
@@ -206,19 +206,19 @@ export function MobileDeliveryAreas() {
         <div className="grid grid-cols-3 gap-3">
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-orange-100 text-xs">Total</p>
+              <p className="text-orange-100 text-xs">{t('delivery.areas.stats.total')}</p>
               <p className="text-lg font-bold">{areas.length}</p>
             </CardContent>
           </Card>
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-orange-100 text-xs">Active</p>
+              <p className="text-orange-100 text-xs">{t('delivery.areas.stats.active')}</p>
               <p className="text-lg font-bold">{activeCount}</p>
             </CardContent>
           </Card>
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-orange-100 text-xs">Orders</p>
+              <p className="text-orange-100 text-xs">{t('delivery.areas.stats.orders')}</p>
               <p className="text-lg font-bold">{totalOrders}</p>
             </CardContent>
           </Card>
@@ -233,7 +233,7 @@ export function MobileDeliveryAreas() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <Input
-            placeholder="Search delivery areas..."
+            placeholder={t('delivery.areas.search.placeholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 h-12 bg-white"
@@ -254,7 +254,7 @@ export function MobileDeliveryAreas() {
           className="w-full h-14 text-lg bg-orange-600 hover:bg-orange-700"
         >
           <Plus className="w-5 h-5 mr-2" />
-          Add Delivery Area
+          {t('delivery.areas.add')}
         </Button>
 
         {/* Areas List */}
@@ -262,13 +262,13 @@ export function MobileDeliveryAreas() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <div className="animate-spin h-10 w-10 border-4 border-orange-600 border-t-transparent rounded-full mb-3" />
-              <p>Loading delivery areas...</p>
+              <p>{t('delivery.areas.loading')}</p>
             </div>
           ) : filteredAreas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <MapPin className="w-16 h-16 mb-4 text-slate-300" />
-              <p className="font-medium">No delivery areas found</p>
-              <p className="text-sm">Add your first delivery area to get started</p>
+              <p className="font-medium">{t('delivery.areas.not.found')}</p>
+              <p className="text-sm">{t('delivery.areas.add.first')}</p>
             </div>
           ) : (
             <div className="space-y-3 pb-4">
@@ -283,12 +283,12 @@ export function MobileDeliveryAreas() {
                           {area.isActive ? (
                             <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1 h-6">
                               <CheckCircle className="h-3 w-3" />
-                              Active
+                              {t('active')}
                             </Badge>
                           ) : (
                             <Badge variant="secondary" className="text-xs gap-1 h-6">
                               <XCircle className="h-3 w-3" />
-                              Inactive
+                              {t('inactive')}
                             </Badge>
                           )}
                         </div>
@@ -305,7 +305,7 @@ export function MobileDeliveryAreas() {
                         <span className="font-semibold text-lg">
                           {currency} {area.fee.toFixed(2)}
                         </span>
-                        <span className="text-sm text-orange-700">delivery fee</span>
+                        <span className="text-sm text-orange-700">{t('delivery.areas.fee')}</span>
                       </div>
                     </div>
 
@@ -315,7 +315,7 @@ export function MobileDeliveryAreas() {
                         <div className="flex items-center gap-2 text-sm text-slate-700">
                           <MapPin className="h-4 w-4 text-orange-600" />
                           <span className="font-medium">
-                            {area._count.orders} orders delivered
+                            {area._count.orders} {t('delivery.areas.orders.delivered')}
                           </span>
                         </div>
                       </div>
@@ -330,7 +330,7 @@ export function MobileDeliveryAreas() {
                         className="flex-1 h-10"
                       >
                         <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        {t('edit')}
                       </Button>
                       <Button
                         variant="outline"
@@ -341,12 +341,12 @@ export function MobileDeliveryAreas() {
                         {area.isActive ? (
                           <>
                             <XCircle className="w-4 h-4 mr-2" />
-                            Deactivate
+                            {t('deactivate')}
                           </>
                         ) : (
                           <>
                             <CheckCircle className="w-4 h-4 mr-2" />
-                            Activate
+                            {t('activate')}
                           </>
                         )}
                       </Button>
@@ -372,28 +372,28 @@ export function MobileDeliveryAreas() {
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingArea ? 'Edit Delivery Area' : 'Add New Delivery Area'}
+              {editingArea ? t('delivery.areas.dialog.edit.title') : t('delivery.areas.dialog.add.title')}
             </DialogTitle>
             <DialogDescription>
-              {editingArea ? 'Update delivery area information' : 'Enter details for the new delivery area'}
+              {editingArea ? t('delivery.areas.dialog.edit.description') : t('delivery.areas.dialog.add.description')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Area Name *</Label>
+                <Label htmlFor="name">{t('delivery.areas.form.name')} *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., Downtown, Airport, etc."
+                  placeholder={t('delivery.areas.form.name.placeholder')}
                   required
                   className="h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="fee">Delivery Fee ({currency}) *</Label>
+                <Label htmlFor="fee">{t('delivery.areas.form.fee')} ({currency}) *</Label>
                 <Input
                   id="fee"
                   type="number"
@@ -415,7 +415,7 @@ export function MobileDeliveryAreas() {
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                   className="h-5 w-5 rounded border-gray-300 focus:ring-primary"
                 />
-                <Label htmlFor="isActive" className="text-sm cursor-pointer">Active (can receive orders)</Label>
+                <Label htmlFor="isActive" className="text-sm cursor-pointer">{t('delivery.areas.form.active')}</Label>
               </div>
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -425,13 +425,13 @@ export function MobileDeliveryAreas() {
                 onClick={() => { setDialogOpen(false); resetForm(); }}
                 className="w-full sm:w-auto h-11"
               >
-                Cancel
+                {t('cancel')}
               </Button>
               <Button
                 type="submit"
                 className="w-full sm:w-auto h-11 bg-orange-600 hover:bg-orange-700"
               >
-                {editingArea ? 'Update' : 'Create'} Area
+                {editingArea ? t('update') : t('create')} {t('delivery.areas.area')}
               </Button>
             </DialogFooter>
           </form>
@@ -442,14 +442,14 @@ export function MobileDeliveryAreas() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete Delivery Area</DialogTitle>
+            <DialogTitle>{t('delivery.areas.delete.title')}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <p className="text-slate-700">
-              Are you sure you want to delete "{deletingArea?.name}"? This action cannot be undone.
+              {t('delivery.areas.delete.confirm', { name: deletingArea?.name })}
             </p>
             <p className="text-sm text-slate-500 mt-2">
-              Any pending orders in this area may be affected.
+              {t('delivery.areas.delete.warning')}
             </p>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -458,14 +458,14 @@ export function MobileDeliveryAreas() {
               onClick={() => { setDeleteDialogOpen(false); setDeletingArea(null); }}
               className="w-full sm:w-auto h-11"
             >
-              Cancel
+              {t('cancel')}
             </Button>
             <Button
               variant="destructive"
               onClick={confirmDelete}
               className="w-full sm:w-auto h-11"
             >
-              Delete
+              {t('delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

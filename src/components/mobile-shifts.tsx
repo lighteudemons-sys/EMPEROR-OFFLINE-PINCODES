@@ -983,8 +983,8 @@ export function MobileShifts() {
             <Clock className="w-7 h-7" />
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">Shifts</h1>
-            <p className="text-emerald-100 text-sm">Manage your shifts and business day</p>
+            <h1 className="text-xl font-bold">{t('shifts.title')}</h1>
+            <p className="text-emerald-100 text-sm">{t('shifts.description')}</p>
           </div>
         </div>
 
@@ -992,7 +992,7 @@ export function MobileShifts() {
         {user?.role === 'ADMIN' && branches.length > 0 && (
           <Select value={selectedBranch} onValueChange={setSelectedBranch}>
             <SelectTrigger className="bg-white/20 border-white/30 text-white">
-              <SelectValue placeholder="Select branch" />
+              <SelectValue placeholder={t('shifts.select.branch')} />
             </SelectTrigger>
             <SelectContent>
               {branches.map((branch) => (
@@ -1018,9 +1018,9 @@ export function MobileShifts() {
                     <Store className={`w-6 h-6 ${businessDayStatus.isOpen ? 'text-green-600' : 'text-slate-400'}`} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900">Business Day</h3>
+                    <h3 className="font-semibold text-slate-900">{t('shifts.business.day')}</h3>
                     <p className={`text-sm ${businessDayStatus.isOpen ? 'text-green-600' : 'text-slate-500'}`}>
-                      {businessDayStatus.isOpen ? 'Open' : 'Closed'}
+                      {businessDayStatus.isOpen ? t('shifts.status.open') : t('shifts.status.closed')}
                     </p>
                   </div>
                 </div>
@@ -1031,7 +1031,7 @@ export function MobileShifts() {
                     onClick={() => setCloseDayDialogOpen(true)}
                   >
                     <Square className="w-4 h-4 mr-1" />
-                    Close Day
+                    {t('shifts.close.day')}
                   </Button>
                 ) : (
                   <Button
@@ -1040,7 +1040,7 @@ export function MobileShifts() {
                     onClick={() => setOpenDayDialogOpen(true)}
                   >
                     <Play className="w-4 h-4 mr-1" />
-                    Open Day
+                    {t('shifts.open.day')}
                   </Button>
                 )}
               </div>
@@ -1054,21 +1054,21 @@ export function MobileShifts() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Clock className="w-5 h-5 text-emerald-600" />
-                    Current Shift
+                    {t('shifts.current.shift')}
                   </CardTitle>
-                  <Badge className="bg-emerald-600">Active</Badge>
+                  <Badge className="bg-emerald-600">{t('shifts.active')}</Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-slate-500">Revenue</p>
+                    <p className="text-xs text-slate-500">{t('shifts.revenue')}</p>
                     <p className="text-lg font-bold text-emerald-600">
                       {formatCurrency(shifts[0].currentRevenue || shifts[0].closingRevenue || 0)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Orders</p>
+                    <p className="text-xs text-slate-500">{t('shifts.orders')}</p>
                     <p className="text-lg font-bold text-slate-900">
                       {shifts[0].currentOrders || shifts[0].orderCount || 0}
                     </p>
@@ -1084,7 +1084,7 @@ export function MobileShifts() {
                   }}
                 >
                   <Square className="w-4 h-4 mr-2" />
-                  Close Shift
+                  {t('shifts.close.shift')}
                 </Button>
               </CardContent>
             </Card>
@@ -1097,7 +1097,7 @@ export function MobileShifts() {
               onClick={() => setOpenDialogOpen(true)}
             >
               <Play className="w-5 h-5 mr-2" />
-              Start New Shift
+              {t('shifts.start.new')}
             </Button>
           )}
 
@@ -1106,27 +1106,27 @@ export function MobileShifts() {
             <Card>
               <CardContent className="p-6 text-center">
                 <Store className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">Business day is closed</p>
-                <p className="text-sm text-slate-400 mt-1">Open the business day to start a shift</p>
+                <p className="text-slate-500 font-medium">{t('shifts.business.day.closed')}</p>
+                <p className="text-sm text-slate-400 mt-1">{t('shifts.open.day.to.start')}</p>
               </CardContent>
             </Card>
           )}
 
           {/* Shift History */}
           <div>
-            <h3 className="font-semibold text-slate-900 mb-3 px-1">Shift History</h3>
+            <h3 className="font-semibold text-slate-900 mb-3 px-1">{t('shifts.history')}</h3>
             <div className="space-y-3">
               {loading ? (
                 <div className="text-center py-8 text-slate-500">
                   <div className="animate-spin h-8 w-8 border-2 border-emerald-600 border-t-transparent rounded-full mx-auto mb-2" />
-                  <p>Loading shifts...</p>
+                  <p>{t('shifts.loading')}</p>
                 </div>
               ) : shifts.length === 0 ? (
                 <Card>
                   <CardContent className="p-6 text-center">
                     <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-slate-500">No shifts yet</p>
-                    <p className="text-sm text-slate-400 mt-1">Open a business day and start a shift to begin</p>
+                    <p className="text-slate-500">{t('shifts.no.shifts')}</p>
+                    <p className="text-sm text-slate-400 mt-1">{t('shifts.open.day.start')}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -1137,10 +1137,10 @@ export function MobileShifts() {
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-semibold text-slate-900">
-                              {shift.isClosed ? 'Shift Closed' : 'Shift Active'}
+                              {shift.isClosed ? t('shifts.shift.closed') : t('shifts.shift.active')}
                             </p>
                             {!shift.isClosed && (
-                              <Badge className="bg-green-600 text-xs">Open</Badge>
+                              <Badge className="bg-green-600 text-xs">{t('shifts.open.badge')}</Badge>
                             )}
                           </div>
                           <p className="text-sm text-slate-500">
@@ -1152,19 +1152,19 @@ export function MobileShifts() {
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-sm">
                         <div>
-                          <p className="text-slate-500">Revenue</p>
+                          <p className="text-slate-500">{t('shifts.revenue')}</p>
                           <p className="font-semibold text-slate-900">
                             {formatCurrency(shift.closingRevenue || shift.currentRevenue || 0)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-slate-500">Orders</p>
+                          <p className="text-slate-500">{t('shifts.orders')}</p>
                           <p className="font-semibold text-slate-900">
                             {shift.closingOrders || shift.currentOrders || shift.orderCount || 0}
                           </p>
                         </div>
                         <div>
-                          <p className="text-slate-500">Opening</p>
+                          <p className="text-slate-500">{t('shifts.opening')}</p>
                           <p className="font-semibold text-slate-900">
                             {formatCurrency(shift.openingCash)}
                           </p>

@@ -87,9 +87,9 @@ interface AnalyticsResponse {
 }
 
 const periods = [
-  { value: '7', label: 'Last 7 Days' },
-  { value: '30', label: 'Last 30 Days' },
-  { value: '90', label: 'Last 90 Days' },
+  { value: '7', label: t('analytics.mobile.period.last7') },
+  { value: '30', label: t('analytics.mobile.period.last30') },
+  { value: '90', label: t('analytics.mobile.period.last90') },
 ];
 
 const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
@@ -175,11 +175,11 @@ export function MobileAnalytics() {
         await fetchCategoryData();
       } else {
         console.error('[Mobile Analytics] API Error:', data.error);
-        showErrorToast('Error', 'Failed to load analytics data');
+        showErrorToast(t('analytics.mobile.error'), t('analytics.mobile.failed.load'));
       }
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
-      showErrorToast('Error', 'Failed to load analytics data');
+      showErrorToast(t('analytics.mobile.error'), t('analytics.mobile.failed.load'));
     } finally {
       setLoading(false);
     }
@@ -264,8 +264,8 @@ export function MobileAnalytics() {
             <BarChart3 className="w-7 h-7" />
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">Analytics</h1>
-            <p className="text-purple-100 text-sm">Sales & Performance Insights</p>
+            <h1 className="text-xl font-bold">{t('analytics.mobile.title')}</h1>
+            <p className="text-purple-100 text-sm">{t('analytics.mobile.subtitle')}</p>
           </div>
         </div>
 
@@ -275,10 +275,10 @@ export function MobileAnalytics() {
             <Select value={selectedBranch} onValueChange={setSelectedBranch}>
               <SelectTrigger className="w-full bg-white/10 border-white/20 text-white">
                 <Store className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Select branch..." />
+                <SelectValue placeholder={t('analytics.mobile.select.branch')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Branches</SelectItem>
+                <SelectItem value="all">{t('analytics.mobile.all.branches')}</SelectItem>
                 {branches.map((branch) => (
                   <SelectItem key={branch.id} value={branch.id}>
                     {branch.branchName}
@@ -327,7 +327,7 @@ export function MobileAnalytics() {
                     <DollarSign className="h-5 w-5 text-emerald-600" />
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 mb-1">Total Revenue</p>
+                <p className="text-xs text-slate-600 mb-1">{t('analytics.mobile.total.revenue')}</p>
                 <p className="text-xl font-bold text-slate-900">
                   {formatCurrency(
                     analyticsData?.historicalData?.reduce((sum, d) => sum + d.revenue, 0) || 0
@@ -335,7 +335,7 @@ export function MobileAnalytics() {
                 </p>
                 {analyticsData?.trends?.revenueGrowth !== undefined && (
                   <div className="mt-2">
-                    <GrowthBadge value={analyticsData.trends.revenueGrowth} label="vs prev" />
+                    <GrowthBadge value={analyticsData.trends.revenueGrowth} label={t('analytics.mobile.vs.prev')} />
                   </div>
                 )}
               </CardContent>
@@ -348,13 +348,13 @@ export function MobileAnalytics() {
                     <ShoppingCart className="h-5 w-5 text-blue-600" />
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 mb-1">Total Orders</p>
+                <p className="text-xs text-slate-600 mb-1">{t('analytics.mobile.total.orders')}</p>
                 <p className="text-xl font-bold text-slate-900">
                   {analyticsData?.historicalData?.reduce((sum, d) => sum + d.orders, 0) || 0}
                 </p>
                 {analyticsData?.trends?.orderGrowth !== undefined && (
                   <div className="mt-2">
-                    <GrowthBadge value={analyticsData.trends.orderGrowth} label="vs prev" />
+                    <GrowthBadge value={analyticsData.trends.orderGrowth} label={t('analytics.mobile.vs.prev')} />
                   </div>
                 )}
               </CardContent>
@@ -367,11 +367,11 @@ export function MobileAnalytics() {
                     <Coffee className="h-5 w-5 text-purple-600" />
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 mb-1">Avg Order Value</p>
+                <p className="text-xs text-slate-600 mb-1">{t('analytics.mobile.avg.order.value')}</p>
                 <p className="text-xl font-bold text-slate-900">
                   {formatCurrency(analyticsData?.performance?.avgOrderValue || 0)}
                 </p>
-                <p className="text-xs text-slate-500 mt-2">Per transaction</p>
+                <p className="text-xs text-slate-500 mt-2">{t('analytics.mobile.per.transaction')}</p>
               </CardContent>
             </Card>
 
@@ -382,11 +382,11 @@ export function MobileAnalytics() {
                     <Package className="h-5 w-5 text-amber-600" />
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 mb-1">Items Sold</p>
+                <p className="text-xs text-slate-600 mb-1">{t('analytics.mobile.items.sold')}</p>
                 <p className="text-xl font-bold text-slate-900">
                   {analyticsData?.historicalData?.reduce((sum, d) => sum + d.items, 0) || 0}
                 </p>
-                <p className="text-xs text-slate-500 mt-2">Total items</p>
+                <p className="text-xs text-slate-500 mt-2">{t('analytics.mobile.total.items')}</p>
               </CardContent>
             </Card>
           </div>
@@ -396,9 +396,9 @@ export function MobileAnalytics() {
             <CardHeader>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-purple-600" />
-                Sales Trend
+                {t('analytics.mobile.sales.trend')}
               </CardTitle>
-              <CardDescription className="text-xs">Revenue over selected period</CardDescription>
+              <CardDescription className="text-xs">{t('analytics.mobile.revenue.over.period')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-48">
@@ -416,7 +416,7 @@ export function MobileAnalytics() {
                         tick={{ fontSize: 10 }}
                       />
                       <Tooltip
-                        formatter={(value: any) => [formatCurrency(value, currency), 'Revenue']}
+                        formatter={(value: any) => [formatCurrency(value, currency), t('analytics.mobile.revenue')]}
                         labelFormatter={formatDate}
                         contentStyle={{ fontSize: '12px' }}
                       />
@@ -425,7 +425,7 @@ export function MobileAnalytics() {
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex items-center justify-center h-full text-slate-500 text-sm">
-                    No data available
+                    {t('analytics.mobile.no.data')}
                   </div>
                 )}
               </div>
@@ -437,9 +437,9 @@ export function MobileAnalytics() {
             <CardHeader>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <PieChart className="h-4 w-4 text-purple-600" />
-                Revenue by Category
+                {t('analytics.mobile.revenue.by.category')}
               </CardTitle>
-              <CardDescription className="text-xs">Top performing categories</CardDescription>
+              <CardDescription className="text-xs">{t('analytics.mobile.top.categories')}</CardDescription>
             </CardHeader>
             <CardContent>
               {categoryData.length > 0 ? (
@@ -483,7 +483,7 @@ export function MobileAnalytics() {
                 </>
               ) : (
                 <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
-                  No category data available
+                  {t('analytics.mobile.no.category.data')}
                 </div>
               )}
             </CardContent>
@@ -492,12 +492,12 @@ export function MobileAnalytics() {
           {/* Category Filter */}
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base font-semibold">Filter by Category</CardTitle>
+              <CardTitle className="text-base font-semibold">{t('analytics.mobile.filter.by.category')}</CardTitle>
             </CardHeader>
             <CardContent>
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="w-full h-12">
-                  <SelectValue placeholder="All Categories" />
+                  <SelectValue placeholder={t('analytics.mobile.all.categories')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
@@ -516,16 +516,16 @@ export function MobileAnalytics() {
             <CardHeader>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-purple-600" />
-                Top Selling Items
+                {t('analytics.mobile.top.selling.items')}
               </CardTitle>
               <CardDescription className="text-xs">
-                {selectedCategory === 'all' ? 'Best performers' : `Filtered by ${selectedCategory}`}
+                {selectedCategory === 'all' ? t('analytics.mobile.best.performers') : t('analytics.mobile.filtered.by', { category: selectedCategory })}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {filteredTopItems.length === 0 ? (
-                  <p className="text-center text-sm text-slate-500 py-4">No items data</p>
+                  <p className="text-center text-sm text-slate-500 py-4">{t('analytics.mobile.no.items.data')}</p>
                 ) : (
                   filteredTopItems.slice(0, 10).map((item, index) => (
                     <div
@@ -538,7 +538,7 @@ export function MobileAnalytics() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-slate-900">{item.itemName}</p>
-                          <p className="text-xs text-slate-500">{item.totalQuantity} sold</p>
+                          <p className="text-xs text-slate-500">{item.totalQuantity} {t('analytics.mobile.sold')}</p>
                         </div>
                       </div>
                       <span className="text-sm font-bold text-emerald-600">

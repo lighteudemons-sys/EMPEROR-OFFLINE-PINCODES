@@ -355,11 +355,11 @@ export function MobileInventory() {
 
   const getTransactionBadge = (type: string) => {
     switch (type) {
-      case 'SALE': return <Badge variant="destructive">Sale</Badge>;
-      case 'RESTOCK': return <Badge className="bg-green-600">Restock</Badge>;
-      case 'WASTE': return <Badge className="bg-orange-600">Waste</Badge>;
-      case 'ADJUSTMENT': return <Badge className="bg-blue-600">Adjustment</Badge>;
-      case 'REFUND': return <Badge className="bg-purple-600">Refund</Badge>;
+      case 'SALE': return <Badge variant="destructive">{t('inventory.mobile.history.badge.sale')}</Badge>;
+      case 'RESTOCK': return <Badge className="bg-green-600">{t('inventory.mobile.history.badge.restock')}</Badge>;
+      case 'WASTE': return <Badge className="bg-orange-600">{t('inventory.mobile.history.badge.waste')}</Badge>;
+      case 'ADJUSTMENT': return <Badge className="bg-blue-600">{t('inventory.mobile.history.badge.adjustment')}</Badge>;
+      case 'REFUND': return <Badge className="bg-purple-600">{t('inventory.mobile.history.badge.refund')}</Badge>;
       default: return <Badge>{type}</Badge>;
     }
   };
@@ -373,8 +373,8 @@ export function MobileInventory() {
             <Package className="w-7 h-7" />
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">Inventory</h1>
-            <p className="text-emerald-100 text-sm">Manage ingredients and stock</p>
+            <h1 className="text-xl font-bold">{t('inventory.mobile.title')}</h1>
+            <p className="text-emerald-100 text-sm">{t('inventory.mobile.description')}</p>
           </div>
         </div>
 
@@ -382,19 +382,19 @@ export function MobileInventory() {
         <div className="grid grid-cols-3 gap-3">
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-emerald-100 text-xs">Total Value</p>
+              <p className="text-emerald-100 text-xs">{t('inventory.mobile.stat.total.value')}</p>
               <p className="text-lg font-bold">{formatCurrency(totalStockValue)}</p>
             </CardContent>
           </Card>
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-emerald-100 text-xs">Low Stock</p>
+              <p className="text-emerald-100 text-xs">{t('inventory.mobile.stat.low.stock')}</p>
               <p className="text-lg font-bold text-amber-300">{lowStockCount}</p>
             </CardContent>
           </Card>
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-3">
-              <p className="text-emerald-100 text-xs">Items</p>
+              <p className="text-emerald-100 text-xs">{t('inventory.mobile.stat.items')}</p>
               <p className="text-lg font-bold">{ingredients.length}</p>
             </CardContent>
           </Card>
@@ -404,8 +404,8 @@ export function MobileInventory() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="bg-white border-b border-slate-200 px-4 pt-4">
           <TabsList className="w-full grid grid-cols-2">
-            <TabsTrigger value="inventory">Inventory</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="inventory">{t('inventory.mobile.tab.inventory')}</TabsTrigger>
+            <TabsTrigger value="history">{t('inventory.mobile.tab.history')}</TabsTrigger>
           </TabsList>
         </div>
 
@@ -421,7 +421,7 @@ export function MobileInventory() {
                 <div className="flex items-center gap-2 bg-white rounded-lg shadow-sm border border-slate-200 px-3 py-2">
                   <Store className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-500 font-medium">Your Branch</p>
+                    <p className="text-xs text-slate-500 font-medium">{t('inventory.mobile.your.branch')}</p>
                     <p className="text-sm font-semibold text-slate-900 truncate">
                       {branches.find(b => b.id === selectedBranch)?.branchName || selectedBranch}
                     </p>
@@ -435,7 +435,7 @@ export function MobileInventory() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <Input
-                  placeholder="Search ingredients..."
+                  placeholder={t('inventory.mobile.search.placeholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 h-12 bg-white"
@@ -452,12 +452,12 @@ export function MobileInventory() {
 
               <Select value={stockFilter} onValueChange={(v: any) => setStockFilter(v)}>
                 <SelectTrigger className="h-12">
-                  <SelectValue placeholder="All Items" />
+                  <SelectValue placeholder={t('inventory.mobile.filter.all')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Items</SelectItem>
-                  <SelectItem value="low">Low Stock</SelectItem>
-                  <SelectItem value="ok">In Stock</SelectItem>
+                  <SelectItem value="all">{t('inventory.mobile.filter.all')}</SelectItem>
+                  <SelectItem value="low">{t('inventory.mobile.filter.low')}</SelectItem>
+                  <SelectItem value="ok">{t('inventory.mobile.filter.ok')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -469,7 +469,7 @@ export function MobileInventory() {
                 className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700"
               >
                 <Plus className="w-5 h-5 mr-2" />
-                Add Ingredient
+                {t('inventory.mobile.add.ingredient')}
               </Button>
             )}
 
@@ -478,13 +478,13 @@ export function MobileInventory() {
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                   <div className="animate-spin h-10 w-10 border-4 border-emerald-600 border-t-transparent rounded-full mb-3" />
-                  <p>Loading ingredients...</p>
+                  <p>{t('inventory.mobile.loading')}</p>
                 </div>
               ) : filteredIngredients.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                   <Package className="w-16 h-16 mb-4 text-slate-300" />
-                  <p className="font-medium">No ingredients found</p>
-                  <p className="text-sm">Add your first ingredient to get started</p>
+                  <p className="font-medium">{t('inventory.mobile.no.items')}</p>
+                  <p className="text-sm">{t('inventory.mobile.no.items.hint')}</p>
                 </div>
               ) : (
                 <div className="space-y-3 pb-4">
@@ -498,10 +498,10 @@ export function MobileInventory() {
                               {item.isLowStock ? (
                                 <Badge variant="destructive" className="gap-1 text-xs h-6">
                                   <AlertTriangle className="h-3 w-3" />
-                                  Low Stock
+                                  {t('inventory.mobile.badge.low.stock')}
                                 </Badge>
                               ) : (
-                                <Badge className="bg-emerald-600 text-xs h-6">In Stock</Badge>
+                                <Badge className="bg-emerald-600 text-xs h-6">{t('inventory.mobile.badge.in.stock')}</Badge>
                               )}
                             </div>
                           </div>
@@ -510,7 +510,7 @@ export function MobileInventory() {
                         {/* Detailed Information Grid */}
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2">
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Current Stock</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">{t('inventory.mobile.card.current.stock')}</p>
                             <p className={`font-bold text-lg ${item.isLowStock ? 'text-red-600' : 'text-slate-900'}`}>
                               {(item.currentStock || 0).toFixed(2)}
                             </p>
@@ -518,15 +518,15 @@ export function MobileInventory() {
                           </div>
 
                           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2">
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Cost/Unit</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">{t('inventory.mobile.card.cost.unit')}</p>
                             <p className="font-bold text-lg text-slate-900">
                               {formatCurrency(item.costPerUnit)}
                             </p>
-                            <p className="text-xs text-slate-500">per {item.unit}</p>
+                            <p className="text-xs text-slate-500">{t('inventory.mobile.card.per')} {item.unit}</p>
                           </div>
 
                           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2">
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Reorder Level</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">{t('inventory.mobile.card.reorder.level')}</p>
                             <p className="font-bold text-lg text-slate-900">
                               {item.reorderThreshold}
                             </p>
@@ -534,11 +534,11 @@ export function MobileInventory() {
                           </div>
 
                           <div className="bg-emerald-50 dark:bg-emerald-950 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
-                            <p className="text-xs text-emerald-700 dark:text-emerald-400 mb-1">Stock Value</p>
+                            <p className="text-xs text-emerald-700 dark:text-emerald-400 mb-1">{t('inventory.mobile.card.stock.value')}</p>
                             <p className="font-bold text-lg text-emerald-700 dark:text-emerald-400">
                               {formatCurrency((item.currentStock || 0) * item.costPerUnit)}
                             </p>
-                            <p className="text-xs text-emerald-600 dark:text-emerald-500">Total</p>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-500">{t('inventory.mobile.card.total')}</p>
                           </div>
                         </div>
 
@@ -554,7 +554,7 @@ export function MobileInventory() {
                             className="flex-1 h-10 text-green-700 border-green-300 hover:bg-green-50"
                           >
                             <ArrowUpCircle className="w-4 h-4 mr-2" />
-                            Restock
+                            {t('inventory.mobile.restock')}
                           </Button>
                           {user?.role === 'ADMIN' && (
                             <>
@@ -565,7 +565,7 @@ export function MobileInventory() {
                                 className="flex-1 h-10"
                               >
                                 <Edit className="w-4 h-4 mr-2" />
-                                Edit
+                                {t('inventory.mobile.edit')}
                               </Button>
                               <Button
                                 variant="outline"
@@ -591,7 +591,7 @@ export function MobileInventory() {
         <TabsContent value="history" className="mt-0">
           <div className="p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Transaction History</h3>
+              <h3 className="text-lg font-semibold">{t('inventory.mobile.history.title')}</h3>
               <Button
                 variant="outline"
                 size="sm"
@@ -599,7 +599,7 @@ export function MobileInventory() {
                 className="h-10"
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
+                {t('inventory.mobile.history.refresh')}
               </Button>
             </div>
 
@@ -607,8 +607,8 @@ export function MobileInventory() {
               {transactions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                   <RefreshCw className="w-16 h-16 mb-4 text-slate-300" />
-                  <p className="font-medium">No transactions found</p>
-                  <p className="text-sm">Inventory movements will appear here</p>
+                  <p className="font-medium">{t('inventory.mobile.history.no.transactions')}</p>
+                  <p className="text-sm">{t('inventory.mobile.history.no.transactions.hint')}</p>
                 </div>
               ) : (
                 <div className="space-y-3 pb-4">
@@ -628,13 +628,13 @@ export function MobileInventory() {
                             {/* Transaction Details Grid */}
                             <div className="grid grid-cols-2 gap-2 mb-2">
                               <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
-                                <p className="text-xs text-slate-600 dark:text-slate-400">Change</p>
+                                <p className="text-xs text-slate-600 dark:text-slate-400">{t('inventory.mobile.history.card.change')}</p>
                                 <p className={`font-bold ${txn.quantityChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                   {txn.quantityChange >= 0 ? '+' : ''}{txn.quantityChange.toFixed(2)}
                                 </p>
                               </div>
                               <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
-                                <p className="text-xs text-slate-600 dark:text-slate-400">After</p>
+                                <p className="text-xs text-slate-600 dark:text-slate-400">{t('inventory.mobile.history.card.after')}</p>
                                 <p className="font-bold text-slate-900">
                                   {txn.stockAfter.toFixed(2)}
                                 </p>
@@ -644,7 +644,7 @@ export function MobileInventory() {
                             {/* Additional Details */}
                             <div className="space-y-1">
                               <div className="flex justify-between text-xs">
-                                <span className="text-slate-600">Before:</span>
+                                <span className="text-slate-600">{t('inventory.mobile.history.card.before')}</span>
                                 <span className="font-medium">{txn.stockBefore.toFixed(2)}</span>
                               </div>
                               {txn.reason && (

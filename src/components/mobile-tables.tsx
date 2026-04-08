@@ -35,7 +35,7 @@ interface TableData {
 
 export function MobileTables() {
   const { user } = useAuth();
-  const { currency } = useI18n();
+  const { currency, t } = useI18n();
   const [tables, setTables] = useState<TableData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBranch, setSelectedBranch] = useState('');
@@ -217,31 +217,31 @@ export function MobileTables() {
         color: 'text-emerald-700',
         bgColor: 'bg-emerald-100',
         icon: <CheckCircle className="h-3 w-3" />,
-        label: 'Available',
+        label: t('tables.status.available'),
       },
       OCCUPIED: {
         color: 'text-blue-700',
         bgColor: 'bg-blue-100',
         icon: <Users className="h-3 w-3" />,
-        label: 'Occupied',
+        label: t('tables.status.occupied'),
       },
       READY_TO_PAY: {
         color: 'text-orange-700',
         bgColor: 'bg-orange-100',
         icon: <Clock className="h-3 w-3" />,
-        label: 'Ready to Pay',
+        label: t('tables.status.ready'),
       },
       RESERVED: {
         color: 'text-purple-700',
         bgColor: 'bg-purple-100',
         icon: <Utensils className="h-3 w-3" />,
-        label: 'Reserved',
+        label: t('tables.status.reserved'),
       },
       CLEANING: {
         color: 'text-slate-700',
         bgColor: 'bg-slate-100',
         icon: <AlertCircle className="h-3 w-3" />,
-        label: 'Cleaning',
+        label: t('tables.status.cleaning'),
       },
     };
 
@@ -265,8 +265,8 @@ export function MobileTables() {
             <Utensils className="w-7 h-7" />
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">Table Management</h1>
-            <p className="text-emerald-100 text-sm">Create and manage restaurant tables</p>
+            <h1 className="text-xl font-bold">{t('tables.mobile.title')}</h1>
+            <p className="text-emerald-100 text-sm">{t('tables.mobile.description')}</p>
           </div>
         </div>
 
@@ -289,50 +289,50 @@ export function MobileTables() {
               <DialogTrigger asChild>
                 <Button className="w-full bg-emerald-600 hover:bg-emerald-700 h-12 text-base font-semibold">
                   <Plus className="h-5 w-5 mr-2" />
-                  Add New Table
+                  {t('tables.add.new')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>{editingTable ? 'Edit Table' : 'Create New Table'}</DialogTitle>
+                  <DialogTitle>{editingTable ? t('tables.edit.table') : t('tables.create.new')}</DialogTitle>
                   <DialogDescription>
-                    {editingTable ? 'Update table details' : 'Add a new table to your restaurant'}
+                    {editingTable ? t('tables.update.details') : t('tables.add.new.desc')}
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={editingTable ? handleUpdateTable : handleCreateTable}>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="tableNumber">Table Number *</Label>
+                      <Label htmlFor="tableNumber">{t('tables.table.number')} *</Label>
                       <Input
                         id="tableNumber"
                         type="number"
                         value={tableNumber}
                         onChange={(e) => setTableNumber(e.target.value)}
-                        placeholder="e.g., 1"
+                        placeholder={t('tables.placeholder.number')}
                         required
                         min="1"
                         className="h-12 text-base"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="capacity">Capacity (seats)</Label>
+                      <Label htmlFor="capacity">{t('tables.capacity.seats')}</Label>
                       <Input
                         id="capacity"
                         type="number"
                         value={capacity}
                         onChange={(e) => setCapacity(e.target.value)}
-                        placeholder="e.g., 4"
+                        placeholder={t('tables.placeholder.capacity')}
                         min="1"
                         className="h-12 text-base"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="notes">Notes</Label>
+                      <Label htmlFor="notes">{t('tables.notes')}</Label>
                       <Input
                         id="notes"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        placeholder="e.g., Near window, Outdoor, etc."
+                        placeholder={t('tables.placeholder.notes')}
                         className="h-12 text-base"
                       />
                     </div>
@@ -348,14 +348,14 @@ export function MobileTables() {
                       }}
                       className="flex-1 h-12"
                     >
-                      Cancel
+                      {t('btn.cancel')}
                     </Button>
                     <Button
                       type="submit"
                       className="flex-1 bg-emerald-600 hover:bg-emerald-700 h-12"
                       disabled={submitting}
                     >
-                      {submitting ? 'Saving...' : editingTable ? 'Update Table' : 'Create Table'}
+                      {submitting ? t('tables.saving') : editingTable ? t('tables.update.table') : t('tables.create.table')}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -375,7 +375,7 @@ export function MobileTables() {
               className="h-10"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''} mr-2`} />
-              Refresh
+              {t('tables.refresh')}
             </Button>
           </div>
         )}
@@ -384,19 +384,19 @@ export function MobileTables() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-500">
             <div className="animate-spin h-10 w-10 border-4 border-emerald-600 border-t-transparent rounded-full mb-3" />
-            <p className="font-medium">Loading tables...</p>
+            <p className="font-medium">{t('tables.loading')}</p>
           </div>
         ) : !selectedBranch ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-500">
             <Building2 className="w-16 h-16 mb-4 text-slate-300" />
-            <p className="font-medium">No branch selected</p>
-            <p className="text-sm">Please select a branch to view tables</p>
+            <p className="font-medium">{t('tables.no.branch')}</p>
+            <p className="text-sm">{t('tables.select.branch')}</p>
           </div>
         ) : tables.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-500">
             <Utensils className="w-16 h-16 mb-4 text-slate-300" />
-            <p className="font-medium">No tables found</p>
-            <p className="text-sm">Create your first table to get started</p>
+            <p className="font-medium">{t('tables.no.tables')}</p>
+            <p className="text-sm">{t('tables.create.first')}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -503,7 +503,7 @@ export function MobileTables() {
               disabled={deletingTableId === tableToDelete?.id}
               className="flex-1 h-12"
             >
-              {deletingTableId === tableToDelete?.id ? 'Deleting...' : 'Delete Table'}
+              {deletingTableId === tableToDelete?.id ? t('tables.deleting') : t('btn.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -3097,7 +3097,7 @@ export function MobilePOS() {
               <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                 <SelectTrigger className="h-10 bg-slate-50">
                   <Store className="w-4 h-4 mr-2 text-emerald-600" />
-                  <SelectValue placeholder="Select branch" />
+                  <SelectValue placeholder={t('shifts.select.branch')} />
                 </SelectTrigger>
                 <SelectContent>
                   {branches.map((branch) => (
@@ -3115,7 +3115,7 @@ export function MobilePOS() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <Input
               type="text"
-              placeholder="Search products..."
+              placeholder={t('pos.search.products')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 h-12 text-base bg-slate-50"
@@ -3140,19 +3140,19 @@ export function MobilePOS() {
                 <SelectItem value="dine-in">
                   <div className="flex items-center gap-2">
                     <Utensils className="w-4 h-4" />
-                    <span>Dine In</span>
+                    <span>{t('pos.order.type.dine.in')}</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="take-away">
                   <div className="flex items-center gap-2">
                     <Package className="w-4 h-4" />
-                    <span>Take Away</span>
+                    <span>{t('pos.order.type.take.away')}</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="delivery">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4" />
-                    <span>Delivery</span>
+                    <span>{t('pos.order.type.delivery')}</span>
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -3255,10 +3255,10 @@ export function MobilePOS() {
                 <Select value={selectedCourierId} onValueChange={setSelectedCourierId}>
                   <SelectTrigger className="h-10 bg-slate-50">
                     <Truck className="w-4 h-4 mr-2 text-slate-500" />
-                    <SelectValue placeholder="Select courier" />
+                    <SelectValue placeholder={t('pos.select.courier')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No Courier</SelectItem>
+                    <SelectItem value="none">{t('pos.no.courier')}</SelectItem>
                     {couriers.map((courier: any) => (
                       <SelectItem key={courier.id} value={courier.id}>
                         {courier.name}
@@ -3283,7 +3283,7 @@ export function MobilePOS() {
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                All
+                {t('pos.all')}
               </button>
               {categories.map((category) => (
                 <button
@@ -3308,8 +3308,8 @@ export function MobilePOS() {
             {filteredMenuItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                 <Coffee className="w-16 h-16 mb-4 text-slate-300" />
-                <p className="font-medium">No items found</p>
-                <p className="text-sm">Try a different search or category</p>
+                <p className="font-medium">{t('pos.no.items.found')}</p>
+                <p className="text-sm">{t('pos.try.different')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
@@ -3331,7 +3331,7 @@ export function MobilePOS() {
                       )}
                       {item.hasVariants && (
                         <Badge className="absolute top-2 right-2 bg-purple-600">
-                          {item.variants?.length || 0} variants
+                          {item.variants?.length || 0} {t('pos.variants')}
                         </Badge>
                       )}
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
@@ -3344,7 +3344,7 @@ export function MobilePOS() {
                       <h3 className="font-semibold text-sm text-slate-900 line-clamp-1">{item.name}</h3>
                       <p className="text-lg font-bold text-emerald-600 mt-1">{formatCurrency(item.price)}</p>
                       {item.hasVariants && (
-                        <p className="text-xs text-slate-500 mt-1">Tap to select variant</p>
+                        <p className="text-xs text-slate-500 mt-1">{t('pos.tap.to.select')}</p>
                       )}
                     </CardContent>
                   </Card>
@@ -3368,7 +3368,7 @@ export function MobilePOS() {
             )}
           </div>
           <div className="text-left">
-            <p className="text-xs text-emerald-100">Total</p>
+            <p className="text-xs text-emerald-100">{t('pos.cart.total')}</p>
             <p className="font-bold text-lg">{formatCurrency(total)}</p>
           </div>
         </button>
@@ -3381,7 +3381,7 @@ export function MobilePOS() {
             <div className="flex items-center justify-between">
               <SheetTitle className="flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5" />
-                Cart ({itemCount} items)
+                Cart ({itemCount} {itemCount === 1 ? 'item' : 'items'})
               </SheetTitle>
               <Button variant="ghost" size="icon" onClick={() => setMobileCartOpen(false)}>
                 <X className="w-5 h-5" />
@@ -3393,8 +3393,8 @@ export function MobilePOS() {
             {currentCart.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                 <ShoppingCart className="w-16 h-16 mb-4 text-slate-300" />
-                <p className="font-medium">Your cart is empty</p>
-                <p className="text-sm">Add items to get started</p>
+                <p className="font-medium">{t('pos.cart.empty')}</p>
+                <p className="text-sm">{t('pos.cart.add.items')}</p>
               </div>
             ) : (
               <div className="space-y-3 py-4">
@@ -3462,31 +3462,31 @@ export function MobilePOS() {
                 </div>
                 {loyaltyDiscount > 0 && (
                   <div className="flex justify-between text-sm text-purple-600">
-                    <span>Loyalty Discount</span>
+                    <span>{t('pos.loyalty.discount')}</span>
                     <span className="font-medium">-{formatCurrency(loyaltyDiscount)}</span>
                   </div>
                 )}
                 {promoDiscount > 0 && (
                   <div className="flex justify-between text-sm text-blue-600">
-                    <span>Promo Discount</span>
+                    <span>{t('pos.promo.discount')}</span>
                     <span className="font-medium">-{formatCurrency(promoDiscount)}</span>
                   </div>
                 )}
                 {manualDiscountAmount > 0 && (
                   <div className="flex justify-between text-sm text-orange-600">
-                    <span>Manual Discount</span>
+                    <span>{t('pos.manual.discount')}</span>
                     <span className="font-medium">-{formatCurrency(manualDiscountAmount)}</span>
                   </div>
                 )}
                 {deliveryFee > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Delivery Fee</span>
+                    <span className="text-slate-600">{t('pos.delivery.fee')}</span>
                     <span className="font-medium">{formatCurrency(deliveryFee)}</span>
                   </div>
                 )}
                 <Separator />
                 <div className="flex justify-between text-lg font-bold">
-                  <span>Total</span>
+                  <span>{t('pos.total')}</span>
                   <span className="text-emerald-600">{formatCurrency(total)}</span>
                 </div>
               </div>
@@ -3500,7 +3500,7 @@ export function MobilePOS() {
                     onClick={() => setShowDailyExpenseDialog(true)}
                   >
                     <Wallet className="w-4 h-4 mr-2" />
-                    Add Expense
+                    {t('pos.add.expense')}
                   </Button>
                   <Button
                     variant="outline"
@@ -3511,7 +3511,7 @@ export function MobilePOS() {
                     }}
                   >
                     <ListOrdered className="w-4 h-4 mr-2" />
-                    View Expenses
+                    {t('pos.view.expenses')}
                   </Button>
                 </div>
                 <div className="flex gap-2">
@@ -3522,7 +3522,7 @@ export function MobilePOS() {
                     disabled={cart.length === 0}
                   >
                     <Clock className="w-4 h-4 mr-2" />
-                    Hold Order
+                    {t('pos.hold.order')}
                   </Button>
                   <Button
                     variant="outline"
@@ -3533,7 +3533,7 @@ export function MobilePOS() {
                     }}
                   >
                     <Receipt className="w-4 h-4 mr-2" />
-                    Shift Orders
+                    {t('pos.shift.orders')}
                   </Button>
                 </div>
                 {/* Print Prep Order button for Dine-in orders (SAME AS DESKTOP) */}
@@ -3544,7 +3544,7 @@ export function MobilePOS() {
                     onClick={printPreparationReceipt}
                   >
                     <Printer className="w-4 h-4 mr-2" />
-                    Print Prep Order ({unsentTableItems.length} items)
+                    {t('pos.print.prep.order').replace('{count}', unsentTableItems.length.toString())}
                   </Button>
                 )}
                 {/* Dine-in specific buttons (SAME AS DESKTOP) */}
@@ -3557,7 +3557,7 @@ export function MobilePOS() {
                       disabled={tableCart.length === 0}
                     >
                       <ArrowRight className="w-4 h-4 mr-2" />
-                      Transfer
+                      {t('pos.transfer')}
                     </Button>
                     <Button
                       variant="outline"
@@ -3566,7 +3566,7 @@ export function MobilePOS() {
                       disabled={tableCart.length === 0}
                     >
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      Close Table
+                      {t('pos.close.table')}
                     </Button>
                   </div>
                 )}
@@ -3579,10 +3579,10 @@ export function MobilePOS() {
                   onClick={handleCloseTable}
                   disabled={tableCart.length === 0 || processing}
                 >
-                  {processing ? 'Processing...' : (
+                  {processing ? t('pos.processing') : (
                     <>
                       <CheckCircle className="w-5 h-5 mr-2" />
-                      Close Table & Pay
+                      {t('pos.close.table.pay')}
                     </>
                   )}
                 </Button>
@@ -3593,10 +3593,10 @@ export function MobilePOS() {
                   onClick={handleCheckout}
                   disabled={processing}
                 >
-                  {processing ? 'Processing...' : (
+                  {processing ? t('pos.processing') : (
                     <>
                       <ShoppingCart className="w-5 h-5 mr-2" />
-                      Checkout
+                      {t('pos.checkout')}
                     </>
                   )}
                 </Button>
@@ -3614,10 +3614,10 @@ export function MobilePOS() {
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Layers className="h-5 w-5 text-white" />
               </div>
-              <DialogTitle className="text-lg font-bold">Select Variant</DialogTitle>
+              <DialogTitle className="text-lg font-bold">{t('pos.select.variant')}</DialogTitle>
             </div>
             <p className="text-sm text-slate-500 mt-1">
-              Choose option for <span className="font-semibold text-slate-900">{selectedItemForVariant?.name}</span>
+              {t('pos.choose.option')} <span className="font-semibold text-slate-900">{selectedItemForVariant?.name}</span>
             </p>
           </DialogHeader>
           <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto">
@@ -4921,13 +4921,13 @@ export function MobilePOS() {
                       )}
                       {selectedOrder.loyaltyDiscount && selectedOrder.loyaltyDiscount > 0 && (
                         <div className="flex justify-between text-sm text-purple-600">
-                          <span>Loyalty Discount</span>
+                          <span>{t('pos.loyalty.discount')}</span>
                           <span className="font-medium">-{formatCurrency(selectedOrder.loyaltyDiscount, currency)}</span>
                         </div>
                       )}
                       {selectedOrder.promoDiscount && selectedOrder.promoDiscount > 0 && (
                         <div className="flex justify-between text-sm text-orange-600">
-                          <span>Promo Discount</span>
+                          <span>{t('pos.promo.discount')}</span>
                           <span className="font-medium">-{formatCurrency(selectedOrder.promoDiscount, currency)}</span>
                         </div>
                       )}
@@ -5451,7 +5451,7 @@ export function MobilePOS() {
                           className="h-8 text-xs"
                         >
                           <Check className="h-3 w-3 mr-1" />
-                          All
+                          {t('pos.all')}
                         </Button>
                         <Input
                           type="number"
