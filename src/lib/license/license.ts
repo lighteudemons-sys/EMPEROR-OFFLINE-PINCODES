@@ -22,6 +22,9 @@ export interface LicenseInfo {
 // Secret key for signing licenses (in production, this should be in environment variables)
 const LICENSE_SECRET = process.env.LICENSE_SECRET || 'emperor-pos-license-secret-key-2024-change-in-production';
 
+// Safe delimiter that won't be URL-encoded or stripped
+const DELIMITER = ':::';
+
 /**
  * Generate a cryptographically signed license key
  */
@@ -35,8 +38,8 @@ export function generateLicenseKey(data: LicenseData): string {
     .update(payload)
     .digest('hex');
 
-  // Combine payload and signature using | as delimiter (to avoid conflicts with dates)
-  const combined = `${payload}|${signature}`;
+  // Combine payload and signature using safe delimiter
+  const combined = `${payload}${DELIMITER}${signature}`;
   return Buffer.from(combined).toString('base64');
 }
 
@@ -65,25 +68,32 @@ export function validateLicenseKey(licenseKey: string): LicenseInfo {
       };
     }
 
-    // Try | delimiter first (new format), then . delimiter (old format for backward compatibility)
-    const parts = combined.split('|');
+    // Try new delimiter (:::) first, then old delimiters (| and .) for backward compatibility
+    let parts = combined.split(DELIMITER);
     let payload: string;
     let signature: string;
 
     if (parts.length === 2) {
       [payload, signature] = parts;
     } else {
-      // Try old format with . delimiter
-      const oldParts = combined.split('.');
-      if (oldParts.length === 2) {
-        console.warn('[License] Using old delimiter format (.), please regenerate license');
-        [payload, signature] = oldParts;
+      // Try old | delimiter
+      parts = combined.split('|');
+      if (parts.length === 2) {
+        console.warn('[License] Using old delimiter format (|), please regenerate license');
+        [payload, signature] = parts;
       } else {
-        return {
-          isValid: false,
-          data: null,
-          error: `Invalid license key format: expected 2 parts with | or . delimiter, got ${parts.length} parts`
-        };
+        // Try old . delimiter
+        parts = combined.split('.');
+        if (parts.length === 2) {
+          console.warn('[License] Using old delimiter format (.), please regenerate license');
+          [payload, signature] = parts;
+        } else {
+          return {
+            isValid: false,
+            data: null,
+            error: `Invalid license key format: expected 2 parts with :::, | or . delimiter, got ${combined.split(DELIMITER).length} parts (decoded: ${combined.substring(0, 50)}...)`
+          };
+        }
       }
     }
 
@@ -152,18 +162,25 @@ export function parseLicenseKey(licenseKey: string): LicenseData | null {
 
     const combined = Buffer.from(licenseKey, 'base64').toString('utf-8');
 
-    // Try | delimiter first, then . delimiter
-    const parts = combined.split('|');
+    // Try new delimiter (:::) first, then old delimiters
+    let parts = combined.split(DELIMITER);
     let payload: string;
 
     if (parts.length === 2) {
       [payload] = parts;
     } else {
-      const oldParts = combined.split('.');
-      if (oldParts.length === 2) {
-        [payload] = oldParts;
+      // Try old | delimiter
+      parts = combined.split('|');
+      if (parts.length === 2) {
+        [payload] = parts;
       } else {
-        return null;
+        // Try old . delimiter
+        parts = combined.split('.');
+        if (parts.length === 2) {
+          [payload] = parts;
+        } else {
+          return null;
+        }
       }
     }
 
