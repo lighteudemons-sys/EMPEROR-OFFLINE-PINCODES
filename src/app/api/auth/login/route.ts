@@ -174,6 +174,10 @@ export async function POST(request: NextRequest) {
       console.log('[Login] User has branch but no activated license on device');
     }
 
+    // Variables to store device and license info for session
+    let deviceId: string | undefined;
+    let licenseId: string | undefined;
+
     // Check if user's branch is active (if user has a branch)
     if (user.branchId) {
       const branch = await db.branch.findUnique({
@@ -202,6 +206,8 @@ export async function POST(request: NextRequest) {
       });
 
       if (branchLicense) {
+        licenseId = branchLicense.id;
+
         // New license system
         if (branchLicense.isRevoked) {
           return NextResponse.json(
@@ -218,13 +224,20 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Register or update the device for this license (fire and forget - don't block login)
+        // Register or update the device for this license
         const userAgent = request.headers.get('user-agent') || 'Unknown';
-        registerDeviceOnLogin(
+        const deviceResult = await registerDeviceOnLogin(
           user.branchId,
           branchLicense.id,
           userAgent
-        ).catch(err => console.error('[License] Failed to register device on login:', err));
+        );
+
+        if (deviceResult.success && deviceResult.deviceId) {
+          deviceId = deviceResult.deviceId;
+          console.log('[Login] Device registered successfully:', deviceId);
+        } else {
+          console.warn('[Login] Device registration failed, continuing without device tracking');
+        }
 
         // Note: Device limit is enforced during activation, not on every login
         // This allows offline access for already-registered devices
@@ -239,14 +252,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create session
+    // Create session with device and license info
     const sessionData = await createSession({
       userId: user.id,
       username: user.username,
       email: user.email,
       name: user.name,
       role: user.role,
-      branchId: user.branchId
+      branchId: user.branchId,
+      deviceId,
+      licenseId
     })
 
     // Log login to audit logs (fire and forget, don't await)

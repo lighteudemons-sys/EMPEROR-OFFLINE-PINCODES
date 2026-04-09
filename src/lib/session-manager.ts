@@ -13,6 +13,8 @@ export interface SessionData {
   name?: string
   role: 'ADMIN' | 'BRANCH_MANAGER' | 'CASHIER'
   branchId?: string
+  deviceId?: string
+  licenseId?: string
   expiresAt: number
 }
 

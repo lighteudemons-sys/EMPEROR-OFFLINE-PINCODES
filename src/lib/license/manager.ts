@@ -430,7 +430,7 @@ export async function registerDeviceOnLogin(
   deviceName?: string,
   deviceType?: string,
   osInfo?: string
-): Promise<{ success: boolean; isNewDevice?: boolean }> {
+): Promise<{ success: boolean; isNewDevice?: boolean; deviceId?: string }> {
   try {
     // If no device info provided, extract from user-agent
     const parsedUA = userAgent ? parseUserAgent(userAgent) : null;
@@ -466,7 +466,7 @@ export async function registerDeviceOnLogin(
       });
 
       console.log('[License] Device already registered, updated last active:', finalDeviceId);
-      return { success: true, isNewDevice: false };
+      return { success: true, isNewDevice: false, deviceId: finalDeviceId };
     }
 
     // Register new device (no device limit check for login - allows offline access)
@@ -486,11 +486,11 @@ export async function registerDeviceOnLogin(
     });
 
     console.log('[License] New device registered on login:', finalDeviceId);
-    return { success: true, isNewDevice: true };
+    return { success: true, isNewDevice: true, deviceId: finalDeviceId };
   } catch (error) {
     console.error('[License] Device registration on login error:', error);
     // Don't fail login if device registration fails
-    return { success: false, isNewDevice: false };
+    return { success: false, isNewDevice: false, deviceId: undefined };
   }
 }
 

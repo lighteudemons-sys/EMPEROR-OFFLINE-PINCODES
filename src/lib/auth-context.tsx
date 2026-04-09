@@ -414,7 +414,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               try {
                 await storage.setJSON('user', data.user);
                 await storage.setString('isLoggedIn', 'true');
-                
+
                 // Cache users for offline authentication (if not already cached)
                 const cachedUsers = await storage.getAll('users');
                 if (!cachedUsers || cachedUsers.length === 0) {
@@ -452,6 +452,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   console.error('[Auth] Failed to initialize offline manager after session check:', err);
                 });
               }
+            } else if (data.reason === 'device_removed' || data.reason === 'device_deactivated') {
+              // Device was removed or deactivated - clear session and redirect to license activation
+              console.warn('[Auth] Device removed/deactivated, redirecting to license activation');
+              await storage.removeSetting('user');
+              await storage.removeSetting('isLoggedIn');
+              setUser(null);
+              // Redirect to license activation page
+              window.location.href = '/license-activation';
             }
             // If session API fails, we keep the IndexedDB user as fallback
           })
