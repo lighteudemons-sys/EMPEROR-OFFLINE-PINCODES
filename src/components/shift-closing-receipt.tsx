@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Printer, FileText, Package, DollarSign, Loader2, AlertCircle, X, RefreshCw } from 'lucide-react';
+import { Printer, FileText, Package, DollarSign, Loader2, AlertCircle, X, RefreshCw, Wallet } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { type ShiftClosingReportData } from '@/lib/escpos-encoder';
 
@@ -115,6 +115,26 @@ interface ApiResponse {
       refundedAt: string;
       paymentMethod: string;
     }>;
+    dailyExpenses: Array<{
+      id: string;
+      amount: number;
+      reason: string;
+      category: string;
+      ingredientId: string | null;
+      quantity: number | null;
+      quantityUnit: string | null;
+      unitPrice: number | null;
+      createdAt: string;
+      recorder: {
+        id: string;
+        name: string;
+        username: string;
+      };
+      ingredient: {
+        id: string;
+        name: string;
+      } | null;
+    }>;
   };
   error?: string;
   details?: string;
@@ -166,7 +186,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     }
   }, [open, shiftId, shiftData]);
 
-  // Auto-print all three papers when data is loaded
+  // Auto-print all four papers when data is loaded
   useEffect(() => {
     if (data && open) {
       console.log('[Shift Closing] Auto-printing shift closing receipt...');
@@ -189,10 +209,17 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         printThermalPaper3();
       }, 7000); // 7 second delay between prints
 
+      // Print Paper 4 (Daily Expenses) after another delay
+      const timer4 = setTimeout(() => {
+        console.log('[Shift Closing] Printing Paper 4 (Daily Expenses)...');
+        printThermalPaper4();
+      }, 10000); // 10 second delay between prints
+
       return () => {
         clearTimeout(timer1);
         clearTimeout(timer2);
         clearTimeout(timer3);
+        clearTimeout(timer4);
       };
     }
   }, [data, open]);
@@ -606,7 +633,27 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       },
       categoryBreakdown,
       voidedItems: [],
-      refundedOrders: []
+      refundedOrders: [],
+      dailyExpenses: shiftDailyExpenses.map((exp: any) => ({
+        id: exp.id,
+        amount: exp.amount,
+        reason: exp.reason,
+        category: exp.category,
+        ingredientId: exp.ingredientId,
+        quantity: exp.quantity,
+        quantityUnit: exp.quantityUnit,
+        unitPrice: exp.unitPrice,
+        createdAt: exp.createdAt,
+        recorder: {
+          id: exp.recordedBy,
+          name: exp.recordedBy,
+          username: exp.recordedBy
+        },
+        ingredient: exp.ingredientId ? {
+          id: exp.ingredientId,
+          name: exp.ingredientId
+        } : null
+      }))
     };
 
     console.log('[Shift Closing Receipt] Setting fullReportData in loadReceiptFromShiftData with dailyExpenses:', {
@@ -936,7 +983,27 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       },
       categoryBreakdown,
       voidedItems: [],
-      refundedOrders: []
+      refundedOrders: [],
+      dailyExpenses: shiftDailyExpenses.map((exp: any) => ({
+        id: exp.id,
+        amount: exp.amount,
+        reason: exp.reason,
+        category: exp.category,
+        ingredientId: exp.ingredientId,
+        quantity: exp.quantity,
+        quantityUnit: exp.quantityUnit,
+        unitPrice: exp.unitPrice,
+        createdAt: exp.createdAt,
+        recorder: {
+          id: exp.recordedBy,
+          name: exp.recordedBy,
+          username: exp.recordedBy
+        },
+        ingredient: exp.ingredientId ? {
+          id: exp.ingredientId,
+          name: exp.ingredientId
+        } : null
+      }))
     };
 
     setFullReportData(report);
@@ -1784,6 +1851,255 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     setTimeout(() => printWindow.print(), 250);
   };
 
+  const printThermalPaper4 = () => {
+    if (!fullReportData) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const cashierName = fullReportData.shift.cashier.name || fullReportData.shift.cashier.username;
+    const dateStr = new Date(fullReportData.shift.startTime).toLocaleDateString();
+    const timeStr = `${new Date(fullReportData.shift.startTime).toLocaleTimeString()} - ${new Date(fullReportData.shift.endTime).toLocaleTimeString()}`;
+
+    const dailyExpenses = fullReportData.dailyExpenses || [];
+
+    let expensesHtml = '';
+    if (dailyExpenses.length > 0) {
+      dailyExpenses.forEach(expense => {
+        const expenseDate = new Date(expense.createdAt).toLocaleString();
+        const recorderName = expense.recorder?.name || expense.recorder?.username || 'Unknown';
+
+        // For INVENTORY category, show ingredient details
+        if (expense.category === 'INVENTORY' && expense.ingredient) {
+          expensesHtml += `
+            <div style="margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 5px;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                <span style="font-weight: bold;">${expense.ingredient.name}</span>
+                <span style="font-weight: bold;">${formatCurrency(expense.amount)}</span>
+              </div>
+              <div style="font-size: 11px; margin-bottom: 1px;">Category: INVENTORY</div>
+              <div style="font-size: 11px; margin-bottom: 1px;">Quantity: ${expense.quantity || 0} ${expense.quantityUnit || ''} @ ${formatCurrency(expense.unitPrice || 0)}/${expense.quantityUnit || ''}</div>
+              <div style="font-size: 11px; margin-bottom: 1px;">Reason: ${expense.reason || 'Restock'}</div>
+              <div style="font-size: 11px; margin-bottom: 1px;">Recorded By: ${recorderName}</div>
+              <div style="font-size: 11px; margin-bottom: 1px;">Date: ${expenseDate}</div>
+            </div>
+          `;
+        } else {
+          // For OTHER category expenses
+          expensesHtml += `
+            <div style="margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 5px;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                <span style="font-weight: bold;">${expense.reason || 'Expense'}</span>
+                <span style="font-weight: bold;">${formatCurrency(expense.amount)}</span>
+              </div>
+              <div style="font-size: 11px; margin-bottom: 1px;">Category: ${expense.category}</div>
+              <div style="font-size: 11px; margin-bottom: 1px;">Recorded By: ${recorderName}</div>
+              <div style="font-size: 11px; margin-bottom: 1px;">Date: ${expenseDate}</div>
+            </div>
+          `;
+        }
+      });
+    }
+
+    const content = `<!DOCTYPE html>
+<html dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <title>Shift Closing - Daily Expenses</title>
+  <style>
+    @page {
+      size: 80mm auto;
+      margin: 0;
+      padding: 0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      color: #000 !important;
+    }
+
+    @media print {
+      @page {
+        margin: 0;
+        padding: 0;
+        size: 80mm auto;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      html, body {
+        height: auto;
+        overflow: visible;
+      }
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: auto;
+      width: 80mm;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      max-width: 80mm;
+      margin: 0 auto;
+      padding: 0;
+      font-size: 12px;
+      line-height: 1.4;
+      background: white;
+      color: #000;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 2px dashed #000;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: bold;
+      padding: 0;
+      color: #000;
+    }
+
+    .header div {
+      margin: 2px 0;
+      padding: 0;
+      color: #000;
+    }
+
+    .section-title {
+      font-weight: bold;
+      margin: 10px 0 5px 0;
+      padding: 0;
+      text-decoration: underline;
+    }
+
+    .info {
+      margin-bottom: 10px;
+      font-size: 12px;
+      padding: 0;
+    }
+
+    .info div {
+      margin: 2px 0;
+      padding: 0;
+      color: #000;
+    }
+
+    .expense-item {
+      margin-bottom: 8px;
+      border-bottom: 1px dashed #000;
+      padding-bottom: 5px;
+    }
+
+    .expense-item .amount {
+      font-weight: bold;
+    }
+
+    .expense-details {
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .expense-details div {
+      margin: 1px 0;
+      padding: 0;
+      color: #000;
+    }
+
+    .totals {
+      border-top: 2px dashed #000;
+      padding-top: 8px;
+      margin-top: 10px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 3px 0;
+      padding: 0;
+    }
+
+    .total-row span {
+      color: #000 !important;
+    }
+
+    .total-row.grand-total {
+      font-weight: bold;
+      font-size: 14px;
+      margin-top: 8px;
+      padding-top: 5px;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 2px dashed #000;
+      font-size: 10px;
+      padding-bottom: 0;
+      color: #000;
+    }
+
+    .no-expenses {
+      text-align: center;
+      padding: 20px 0;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>DAILY EXPENSES</h1>
+    <div>Shift #${fullReportData.shift.shiftNumber}</div>
+    <div>${dateStr}</div>
+    <div>${timeStr}</div>
+    <div>${fullReportData.shift.branch.branchName}</div>
+    <div>Cashier: ${cashierName}</div>
+  </div>
+
+  <div class="section-title">EXPENSES BREAKDOWN</div>
+
+  ${dailyExpenses.length > 0 ? `
+    <div class="expenses-list">
+      ${expensesHtml}
+    </div>
+
+    <div class="totals">
+      <div class="total-row grand-total">
+        <span>Total Expenses:</span>
+        <span>${formatCurrency(fullReportData.totals.dailyExpenses || 0)}</span>
+      </div>
+    </div>
+  ` : `
+    <div class="no-expenses">
+      No expenses recorded for this shift
+    </div>
+  `}
+
+  <div class="footer">
+    <div>Emperor Coffee Franchise</div>
+  </div>
+</body>
+</html>`;
+
+    printWindow.document.write(content);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 250);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl p-0 flex flex-col" style={{ height: '85vh' }}>
@@ -2107,6 +2423,93 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Paper 4: Daily Expenses */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Wallet className="h-5 w-5" />
+                          Paper 4: Daily Expenses
+                        </CardTitle>
+                        <CardDescription className="mt-1">
+                          Expenses recorded during shift #{data.shift.shiftNumber}
+                        </CardDescription>
+                      </div>
+                      <Button
+                        onClick={printThermalPaper4}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Printer className="h-4 w-4" />
+                        Print
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <Separator />
+                  <CardContent className="pt-4">
+                    {fullReportData.dailyExpenses && fullReportData.dailyExpenses.length > 0 ? (
+                      <div className="space-y-3">
+                        {fullReportData.dailyExpenses.map((expense, idx) => (
+                          <div key={expense.id || idx} className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-900">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {expense.category === 'INVENTORY' ? (
+                                    <Package className="h-4 w-4 text-emerald-600" />
+                                  ) : (
+                                    <Wallet className="h-4 w-4 text-amber-600" />
+                                  )}
+                                  <span className="text-xs font-semibold px-2 py-0.5 bg-white dark:bg-slate-800 rounded-full">
+                                    {expense.category}
+                                  </span>
+                                </div>
+                                {expense.category === 'INVENTORY' && expense.ingredient ? (
+                                  <div className="font-medium text-sm">{expense.ingredient.name}</div>
+                                ) : (
+                                  <div className="font-medium text-sm">{expense.reason || 'Expense'}</div>
+                                )}
+                                {expense.category === 'INVENTORY' && (
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {expense.quantity || 0} {expense.quantityUnit || ''} @ {formatCurrency(expense.unitPrice || 0)}/{expense.quantityUnit || ''}
+                                  </div>
+                                )}
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  By: {expense.recorder?.name || 'Unknown'}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {new Date(expense.createdAt).toLocaleString()}
+                                </div>
+                              </div>
+                              <div className="font-bold text-amber-600 dark:text-amber-400">
+                                {formatCurrency(expense.amount)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Totals Summary */}
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-900">
+                            <span className="font-semibold text-sm">Total Daily Expenses:</span>
+                            <span className="font-bold text-red-600">
+                              -{formatCurrency(fullReportData.totals.dailyExpenses || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                          <Wallet className="h-8 w-8 text-slate-400" />
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">No expenses recorded for this shift</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             )}
 

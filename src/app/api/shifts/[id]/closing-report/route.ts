@@ -269,10 +269,28 @@ export async function GET(
       }))
       .sort((a, b) => b.totalSales - a.totalSales);
 
-    // Get daily expenses for this shift
+    // Get daily expenses for this shift with recorder and ingredient details
     const dailyExpenses = await db.dailyExpense.findMany({
       where: {
         shiftId: shiftId
+      },
+      include: {
+        recorder: {
+          select: {
+            id: true,
+            name: true,
+            username: true
+          }
+        },
+        ingredient: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
       }
     });
     const totalDailyExpenses = dailyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
@@ -510,6 +528,26 @@ export async function GET(
         refundReason: ro.refundReason,
         refundedAt: ro.refundedAt,
         paymentMethod: ro.paymentMethod
+      })),
+      dailyExpenses: dailyExpenses.map(exp => ({
+        id: exp.id,
+        amount: exp.amount,
+        reason: exp.reason,
+        category: exp.category,
+        ingredientId: exp.ingredientId,
+        quantity: exp.quantity,
+        quantityUnit: exp.quantityUnit,
+        unitPrice: exp.unitPrice,
+        createdAt: exp.createdAt,
+        recorder: {
+          id: exp.recorder.id,
+          name: exp.recorder.name,
+          username: exp.recorder.username
+        },
+        ingredient: exp.ingredient ? {
+          id: exp.ingredient.id,
+          name: exp.ingredient.name
+        } : null
       })),
       loyaltyTransactions: loyaltyTransactions.map(lt => {
         const order = orderMap.get(lt.orderId || '');
