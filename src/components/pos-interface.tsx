@@ -476,12 +476,12 @@ async function createExpenseOffline(expenseData: any, currentShift: any): Promis
           console.log('[Daily Expense] Could not access cached ingredients, using oldStock = 0:', error);
         }
 
-        // Create new inventory record
+        // Create new inventory record starting at 0 (will add quantity below)
         await indexedDBStorage.put('inventory', {
           id: `temp-inventory-${Date.now()}`,
           branchId: expenseData.branchId,
           ingredientId: expenseData.ingredientId,
-          currentStock: finalStock,
+          currentStock: finalStock,  // This is oldStock + quantity (correct calculation)
           reservedStock: 0,
           lastRestockAt: new Date().toISOString(),
           lastModifiedAt: new Date().toISOString(),
@@ -489,7 +489,7 @@ async function createExpenseOffline(expenseData: any, currentShift: any): Promis
           _offlineCreated: true,
         });
 
-        console.log('[Daily Expense] New inventory record created offline');
+        console.log('[Daily Expense] New inventory record created offline with stock:', finalStock);
 
         inventoryUpdate = {
           oldStock,

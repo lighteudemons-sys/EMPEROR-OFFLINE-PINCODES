@@ -195,8 +195,8 @@ async function handleInventoryExpense(
       data: {
         branchId,
         ingredientId,
-        currentStock: quantity,
-        costPerUnit: unitPrice, // Set the purchase price for new inventory
+        currentStock: 0,  // Start at 0, will add quantity below
+        costPerUnit: unitPrice,
         reservedStock: 0,
         lastRestockAt: new Date(),
         lastModifiedAt: new Date(),
@@ -475,14 +475,51 @@ export async function POST(request: NextRequest) {
     // Handle inventory expense if applicable
     let inventoryUpdate = null;
     if (category === 'INVENTORY') {
-      inventoryUpdate = await handleInventoryExpense(
-        branchId,
-        ingredientId,
-        parseFloat(quantity.toString()),
-        parseFloat(unitPrice.toString()),
-        quantityUnit,
-        recordedBy
-      );
+      // Check if inventory was already updated offline (to prevent double update during sync)
+      const inventoryAlreadyUpdated = body._offlineData?.inventoryAlreadyUpdated;
+
+      if (inventoryAlreadyUpdated) {
+        console.log('[Daily Expenses] Inventory already updated offline, skipping local update');
+        // Still update the final price if provided from offline calculation
+        if (body._offlineData?.finalPrice !== undefined) {
+          // Fetch the inventory record to update just the price
+          const branchInventory = await db.branchInventory.findUnique({
+            where: {
+              branchId_ingredientId: {
+                branchId,
+                ingredientId,
+              },
+            },
+          });
+
+          if (branchInventory) {
+            branchInventory = await db.branchInventory.update({
+              where: { id: branchInventory.id },
+              data: {
+                costPerUnit: body._offlineData.finalPrice,
+                lastModifiedAt: new Date(),
+                lastModifiedBy: recordedBy,
+              },
+            });
+
+            inventoryUpdate = {
+              newStock: body._offlineData.finalStock || branchInventory.currentStock,
+              newPrice: body._offlineData.finalPrice,
+              oldPrice: branchInventory.costPerUnit,
+            };
+          }
+        }
+      } else {
+        // Normal online flow - update inventory
+        inventoryUpdate = await handleInventoryExpense(
+          branchId,
+          ingredientId,
+          parseFloat(quantity.toString()),
+          parseFloat(unitPrice.toString()),
+          quantityUnit,
+          recordedBy
+        );
+      }
     }
 
     // Create daily expense
