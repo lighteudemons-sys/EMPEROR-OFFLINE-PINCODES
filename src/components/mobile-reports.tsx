@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -33,11 +33,14 @@ import {
   Users,
   Tag,
   Eye,
+  Printer,
+  XCircle,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
 import { formatCurrency } from '@/lib/utils';
 import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
+import { ReceiptViewer } from './receipt-viewer';
 import {
   BarChart,
   Bar,
@@ -163,6 +166,25 @@ export function MobileReports() {
   const [currentPage, setCurrentPage] = useState(1);
   const [ordersPerPage] = useState(10);
   const [totalOrders, setTotalOrders] = useState(0);
+
+  // Order Dialog state
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [duplicateReceiptOrder, setDuplicateReceiptOrder] = useState<Order | null>(null);
+  const [refundUsername, setRefundUsername] = useState('');
+  const [refundPassword, setRefundPassword] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [isRefunding, setIsRefunding] = useState(false);
+
+  // Void item state
+  const [voidItemDialogOpen, setVoidItemDialogOpen] = useState(false);
+  const [selectedVoidItem, setSelectedVoidItem] = useState<any>(null);
+  const [voidQuantity, setVoidQuantity] = useState<number>(1);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidUsername, setVoidUsername] = useState('');
+  const [voidPassword, setVoidPassword] = useState('');
+  const [isVoiding, setIsVoiding] = useState(false);
 
   // Fetch branches
   useEffect(() => {
@@ -383,6 +405,119 @@ export function MobileReports() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefund = async () => {
+    if (!selectedOrder) return;
+
+    setIsRefunding(true);
+    try {
+      const response = await fetch('/api/orders/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+          username: refundUsername,
+          password: refundPassword,
+          reason: refundReason,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setOrders(prevOrders =>
+          prevOrders.map(order =>
+            order.id === selectedOrder.id
+              ? { ...order, isRefunded: true, refundReason }
+              : order
+          )
+        );
+
+        setRefundDialogOpen(false);
+        setRefundUsername('');
+        setRefundPassword('');
+        setRefundReason('');
+        setSelectedOrder(null);
+        setOrderDialogOpen(false);
+
+        showSuccessToast('Success', 'Order refunded successfully');
+        fetchOrders();
+      } else {
+        showErrorToast('Error', data.error || 'Failed to refund order');
+      }
+    } catch (error) {
+      console.error('Refund error:', error);
+      showErrorToast('Error', 'Failed to refund order');
+    } finally {
+      setIsRefunding(false);
+    }
+  };
+
+  const handleVoidItem = async () => {
+    if (!selectedVoidItem || !voidQuantity || voidQuantity <= 0) {
+      showErrorToast('Error', 'Please enter a valid quantity');
+      return;
+    }
+
+    setIsVoiding(true);
+    try {
+      const response = await fetch('/api/orders/void-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderItemId: selectedVoidItem.id,
+          quantity: voidQuantity,
+          username: voidUsername,
+          password: voidPassword,
+          reason: voidReason,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        showSuccessToast('Success', `Voided ${voidQuantity} ${selectedVoidItem.menuItem?.name || selectedVoidItem.itemName} successfully`);
+        setVoidItemDialogOpen(false);
+        setVoidQuantity(1);
+        setVoidReason('');
+        setVoidUsername('');
+        setVoidPassword('');
+        setSelectedVoidItem(null);
+        // Refresh order data
+        fetchOrders();
+        // Reopen order dialog to show updated data
+        if (selectedOrder) {
+          const updatedOrderResponse = await fetch(`/api/orders/${selectedOrder.id}`);
+          if (updatedOrderResponse.ok) {
+            const updatedOrderData = await updatedOrderResponse.json();
+            if (updatedOrderData.success) {
+              setSelectedOrder(updatedOrderData.order);
+            }
+          }
+        }
+      } else {
+        showErrorToast('Error', data.error || 'Failed to void item');
+      }
+    } catch (error) {
+      console.error('Void item error:', error);
+      showErrorToast('Error', 'Failed to void item');
+    } finally {
+      setIsVoiding(false);
+    }
+  };
+
+  const openVoidDialog = (item: any) => {
+    if (selectedOrder?.isRefunded) {
+      showErrorToast('Error', 'Cannot void items from refunded orders');
+      return;
+    }
+    setSelectedVoidItem(item);
+    setVoidQuantity(1);
+    setVoidReason('');
+    setVoidUsername('');
+    setVoidPassword('');
+    setVoidItemDialogOpen(true);
   };
 
   const handleExport = () => {
@@ -869,6 +1004,7 @@ export function MobileReports() {
                               <TableHead className="text-xs">Cashier</TableHead>
                               <TableHead className="text-xs">Branch</TableHead>
                               <TableHead className="text-xs">Status</TableHead>
+                              <TableHead className="text-xs text-right">Actions</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -926,6 +1062,19 @@ export function MobileReports() {
                                     ) : (
                                       <Badge className="bg-emerald-600 text-xs">Completed</Badge>
                                     )}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setSelectedOrder(order);
+                                        setOrderDialogOpen(true);
+                                      }}
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
                                   </TableCell>
                                 </TableRow>
                               );
@@ -1087,6 +1236,280 @@ export function MobileReports() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Order Detail Dialog */}
+      <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Order Details #{selectedOrder?.orderNumber}</DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-slate-500 text-xs">Date & Time</Label>
+                  <p className="font-semibold text-sm">{new Date(selectedOrder.orderTimestamp).toLocaleString()}</p>
+                </div>
+                <div>
+                  <Label className="text-slate-500 text-xs">Order Type</Label>
+                  <p className="font-semibold capitalize text-sm">{selectedOrder.orderType}</p>
+                </div>
+                <div>
+                  <Label className="text-slate-500 text-xs">Payment Method</Label>
+                  <p className="font-semibold capitalize text-sm">
+                    {selectedOrder.paymentMethod === 'cash' ? 'Cash' :
+                     selectedOrder.paymentMethodDetail === 'INSTAPAY' ? 'InstaPay' :
+                     selectedOrder.paymentMethodDetail === 'MOBILE_WALLET' ? 'Mobile Wallet' :
+                     'Card'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-slate-500 text-xs">Subtotal</Label>
+                  <p className="font-semibold text-lg">
+                    {formatCurrency(selectedOrder.subtotal, currency)}
+                  </p>
+                </div>
+                {selectedOrder.deliveryFee > 0 && (
+                  <div>
+                    <Label className="text-slate-500 text-xs">Delivery Fee</Label>
+                    <p className="font-semibold text-lg text-amber-600">
+                      {formatCurrency(selectedOrder.deliveryFee, currency)}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-slate-500 text-xs">Discount</Label>
+                  <p className="font-semibold text-lg text-purple-600">
+                    {formatCurrency(Math.max(0, selectedOrder.subtotal + (selectedOrder.deliveryFee || 0) - selectedOrder.totalAmount), currency)}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-slate-500 text-xs">Total</Label>
+                  <p className="font-bold text-xl text-emerald-600">
+                    {formatCurrency(selectedOrder.totalAmount, currency)}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-slate-500 text-xs">Cashier</Label>
+                  <p className="font-semibold text-sm">{selectedOrder.cashier?.name || 'Unknown'}</p>
+                </div>
+                <div>
+                  <Label className="text-slate-500 text-xs">Branch</Label>
+                  <p className="font-semibold text-sm">{selectedOrder.branch?.branchName || 'Unknown'}</p>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-slate-500 mb-2 block text-xs">Order Items</Label>
+                <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
+                  {selectedOrder.items && selectedOrder.items.map((item, index: number) => (
+                    <div key={index} className="p-3 flex justify-between items-start">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{item.menuItem?.name || item.itemName}</p>
+                        <p className="text-xs text-slate-500">Qty: {item.quantity} × {formatCurrency(item.unitPrice, currency)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm">
+                          {formatCurrency(item.quantity * item.unitPrice, currency)}
+                        </p>
+                        {!selectedOrder.isRefunded && item.quantity > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openVoidDialog(item)}
+                            className="text-red-600 border-red-200 hover:bg-red-50 h-7 w-7 p-0"
+                          >
+                            <XCircle className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {selectedOrder.isRefunded && (
+                <div className="bg-red-50 p-3 rounded-lg">
+                  <p className="font-semibold text-red-700 text-sm">Order Refunded</p>
+                  {selectedOrder.refundReason && (
+                    <p className="text-xs text-slate-600 mt-1">Reason: {selectedOrder.refundReason}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => {
+                    setDuplicateReceiptOrder(selectedOrder);
+                    setOrderDialogOpen(false);
+                  }}
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Receipt
+                </Button>
+
+                {!selectedOrder.isRefunded && (
+                  <Button
+                    className="w-full bg-red-600 hover:bg-red-700"
+                    onClick={() => {
+                      setOrderDialogOpen(false);
+                      setRefundDialogOpen(true);
+                    }}
+                  >
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Refund Order
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Refund Dialog */}
+      <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Refund Order</DialogTitle>
+            <DialogDescription>
+              Refund order #{selectedOrder?.orderNumber} for {formatCurrency(selectedOrder?.totalAmount || 0, currency)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="refund-username">Username</Label>
+              <Input
+                id="refund-username"
+                value={refundUsername}
+                onChange={(e) => setRefundUsername(e.target.value)}
+                placeholder="Enter username"
+              />
+            </div>
+            <div>
+              <Label htmlFor="refund-password">Password</Label>
+              <Input
+                id="refund-password"
+                type="password"
+                value={refundPassword}
+                onChange={(e) => setRefundPassword(e.target.value)}
+                placeholder="Enter password"
+              />
+            </div>
+            <div>
+              <Label htmlFor="refund-reason">Refund Reason</Label>
+              <Input
+                id="refund-reason"
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                placeholder="Enter reason for refund"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleRefund}
+              disabled={isRefunding || !refundUsername || !refundPassword || !refundReason}
+            >
+              {isRefunding ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Confirm Refund'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Void Item Dialog */}
+      <Dialog open={voidItemDialogOpen} onOpenChange={setVoidItemDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Void Item</DialogTitle>
+            <DialogDescription>
+              Void {voidQuantity} x {selectedVoidItem?.menuItem?.name || selectedVoidItem?.itemName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="void-quantity">Quantity to Void</Label>
+              <Input
+                id="void-quantity"
+                type="number"
+                min="1"
+                max={selectedVoidItem?.quantity || 1}
+                value={voidQuantity}
+                onChange={(e) => setVoidQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="void-reason">Reason</Label>
+              <Input
+                id="void-reason"
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                placeholder="Enter reason for void"
+              />
+            </div>
+            <div>
+              <Label htmlFor="void-username">Username</Label>
+              <Input
+                id="void-username"
+                value={voidUsername}
+                onChange={(e) => setVoidUsername(e.target.value)}
+                placeholder="Enter username"
+              />
+            </div>
+            <div>
+              <Label htmlFor="void-password">Password</Label>
+              <Input
+                id="void-password"
+                type="password"
+                value={voidPassword}
+                onChange={(e) => setVoidPassword(e.target.value)}
+                placeholder="Enter password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVoidItemDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleVoidItem}
+              disabled={isVoiding || !voidUsername || !voidPassword || !voidReason}
+            >
+              {isVoiding ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Confirm Void'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt Viewer */}
+      {duplicateReceiptOrder && (
+        <ReceiptViewer
+          order={duplicateReceiptOrder}
+          open={!!duplicateReceiptOrder}
+          onClose={() => {
+            setDuplicateReceiptOrder(null);
+          }}
+        />
+      )}
     </div>
   );
 }
