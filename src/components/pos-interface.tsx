@@ -6885,7 +6885,7 @@ export default function POSInterface() {
 
       {/* Order Details Dialog */}
       <Dialog open={showOrderDetailsDialog} onOpenChange={setShowOrderDetailsDialog}>
-        <DialogContent className="sm:max-w-4xl rounded-3xl max-h-[85vh] overflow-hidden flex flex-col p-0" showCloseButton={false}>
+        <DialogContent className="sm:max-w-4xl rounded-3xl h-[85vh] max-h-[85vh] overflow-hidden flex flex-col !grid !grid-rows-[auto_1fr] p-0 gap-0" showCloseButton={false}>
           {/* Sticky Header with Actions */}
           <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
             <DialogHeader className="pb-4 px-6 pt-6">
@@ -6948,7 +6948,7 @@ export default function POSInterface() {
           </div>
 
           {/* Scrollable Content */}
-          <ScrollArea className="flex-1 h-full">
+          <div className="overflow-y-auto h-full">
             {loadingOrderDetails ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
@@ -7152,7 +7152,7 @@ export default function POSInterface() {
                 )}
               </div>
             ) : null}
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
 
