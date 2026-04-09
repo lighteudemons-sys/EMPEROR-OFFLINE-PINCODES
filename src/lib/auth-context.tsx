@@ -79,9 +79,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // If device was removed, redirect to license activation
           if (data.reason === 'device_removed' || data.reason === 'device_deactivated') {
             console.warn('[Auth] Device removed/deactivated, redirecting to license activation');
+            // Clear all device activation data from localStorage
+            localStorage.removeItem('emperor_device_activated');
+            localStorage.removeItem('emperor_device_activation_time');
+            localStorage.removeItem('emperor_branch_id');
+            localStorage.removeItem('emperor_branch_name');
+            localStorage.removeItem('emperor_license_expires');
+            // Clear user session
             await storage.removeSetting('user');
             await storage.removeSetting('isLoggedIn');
             setUser(null);
+            // Redirect to license activation page
             window.location.href = '/license-activation';
           } else {
             // Other session issues, logout
@@ -507,6 +515,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } else if (data.reason === 'device_removed' || data.reason === 'device_deactivated') {
               // Device was removed or deactivated - clear session and redirect to license activation
               console.warn('[Auth] Device removed/deactivated, redirecting to license activation');
+              // Clear all device activation data from localStorage
+              localStorage.removeItem('emperor_device_activated');
+              localStorage.removeItem('emperor_device_activation_time');
+              localStorage.removeItem('emperor_branch_id');
+              localStorage.removeItem('emperor_branch_name');
+              localStorage.removeItem('emperor_license_expires');
+              // Clear IndexedDB user session
               await storage.removeSetting('user');
               await storage.removeSetting('isLoggedIn');
               setUser(null);

@@ -59,8 +59,13 @@ export default function LoginPage() {
       if (response.ok) {
         const data = await response.json();
         if (!data.success && (data.reason === 'device_removed' || data.reason === 'device_deactivated')) {
-          // Device was removed, redirect to license activation
-          console.log('[LoginPage] Device was removed, redirecting to license activation');
+          // Device was removed, clear activation data and redirect to license activation
+          console.log('[LoginPage] Device was removed, clearing activation data and redirecting');
+          localStorage.removeItem('emperor_device_activated');
+          localStorage.removeItem('emperor_device_activation_time');
+          localStorage.removeItem('emperor_branch_id');
+          localStorage.removeItem('emperor_branch_name');
+          localStorage.removeItem('emperor_license_expires');
           router.push('/license-activation');
           return;
         }
