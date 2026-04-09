@@ -55,6 +55,9 @@ export default function LicenseActivationPage() {
       localStorage.setItem('emperor_branch_name', data.branchName);
       localStorage.setItem('emperor_license_expires', data.expirationDate);
 
+      // Clear the redirect flag (if it exists from previous device removal)
+      localStorage.removeItem('emperor_device_removed_redirect');
+
       showSuccessToast('License Activated', `Welcome to ${data.branchName}!`);
       
       // Redirect to login

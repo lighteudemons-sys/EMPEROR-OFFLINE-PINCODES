@@ -59,8 +59,18 @@ export default function LoginPage() {
       if (response.ok) {
         const data = await response.json();
         if (!data.success && (data.reason === 'device_removed' || data.reason === 'device_deactivated')) {
+          // Check if we already redirected (prevent infinite loop)
+          if (localStorage.getItem('emperor_device_removed_redirect') === 'true') {
+            console.log('[LoginPage] Already redirected, skipping');
+            return;
+          }
+
           // Device was removed, clear activation data and redirect to license activation
           console.log('[LoginPage] Device was removed, clearing activation data and redirecting');
+
+          // Set flag to prevent duplicate redirects
+          localStorage.setItem('emperor_device_removed_redirect', 'true');
+
           localStorage.removeItem('emperor_device_activated');
           localStorage.removeItem('emperor_device_activation_time');
           localStorage.removeItem('emperor_branch_id');

@@ -78,7 +78,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           // If device was removed, redirect to license activation
           if (data.reason === 'device_removed' || data.reason === 'device_deactivated') {
+            // Check if we already redirected (prevent infinite loop)
+            if (localStorage.getItem('emperor_device_removed_redirect') === 'true') {
+              console.log('[Auth] Already redirected, skipping duplicate redirect');
+              return;
+            }
+
             console.warn('[Auth] Device removed/deactivated, redirecting to license activation');
+
+            // Set flag to prevent duplicate redirects
+            localStorage.setItem('emperor_device_removed_redirect', 'true');
+
             // Clear all device activation data from localStorage
             localStorage.removeItem('emperor_device_activated');
             localStorage.removeItem('emperor_device_activation_time');
@@ -513,8 +523,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 });
               }
             } else if (data.reason === 'device_removed' || data.reason === 'device_deactivated') {
+              // Check if we already redirected (prevent infinite loop)
+              if (localStorage.getItem('emperor_device_removed_redirect') === 'true') {
+                console.log('[Auth] Already redirected on mount, skipping');
+                return;
+              }
+
               // Device was removed or deactivated - clear session and redirect to license activation
-              console.warn('[Auth] Device removed/deactivated, redirecting to license activation');
+              console.warn('[Auth] Device removed/deactivated on mount, redirecting to license activation');
+
+              // Set flag to prevent duplicate redirects
+              localStorage.setItem('emperor_device_removed_redirect', 'true');
+
               // Clear all device activation data from localStorage
               localStorage.removeItem('emperor_device_activated');
               localStorage.removeItem('emperor_device_activation_time');
