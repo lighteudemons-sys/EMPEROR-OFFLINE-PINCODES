@@ -45,20 +45,47 @@ export function generateLicenseKey(data: LicenseData): string {
  */
 export function validateLicenseKey(licenseKey: string): LicenseInfo {
   try {
-    // Decode the license key
-    const combined = Buffer.from(licenseKey, 'base64').toString('utf-8');
-
-    // Split payload and signature using | as delimiter
-    const parts = combined.split('|');
-    if (parts.length !== 2) {
+    if (!licenseKey || typeof licenseKey !== 'string') {
       return {
         isValid: false,
         data: null,
-        error: 'Invalid license key format'
+        error: 'Invalid license key: empty or not a string'
       };
     }
 
-    const [payload, signature] = parts;
+    // Decode the license key
+    let combined: string;
+    try {
+      combined = Buffer.from(licenseKey, 'base64').toString('utf-8');
+    } catch (decodeError) {
+      return {
+        isValid: false,
+        data: null,
+        error: 'Invalid license key: failed to decode base64'
+      };
+    }
+
+    // Try | delimiter first (new format), then . delimiter (old format for backward compatibility)
+    const parts = combined.split('|');
+    let payload: string;
+    let signature: string;
+
+    if (parts.length === 2) {
+      [payload, signature] = parts;
+    } else {
+      // Try old format with . delimiter
+      const oldParts = combined.split('.');
+      if (oldParts.length === 2) {
+        console.warn('[License] Using old delimiter format (.), please regenerate license');
+        [payload, signature] = oldParts;
+      } else {
+        return {
+          isValid: false,
+          data: null,
+          error: `Invalid license key format: expected 2 parts with | or . delimiter, got ${parts.length} parts`
+        };
+      }
+    }
 
     // Verify signature
     const expectedSignature = crypto
@@ -119,14 +146,27 @@ export function validateLicenseKey(licenseKey: string): LicenseInfo {
  */
 export function parseLicenseKey(licenseKey: string): LicenseData | null {
   try {
-    const combined = Buffer.from(licenseKey, 'base64').toString('utf-8');
-    const parts = combined.split('|');
-
-    if (parts.length !== 2) {
+    if (!licenseKey || typeof licenseKey !== 'string') {
       return null;
     }
 
-    const [payload] = parts;
+    const combined = Buffer.from(licenseKey, 'base64').toString('utf-8');
+
+    // Try | delimiter first, then . delimiter
+    const parts = combined.split('|');
+    let payload: string;
+
+    if (parts.length === 2) {
+      [payload] = parts;
+    } else {
+      const oldParts = combined.split('.');
+      if (oldParts.length === 2) {
+        [payload] = oldParts;
+      } else {
+        return null;
+      }
+    }
+
     return JSON.parse(payload);
   } catch {
     return null;
