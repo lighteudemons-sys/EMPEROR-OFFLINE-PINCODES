@@ -94,6 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem('emperor_branch_id');
             localStorage.removeItem('emperor_branch_name');
             localStorage.removeItem('emperor_license_expires');
+            localStorage.removeItem('emperor_admin_access');
+
+            // Clear sessionStorage flags
+            sessionStorage.removeItem('emperor_just_logged_out');
+
             // Clear user session
             await storage.removeSetting('user');
             await storage.removeSetting('isLoggedIn');
@@ -390,6 +395,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Set logout flag to prevent redirect loop on login page
+      sessionStorage.setItem('emperor_just_logged_out', 'true');
+
       // Clear user session data from IndexedDB (but keep device registration)
       if (typeof window !== 'undefined') {
         try {
@@ -411,6 +419,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ensure we clear everything even on error
       if (typeof window !== 'undefined') {
         try {
+          // Set logout flag even on error
+          sessionStorage.setItem('emperor_just_logged_out', 'true');
+
           await storage.removeSetting('user');
           await storage.removeSetting('isLoggedIn');
           // Note: Preserve device registration data
@@ -529,6 +540,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               localStorage.removeItem('emperor_branch_id');
               localStorage.removeItem('emperor_branch_name');
               localStorage.removeItem('emperor_license_expires');
+              localStorage.removeItem('emperor_admin_access');
+
+              // Clear sessionStorage flags
+              sessionStorage.removeItem('emperor_just_logged_out');
+
               // Clear IndexedDB user session
               await storage.removeSetting('user');
               await storage.removeSetting('isLoggedIn');

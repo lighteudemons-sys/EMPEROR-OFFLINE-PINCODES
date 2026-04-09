@@ -30,6 +30,11 @@ export default function AdminLoginPage() {
   // Redirect to dashboard after successful login
   useEffect(() => {
     if (user && user.role === 'ADMIN') {
+      // Set device activation flag for admin users
+      // This prevents redirect to license activation after logout
+      localStorage.setItem('emperor_device_activated', 'true');
+      localStorage.setItem('emperor_admin_access', 'true');
+
       showSuccessToast('Welcome', 'Admin login successful');
       router.push('/');
     }

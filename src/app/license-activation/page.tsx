@@ -58,6 +58,9 @@ export default function LicenseActivationPage() {
       // Clear the redirect flag (if it exists from previous device removal)
       localStorage.removeItem('emperor_device_removed_redirect');
 
+      // Clear admin access flag (regular license activation)
+      localStorage.removeItem('emperor_admin_access');
+
       showSuccessToast('License Activated', `Welcome to ${data.branchName}!`);
       
       // Redirect to login

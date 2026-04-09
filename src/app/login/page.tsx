@@ -39,6 +39,26 @@ export default function LoginPage() {
     }
   }, [user, router]);
 
+  // Security: Check if device is activated
+  // This prevents users from bypassing license activation by directly accessing /login
+  useEffect(() => {
+    // Check if user was just logged out (prevent redirect loop)
+    const wasLoggedOut = sessionStorage.getItem('emperor_just_logged_out');
+    if (wasLoggedOut === 'true') {
+      // User was just logged out, clear the flag and don't redirect
+      sessionStorage.removeItem('emperor_just_logged_out');
+      return;
+    }
+
+    const isActivated = localStorage.getItem('emperor_device_activated');
+    if (isActivated !== 'true') {
+      // Device not activated - this is a security violation
+      // User is trying to bypass license activation
+      console.warn('[LoginPage] Security: Attempting to access login without device activation');
+      router.push('/license-activation');
+    }
+  }, [router]);
+
   // Check actual network connectivity and session validity
   const checkConnection = async () => {
     setIsCheckingConnection(true);
@@ -179,12 +199,17 @@ export default function LoginPage() {
         throw new Error(data.error || 'Failed to deactivate device');
       }
 
-      // Clear localStorage
+      // Clear localStorage including admin access flag
       localStorage.removeItem('emperor_device_activated');
       localStorage.removeItem('emperor_device_activation_time');
       localStorage.removeItem('emperor_branch_id');
       localStorage.removeItem('emperor_branch_name');
       localStorage.removeItem('emperor_license_expires');
+      localStorage.removeItem('emperor_admin_access');
+      localStorage.removeItem('emperor_device_removed_redirect');
+
+      // Clear sessionStorage as well
+      sessionStorage.removeItem('emperor_just_logged_out');
 
       // Redirect to license activation page
       router.push('/license-activation');
