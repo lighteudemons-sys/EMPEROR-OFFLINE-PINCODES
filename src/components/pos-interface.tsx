@@ -6885,100 +6885,188 @@ export default function POSInterface() {
 
       {/* Order Details Dialog */}
       <Dialog open={showOrderDetailsDialog} onOpenChange={setShowOrderDetailsDialog}>
-        <DialogContent className="sm:max-w-4xl rounded-3xl max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="pb-4 border-b">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <Receipt className="h-5 w-5 text-white" />
+        <DialogContent className="sm:max-w-4xl rounded-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Sticky Header with Actions */}
+          <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+            <DialogHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Receipt className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl font-bold">Order #{selectedOrder?.orderNumber}</DialogTitle>
+                    <DialogDescription className="flex items-center gap-2">
+                      {selectedOrder?.orderType && (
+                        <Badge className="bg-blue-100 text-blue-700 border-blue-200 capitalize">
+                          {selectedOrder.orderType.replace('-', ' ')}
+                        </Badge>
+                      )}
+                      <span>•</span>
+                      <span>{selectedOrder?.items?.length} items</span>
+                      <span>•</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(selectedOrder?.totalAmount || 0, currency)}
+                      </span>
+                    </DialogDescription>
+                  </div>
                 </div>
-                <div>
-                  <DialogTitle className="text-lg font-bold">Order #{selectedOrder?.orderNumber}</DialogTitle>
-                  <DialogDescription>
-                    {selectedOrder?.orderType && (
-                      <span className="capitalize">{selectedOrder.orderType.replace('-', ' ')}</span>
-                    )} • {selectedOrder?.items?.length} items
-                  </DialogDescription>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
                 {selectedOrder?.isRefunded && (
                   <Badge className="bg-red-100 text-red-700 border-red-200 font-semibold">REFUNDED</Badge>
                 )}
               </div>
+            </DialogHeader>
+
+            {/* Sticky Action Bar */}
+            <div className="px-6 pb-4 flex items-center gap-3 bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-800 dark:to-blue-950/30 border-t border-slate-200 dark:border-slate-700">
+              <Button
+                onClick={handlePrintDuplicate}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white h-10 px-5 rounded-xl font-semibold shadow-lg shadow-blue-500/30 flex-shrink-0"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Print Receipt
+              </Button>
+              {(user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER') && !selectedOrder?.isRefunded && (
+                <Button
+                  onClick={handleRefundOrder}
+                  variant="outline"
+                  className="h-10 px-5 rounded-xl font-semibold text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50 flex-shrink-0"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Refund Order
+                </Button>
+              )}
+              <div className="flex-1"></div>
+              <Button
+                onClick={() => setShowOrderDetailsDialog(false)}
+                variant="ghost"
+                className="h-10 px-5 rounded-xl font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 flex-shrink-0"
+              >
+                Close
+              </Button>
             </div>
-          </DialogHeader>
+          </div>
+
+          {/* Scrollable Content */}
           <ScrollArea className="flex-1 py-4">
             {loadingOrderDetails ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
               </div>
             ) : selectedOrder ? (
-              <div className="space-y-4">
-                {/* Order Info */}
-                <Card>
-                  <CardContent className="pt-6">
+              <div className="space-y-4 px-6">
+                {/* Order Info Card */}
+                <Card className="border-2 border-slate-200 dark:border-slate-700 shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Info className="h-4 w-4 text-blue-500" />
+                      Order Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
                     <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-slate-500">Date & Time</p>
-                        <p className="font-semibold">{new Date(selectedOrder.orderTimestamp || selectedOrder.createdAt).toLocaleString()}</p>
+                      <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                        <p className="text-xs text-slate-500 mb-1">Date & Time</p>
+                        <p className="font-semibold text-sm">
+                          {new Date(selectedOrder.orderTimestamp || selectedOrder.createdAt).toLocaleString()}
+                        </p>
                       </div>
-                      <div>
-                        <p className="text-slate-500">Payment Method</p>
-                        <p className="font-semibold capitalize">
+                      <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                        <p className="text-xs text-slate-500 mb-1">Payment Method</p>
+                        <p className="font-semibold text-sm capitalize">
                           {selectedOrder.paymentMethod === 'card' && selectedOrder.paymentMethodDetail
                             ? selectedOrder.paymentMethodDetail
                             : selectedOrder.paymentMethod}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-slate-500">Cashier</p>
-                        <p className="font-semibold">{selectedOrder.cashier?.name || selectedOrder.cashier?.username || 'Unknown'}</p>
+                      <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                        <p className="text-xs text-slate-500 mb-1">Cashier</p>
+                        <p className="font-semibold text-sm">{selectedOrder.cashier?.name || selectedOrder.cashier?.username || 'Unknown'}</p>
                       </div>
-                      {selectedOrder.customerName && (
-                        <div>
-                          <p className="text-slate-500">Customer</p>
-                          <p className="font-semibold">{selectedOrder.customerName}</p>
+                      {selectedOrder.customerName ? (
+                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                          <p className="text-xs text-slate-500 mb-1">Customer</p>
+                          <p className="font-semibold text-sm">{selectedOrder.customerName}</p>
+                        </div>
+                      ) : selectedOrder.customerPhone ? (
+                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                          <p className="text-xs text-slate-500 mb-1">Phone</p>
+                          <p className="font-semibold text-sm">{selectedOrder.customerPhone}</p>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-100 dark:bg-slate-800 rounded-lg p-3 border-2 border-dashed border-slate-300 dark:border-slate-700">
+                          <p className="text-xs text-slate-400">Guest Order</p>
                         </div>
                       )}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Order Items */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Order Items</CardTitle>
+                {/* Order Items Card */}
+                <Card className="border-2 border-slate-200 dark:border-slate-700 shadow-sm">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <ShoppingBag className="h-4 w-4 text-emerald-500" />
+                        Order Items
+                      </CardTitle>
+                      <Badge variant="outline" className="text-sm">
+                        {selectedOrder.items?.length || 0} items
+                      </Badge>
+                    </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
+                  <CardContent className="pt-0">
+                    <div className="space-y-2">
                       {selectedOrder.items?.map((item: any) => (
-                        <div key={item.id} className="flex items-start justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                        <div
+                          key={item.id}
+                          className={`flex items-start justify-between p-4 rounded-xl border transition-all ${
+                            item.isVoided
+                              ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
+                              : 'bg-gradient-to-r from-white to-slate-50 dark:from-slate-800 dark:to-slate-850 border-slate-200 dark:border-slate-700 hover:shadow-md'
+                          }`}
+                        >
                           <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-semibold">{item.itemName}</span>
-                              <Badge variant="outline" className="text-xs">x{item.quantity}</Badge>
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <span className="font-bold text-slate-900 dark:text-white">{item.itemName}</span>
+                              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs font-bold">
+                                x{item.quantity}
+                              </Badge>
                               {item.isVoided && (
-                                <Badge className="bg-red-100 text-red-700 text-xs">VOIDED</Badge>
+                                <Badge className="bg-red-100 text-red-700 text-xs font-bold">VOIDED</Badge>
                               )}
                             </div>
                             {(item.variantName || item.menuItemVariant?.variantOption?.name) && (
-                              <p className="text-xs text-slate-500">
-                                Variant: {item.variantName || item.menuItemVariant?.variantOption?.name}
-                              </p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <Tag className="h-3 w-3 text-slate-400" />
+                                <p className="text-xs text-slate-600 dark:text-slate-400">
+                                  {item.variantName || item.menuItemVariant?.variantOption?.name}
+                                </p>
+                              </div>
                             )}
                             {item.specialInstructions && (
-                              <p className="text-xs text-slate-500 mt-1">Note: {item.specialInstructions}</p>
+                              <div className="flex items-start gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                                <MessageSquare className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                <p className="text-xs text-amber-800 dark:text-amber-300 italic">
+                                  "{item.specialInstructions}"
+                                </p>
+                              </div>
                             )}
                             {item.isVoided && (
-                              <p className="text-xs text-red-600 mt-1">
-                                Voided: {item.voidReason || 'No reason'} ({item.voidedBy})
-                              </p>
+                              <div className="mt-2 p-2 bg-red-100 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
+                                <p className="text-xs text-red-700 dark:text-red-400">
+                                  <strong>Voided:</strong> {item.voidReason || 'No reason'} (by {item.voidedBy})
+                                </p>
+                              </div>
                             )}
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold">{formatCurrency(item.subtotal || item.totalPrice, currency)}</p>
-                            <p className="text-xs text-slate-500">{formatCurrency(item.unitPrice, currency)} each</p>
+                          <div className="text-right ml-4">
+                            <p className="text-lg font-bold text-slate-900 dark:text-white">
+                              {formatCurrency(item.subtotal || item.totalPrice, currency)}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {formatCurrency(item.unitPrice, currency)} each
+                            </p>
                             {(user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER') && !item.isVoided && !selectedOrder.isRefunded && (
                               <Button
                                 onClick={() => {
@@ -6989,7 +7077,7 @@ export default function POSInterface() {
                                 }}
                                 size="sm"
                                 variant="outline"
-                                className="mt-2 h-7 px-2 text-xs text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50"
+                                className="mt-2 h-8 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50 font-semibold"
                               >
                                 <X className="h-3 w-3 mr-1" />
                                 Void Item
@@ -7002,80 +7090,69 @@ export default function POSInterface() {
                   </CardContent>
                 </Card>
 
-                {/* Totals */}
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">{t('pos.subtotal')}</span>
-                        <span className="font-medium">{formatCurrency(selectedOrder.subtotal || 0, currency)}</span>
+                {/* Totals Card */}
+                <Card className="border-2 border-slate-200 dark:border-slate-700 shadow-sm bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-850">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Calculator className="h-4 w-4 text-purple-500" />
+                      Order Totals
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center py-2 border-b border-slate-200 dark:border-slate-700">
+                        <span className="text-sm text-slate-600 dark:text-slate-400">{t('pos.subtotal')}</span>
+                        <span className="font-semibold text-base">{formatCurrency(selectedOrder.subtotal || 0, currency)}</span>
                       </div>
                       {selectedOrder.deliveryFee && selectedOrder.deliveryFee > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">{t('pos.delivery.fee')}</span>
-                          <span className="font-medium">{formatCurrency(selectedOrder.deliveryFee, currency)}</span>
+                        <div className="flex justify-between items-center py-2 border-b border-slate-200 dark:border-slate-700">
+                          <span className="text-sm text-slate-600 dark:text-slate-400">{t('pos.delivery.fee')}</span>
+                          <span className="font-semibold text-base">{formatCurrency(selectedOrder.deliveryFee, currency)}</span>
                         </div>
                       )}
                       {selectedOrder.loyaltyDiscount && selectedOrder.loyaltyDiscount > 0 && (
-                        <div className="flex justify-between text-sm text-purple-600">
-                          <span>Loyalty Discount</span>
-                          <span className="font-medium">-{formatCurrency(selectedOrder.loyaltyDiscount, currency)}</span>
+                        <div className="flex justify-between items-center py-2 border-b border-slate-200 dark:border-slate-700">
+                          <span className="text-sm text-purple-600 dark:text-purple-400 font-medium flex items-center gap-2">
+                            <Gift className="h-3 w-3" />
+                            Loyalty Discount
+                          </span>
+                          <span className="font-semibold text-base text-purple-600 dark:text-purple-400">
+                            -{formatCurrency(selectedOrder.loyaltyDiscount, currency)}
+                          </span>
                         </div>
                       )}
                       {selectedOrder.promoDiscount && selectedOrder.promoDiscount > 0 && (
-                        <div className="flex justify-between text-sm text-orange-600">
-                          <span>Promo Discount</span>
-                          <span className="font-medium">-{formatCurrency(selectedOrder.promoDiscount, currency)}</span>
+                        <div className="flex justify-between items-center py-2 border-b border-slate-200 dark:border-slate-700">
+                          <span className="text-sm text-orange-600 dark:text-orange-400 font-medium flex items-center gap-2">
+                            <Tag className="h-3 w-3" />
+                            Promo Discount
+                          </span>
+                          <span className="font-semibold text-base text-orange-600 dark:text-orange-400">
+                            -{formatCurrency(selectedOrder.promoDiscount, currency)}
+                          </span>
                         </div>
                       )}
-                      <Separator />
-                      <div className="flex justify-between text-base font-bold">
-                        <span>{t('pos.total')}</span>
-                        <span>{formatCurrency(selectedOrder.totalAmount, currency)}</span>
+                      <div className="flex justify-between items-center py-3 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 rounded-lg px-4 mt-2">
+                        <span className="text-base font-bold text-slate-900 dark:text-white">{t('pos.total')}</span>
+                        <span className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                          {formatCurrency(selectedOrder.totalAmount, currency)}
+                        </span>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 {selectedOrder.isRefunded && selectedOrder.refundReason && (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>Refunded:</strong> {selectedOrder.refundReason}
+                  <Alert className="border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20">
+                    <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    <AlertDescription className="text-sm text-red-800 dark:text-red-300">
+                      <strong className="text-base">Order Refunded:</strong> {selectedOrder.refundReason}
                     </AlertDescription>
                   </Alert>
                 )}
               </div>
             ) : null}
           </ScrollArea>
-          <DialogFooter className="pt-4 border-t flex justify-between">
-            <div className="flex gap-2">
-              <Button
-                onClick={handlePrintDuplicate}
-                variant="outline"
-                className="h-11 px-6 rounded-xl font-semibold"
-              >
-                <Printer className="h-4 w-4 mr-2" />
-                Print (Duplicate)
-              </Button>
-              {(user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER') && !selectedOrder?.isRefunded && (
-                <Button
-                  onClick={handleRefundOrder}
-                  variant="outline"
-                  className="h-11 px-6 rounded-xl font-semibold text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Refund Order
-                </Button>
-              )}
-            </div>
-            <Button
-              onClick={() => setShowOrderDetailsDialog(false)}
-              className="h-11 px-6 rounded-xl font-semibold"
-            >
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
