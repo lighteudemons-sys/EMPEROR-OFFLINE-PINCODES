@@ -6885,10 +6885,10 @@ export default function POSInterface() {
 
       {/* Order Details Dialog */}
       <Dialog open={showOrderDetailsDialog} onOpenChange={setShowOrderDetailsDialog}>
-        <DialogContent className="sm:max-w-4xl rounded-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="sm:max-w-4xl rounded-3xl max-h-[85vh] overflow-hidden flex flex-col p-0" showCloseButton={false}>
           {/* Sticky Header with Actions */}
           <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-            <DialogHeader className="pb-4">
+            <DialogHeader className="pb-4 px-6 pt-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -6948,13 +6948,13 @@ export default function POSInterface() {
           </div>
 
           {/* Scrollable Content */}
-          <ScrollArea className="flex-1 py-4">
+          <ScrollArea className="flex-1 h-full">
             {loadingOrderDetails ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
               </div>
             ) : selectedOrder ? (
-              <div className="space-y-4 px-6">
+              <div className="space-y-4 px-6 py-4">
                 {/* Order Info Card */}
                 <Card className="border-2 border-slate-200 dark:border-slate-700 shadow-sm">
                   <CardHeader className="pb-3">

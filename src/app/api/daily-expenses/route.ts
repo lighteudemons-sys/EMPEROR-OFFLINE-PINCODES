@@ -483,7 +483,7 @@ export async function POST(request: NextRequest) {
         // Still update the final price if provided from offline calculation
         if (body._offlineData?.finalPrice !== undefined) {
           // Fetch the inventory record to update just the price
-          const branchInventory = await db.branchInventory.findUnique({
+          let branchInventory = await db.branchInventory.findUnique({
             where: {
               branchId_ingredientId: {
                 branchId,
