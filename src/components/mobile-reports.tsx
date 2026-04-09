@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   BarChart3,
   DollarSign,
@@ -32,6 +33,7 @@ import {
   Coffee,
   Users,
   Tag,
+  Eye,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -104,6 +106,22 @@ interface TopItem {
   category?: string;
 }
 
+interface Order {
+  id: string;
+  orderNumber: number;
+  subtotal: number;
+  totalAmount: number;
+  deliveryFee: number;
+  orderTimestamp: Date;
+  paymentMethod: string;
+  paymentMethodDetail?: 'CARD' | 'INSTAPAY' | 'MOBILE_WALLET' | null;
+  orderType: string;
+  isRefunded: boolean;
+  refundReason?: string;
+  cashier: { name: string } | null;
+  branch: { branchName: string } | null;
+}
+
 const timeRanges = [
   { value: 'today', label: 'Today', days: 1 },
   { value: 'yesterday', label: 'Yesterday', days: 1 },
@@ -141,6 +159,12 @@ export function MobileReports() {
   const [exportEndDate, setExportEndDate] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Sales/Orders state
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [ordersPerPage] = useState(10);
+  const [totalOrders, setTotalOrders] = useState(0);
+
   // Fetch branches
   useEffect(() => {
     const fetchBranches = async () => {
@@ -175,6 +199,18 @@ export function MobileReports() {
       fetchTopItems();
     }
   }, [selectedBranch, timeRange, customStartDate, customEndDate, activeTab]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedBranch, timeRange]);
+
+  // Fetch orders when tab changes to sales or page changes
+  useEffect(() => {
+    if (activeTab === 'sales') {
+      fetchOrders();
+    }
+  }, [selectedBranch, timeRange, activeTab, currentPage]);
 
   // Role-based access control - same as desktop
   const canAccessBranchFeatures = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
@@ -315,6 +351,38 @@ export function MobileReports() {
       }
     } catch (error) {
       console.error('Failed to fetch top items:', error);
+    }
+  };
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const { startDate, endDate } = getDateRange();
+
+      const offset = (currentPage - 1) * ordersPerPage;
+
+      const params = new URLSearchParams();
+      if (selectedBranch && selectedBranch !== 'all') {
+        params.append('branchId', selectedBranch);
+      }
+      params.append('startDate', startDate.toISOString());
+      params.append('endDate', endDate.toISOString());
+      params.append('limit', ordersPerPage.toString());
+      params.append('offset', offset.toString());
+
+      const response = await fetch(`/api/orders?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.orders) {
+        setOrders(data.orders);
+        setTotalOrders(data.pagination?.total || 0);
+      } else {
+        console.error('[Mobile Reports Sales] API Error: No orders in response');
+      }
+    } catch (error) {
+      console.error('Failed to fetch orders:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -758,19 +826,168 @@ export function MobileReports() {
             </div>
           </TabsContent>
 
-          {/* Sales Tab - Placeholder for now */}
-          <TabsContent value="sales">
+          {/* Sales Tab - With Orders Table */}
+          <TabsContent value="sales" className="space-y-4">
             <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Sales Reports</CardTitle>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4 text-emerald-600" />
+                  Sales Orders
+                </CardTitle>
                 <CardDescription className="text-xs">
-                  View detailed sales data and order history
+                  View and manage all orders
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-center text-sm text-slate-500 py-8">
-                  Sales reports tab is available in desktop view
-                </p>
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full"></div>
+                  </div>
+                ) : orders.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500">
+                    <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No orders found for this period</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto -mx-4 px-4 touch-pan-x">
+                      <div className="min-w-[900px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs">#</TableHead>
+                              <TableHead className="text-xs">Date</TableHead>
+                              <TableHead className="text-xs">Type</TableHead>
+                              <TableHead className="text-xs">Payment</TableHead>
+                              <TableHead className="text-xs text-right">Subtotal</TableHead>
+                              <TableHead className="text-xs text-right">Delivery</TableHead>
+                              <TableHead className="text-xs text-right">Discount</TableHead>
+                              <TableHead className="text-xs text-right">Total</TableHead>
+                              <TableHead className="text-xs">Cashier</TableHead>
+                              <TableHead className="text-xs">Branch</TableHead>
+                              <TableHead className="text-xs">Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {orders.map((order) => {
+                              const discount = Math.max(0, order.subtotal + (order.deliveryFee || 0) - order.totalAmount);
+
+                              return (
+                                <TableRow key={order.id} className={order.isRefunded ? 'opacity-50' : ''}>
+                                  <TableCell className="font-medium text-xs">#{order.orderNumber}</TableCell>
+                                  <TableCell className="text-xs">
+                                    {new Date(order.orderTimestamp).toLocaleDateString()}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className="text-xs capitalize">
+                                      {order.orderType}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={order.paymentMethod === 'card' ? 'default' : 'secondary'} className="text-xs">
+                                      {order.paymentMethod === 'cash' ? 'Cash' :
+                                       order.paymentMethodDetail === 'INSTAPAY' ? 'InstaPay' :
+                                       order.paymentMethodDetail === 'MOBILE_WALLET' ? 'Wallet' :
+                                       'Card'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right text-xs font-semibold">
+                                    {formatCurrency(order.subtotal, currency)}
+                                  </TableCell>
+                                  <TableCell className="text-right text-xs">
+                                    {order.deliveryFee > 0 ? (
+                                      <Badge variant="outline" className="text-amber-600 text-xs">
+                                        {formatCurrency(order.deliveryFee, currency)}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-slate-400">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right text-xs">
+                                    {discount > 0 ? (
+                                      <Badge variant="outline" className="text-purple-600 text-xs">
+                                        -{formatCurrency(discount, currency)}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-slate-400">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right text-xs font-bold">
+                                    {formatCurrency(order.totalAmount, currency)}
+                                  </TableCell>
+                                  <TableCell className="text-xs">{order.cashier?.name || '-'}</TableCell>
+                                  <TableCell className="text-xs">{order.branch?.branchName || '-'}</TableCell>
+                                  <TableCell>
+                                    {order.isRefunded ? (
+                                      <Badge variant="destructive" className="text-xs">Refunded</Badge>
+                                    ) : (
+                                      <Badge className="bg-emerald-600 text-xs">Completed</Badge>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+
+                    {/* Pagination */}
+                    {totalOrders > ordersPerPage && (
+                      <div className="flex flex-col items-center gap-3 mt-4 pt-4 border-t border-slate-200">
+                        <p className="text-xs text-slate-600">
+                          Showing {((currentPage - 1) * ordersPerPage) + 1} to {Math.min(currentPage * ordersPerPage, totalOrders)} of {totalOrders} orders
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className="h-8 text-xs"
+                          >
+                            Previous
+                          </Button>
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: Math.min(5, Math.ceil(totalOrders / ordersPerPage)) }, (_, i) => {
+                              let pageNum;
+                              const totalPages = Math.ceil(totalOrders / ordersPerPage);
+                              if (totalPages <= 5) {
+                                pageNum = i + 1;
+                              } else if (currentPage <= 3) {
+                                pageNum = i + 1;
+                              } else if (currentPage >= totalPages - 2) {
+                                pageNum = totalPages - 4 + i;
+                              } else {
+                                pageNum = currentPage - 2 + i;
+                              }
+                              return (
+                                <Button
+                                  key={pageNum}
+                                  variant={currentPage === pageNum ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setCurrentPage(pageNum)}
+                                  className="w-8 h-8 p-0 text-xs"
+                                >
+                                  {pageNum}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalOrders / ordersPerPage), prev + 1))}
+                            disabled={currentPage === Math.ceil(totalOrders / ordersPerPage)}
+                            className="h-8 text-xs"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
