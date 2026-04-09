@@ -619,6 +619,9 @@ function LicenseCard({
                         {device.osInfo} • {device.deviceType}
                       </div>
                       <div className="text-xs text-gray-500">
+                        Registered: {formatDate(device.registeredAt)}
+                      </div>
+                      <div className="text-xs text-gray-400">
                         Last active: {formatDate(device.lastActive)}
                       </div>
                     </div>

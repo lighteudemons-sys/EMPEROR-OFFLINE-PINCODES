@@ -4,7 +4,6 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
 import { offlineManager, SyncStatus } from '@/lib/offline/offline-manager';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
-import { registerDevice, getOrCreateDeviceId, isDeviceRegistered } from '@/lib/device-manager';
 
 const storage = getIndexedDBStorage();
 
@@ -303,22 +302,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Set user state
       setUser(userData);
 
-      // Register device if user has a branch
-      if (userData.branchId) {
-        const deviceRegistered = await isDeviceRegistered();
-        if (!deviceRegistered.registered) {
-          console.log('[Auth] Registering device...');
-          const deviceId = await getOrCreateDeviceId();
-          await registerDevice(
-            userData.branchId,
-            userData.id,
-            userData.role
-          );
-          console.log('[Auth] Device registered:', deviceId);
-        } else {
-          console.log('[Auth] Device already registered for branch:', deviceRegistered.branchId);
-        }
-      }
+      // Note: Device registration is handled by the login API
+      // The login API calls registerDeviceOnLogin which:
+      // 1. Registers the device in LicenseDevice table
+      // 2. Stores deviceId and licenseId in the session
+      // So we don't need to register it again here
 
       // Store in IndexedDB as fallback (for offline access)
       try {
