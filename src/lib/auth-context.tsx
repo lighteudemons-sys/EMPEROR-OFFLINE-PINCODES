@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
 import { offlineManager, SyncStatus } from '@/lib/offline/offline-manager';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
+import { registerDevice, getOrCreateDeviceId, isDeviceRegistered } from '@/lib/device-manager';
 
 const storage = getIndexedDBStorage();
 
@@ -232,6 +233,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Set user state
       setUser(userData);
 
+      // Register device if user has a branch
+      if (userData.branchId) {
+        const deviceRegistered = await isDeviceRegistered();
+        if (!deviceRegistered.registered) {
+          console.log('[Auth] Registering device...');
+          const deviceId = await getOrCreateDeviceId();
+          await registerDevice(
+            userData.branchId,
+            userData.id,
+            userData.role
+          );
+          console.log('[Auth] Device registered:', deviceId);
+        } else {
+          console.log('[Auth] Device already registered for branch:', deviceRegistered.branchId);
+        }
+      }
+
       // Store in IndexedDB as fallback (for offline access)
       try {
         await storage.setString('isLoggedIn', 'true');
@@ -314,12 +332,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Then clear IndexedDB immediately to prevent auto-login on reload
+      // Clear user session data from IndexedDB (but keep device registration)
       if (typeof window !== 'undefined') {
         try {
           await storage.removeSetting('user');
           await storage.removeSetting('isLoggedIn');
-          console.log('[Auth] IndexedDB cleared');
+          // Note: Do NOT clear device registration data (emperor_device_*, emperor_device_registered*)
+          // This ensures device stays registered after logout
+          console.log('[Auth] User session cleared from IndexedDB (device registration preserved)');
         } catch (error) {
           console.warn('[Auth] IndexedDB not accessible:', error);
         }
@@ -335,6 +355,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await storage.removeSetting('user');
           await storage.removeSetting('isLoggedIn');
+          // Note: Preserve device registration data
         } catch (error) {
           console.warn('[Auth] IndexedDB not accessible:', error);
         }
