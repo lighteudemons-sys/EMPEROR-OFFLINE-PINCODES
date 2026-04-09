@@ -224,8 +224,11 @@ export default function DailyReportsTab() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 touch-pan-x">
-                <div className="min-w-[800px] md:min-w-0">
+              <div className="overflow-x-auto overflow-y-visible -mx-4 px-4 md:mx-0 md:px-0" style={{
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'auto'
+              }}>
+                <div className="min-w-[850px] md:min-w-0">
                   <Table>
                     <TableHeader>
                       <TableRow>

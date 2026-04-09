@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -564,7 +563,8 @@ export function MobileReports() {
           )}
         </TabsList>
 
-        <ScrollArea className="h-[calc(100vh-450px)] w-full">
+        {/* Tabs Content - Removed ScrollArea to allow proper horizontal table scrolling */}
+        <div className="pb-20 min-h-[calc(100vh-450px)]">
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-4">
             {/* KPI Cards */}
@@ -850,8 +850,11 @@ export function MobileReports() {
                   </div>
                 ) : (
                   <>
-                    <div className="overflow-x-auto -mx-4 px-4 touch-pan-x">
-                      <div className="min-w-[900px]">
+                    <div className="overflow-x-auto overflow-y-visible -mx-4 px-4" style={{
+                      WebkitOverflowScrolling: 'touch',
+                      scrollbarWidth: 'auto'
+                    }}>
+                      <div className="min-w-[1000px]">
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -1042,7 +1045,7 @@ export function MobileReports() {
               </div>
             </TabsContent>
           )}
-        </ScrollArea>
+        </div>
       </Tabs>
 
       {/* Export Dialog */}

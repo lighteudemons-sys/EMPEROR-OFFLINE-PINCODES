@@ -467,7 +467,11 @@ export default function DiscountsTracking() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto touch-pan-x">
+            <div className="overflow-x-auto overflow-y-visible -mx-4 px-4" style={{
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'auto'
+            }}>
+              <div className="min-w-[900px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -547,6 +551,7 @@ export default function DiscountsTracking() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>

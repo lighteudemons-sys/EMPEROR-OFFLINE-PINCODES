@@ -337,7 +337,10 @@ export default function BranchComparisonReport() {
           <CardTitle>Branch Performance Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 touch-pan-x">
+          <div className="overflow-x-auto overflow-y-visible -mx-4 px-4 md:mx-0 md:px-0" style={{
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'auto'
+          }}>
           <div className="min-w-[800px] md:min-w-0">
           <Table>
             <TableHeader>
