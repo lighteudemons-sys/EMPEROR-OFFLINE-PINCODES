@@ -18,19 +18,22 @@ export default function AdminLoginPage() {
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!username || !password) {
       showErrorToast('Validation Error', 'Please enter both username and password');
       return;
     }
 
-    const success = await login(username, password);
-    
-    if (success) {
+    await login(username, password);
+  };
+
+  // Redirect to dashboard after successful login
+  useEffect(() => {
+    if (user && user.role === 'ADMIN') {
       showSuccessToast('Welcome', 'Admin login successful');
       router.push('/');
     }
-  };
+  }, [user, router]);
 
   const handleBack = () => {
     router.push('/license-activation');

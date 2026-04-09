@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { checkActivationStatus, isPublicRoute, isLicenseExpired } from '@/lib/license-activation-check';
+import { useAuth } from '@/lib/auth-context';
 
 interface LicenseActivationGuardProps {
   children: React.ReactNode;
@@ -11,10 +12,18 @@ interface LicenseActivationGuardProps {
 export function LicenseActivationGuard({ children }: LicenseActivationGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user } = useAuth();
 
   useEffect(() => {
     // Don't check on public routes
     if (isPublicRoute(pathname)) {
+      return;
+    }
+
+    // If user is authenticated as ADMIN, allow access (bypass license activation)
+    // This allows admins to login from any device without license key
+    if (user && user.role === 'ADMIN') {
+      console.log('[LicenseGuard] Admin user authenticated, bypassing license activation check');
       return;
     }
 
@@ -40,7 +49,7 @@ export function LicenseActivationGuard({ children }: LicenseActivationGuardProps
     }
 
     console.log('[LicenseGuard] Device activated for branch:', status.branchName);
-  }, [pathname, router]);
+  }, [pathname, router, user]);
 
   // Render children if all checks pass
   return <>{children}</>;
