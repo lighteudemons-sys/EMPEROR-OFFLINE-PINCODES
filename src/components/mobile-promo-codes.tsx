@@ -1081,8 +1081,12 @@ export function MobilePromoCodes() {
                         <div className="space-y-2">
                           <Label className="text-sm">Buy From (Product or Category)</Label>
                           <Select
-                            value={formData.buyProductId || formData.buyCategoryId || ''}
+                            value={formData.buyProductId || formData.buyCategoryId || 'all'}
                             onValueChange={(value) => {
+                              if (value === 'all') {
+                                setFormData({ ...formData, buyProductId: null, buyCategoryId: null });
+                                return;
+                              }
                               const menuItem = menuItems.find(m => m.id === value);
                               if (menuItem) {
                                 setFormData({ ...formData, buyProductId: value, buyCategoryId: null });
@@ -1095,7 +1099,7 @@ export function MobilePromoCodes() {
                               <SelectValue placeholder="Select product or leave empty for all" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">All Products</SelectItem>
+                              <SelectItem value="all">All Products</SelectItem>
                               <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Products</div>
                               {menuItems.map((item) => (
                                 <SelectItem key={item.id} value={item.id}>
@@ -1116,8 +1120,12 @@ export function MobilePromoCodes() {
                         <div className="space-y-2">
                           <Label className="text-sm">Get From (Product or Category)</Label>
                           <Select
-                            value={formData.getProductId || formData.getCategoryId || ''}
+                            value={formData.getProductId || formData.getCategoryId || 'all'}
                             onValueChange={(value) => {
+                              if (value === 'all') {
+                                setFormData({ ...formData, getProductId: null, getCategoryId: null });
+                                return;
+                              }
                               const menuItem = menuItems.find(m => m.id === value);
                               if (menuItem) {
                                 setFormData({ ...formData, getProductId: value, getCategoryId: null });
@@ -1130,7 +1138,7 @@ export function MobilePromoCodes() {
                               <SelectValue placeholder="Select product or leave empty for all" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">All Products</SelectItem>
+                              <SelectItem value="all">All Products</SelectItem>
                               <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Products</div>
                               {menuItems.map((item) => (
                                 <SelectItem key={item.id} value={item.id}>

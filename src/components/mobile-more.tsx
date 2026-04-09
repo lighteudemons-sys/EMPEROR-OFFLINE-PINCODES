@@ -14,7 +14,6 @@ import { MobileTables } from '@/components/mobile-tables';
 import { MobileReports } from '@/components/mobile-reports';
 import { MobileLoyalty } from '@/components/mobile-loyalty';
 import { MobilePromoCodes } from '@/components/mobile-promo-codes';
-import { MobileReceiptSettings } from '@/components/mobile-receipt-settings';
 import { MobileDeliveryAreas } from '@/components/mobile-delivery-areas';
 import { MobileCouriers } from '@/components/mobile-couriers';
 import { MobileETASettings } from '@/components/mobile-eta-settings';
@@ -81,7 +80,7 @@ export function MobileMore() {
 
   // Mobile view sheets
   const [mobileViewOpen, setMobileViewOpen] = useState(false);
-  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'loyalty' | 'promo-codes' | 'receipt' | 'delivery-areas' | 'couriers' | 'eta-settings' | 'suppliers' | 'purchase-orders' | 'audit-logs' | 'users' | 'branches' | 'costs' | null>(null);
+  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'loyalty' | 'promo-codes' | 'delivery-areas' | 'couriers' | 'eta-settings' | 'suppliers' | 'purchase-orders' | 'audit-logs' | 'users' | 'branches' | 'costs' | null>(null);
 
   // Role-based access control - same as desktop
   const canAccessHQFeatures = user?.role === 'ADMIN';
@@ -187,7 +186,6 @@ export function MobileMore() {
       features: [
         { id: 'users', name: 'Users', icon: User, category: 'Settings', canAccess: canAccessUsers },
         { id: 'branches', name: 'Branches', icon: Building2, category: 'Settings', canAccess: canAccessHQFeatures },
-        { id: 'receipt', name: 'Receipt Settings', icon: Receipt, category: 'Settings', canAccess: canAccessHQFeatures },
         { id: 'delivery-areas', name: 'Delivery Areas', icon: MapPin, category: 'Settings', canAccess: canAccessDelivery },
         { id: 'couriers', name: 'Couriers', icon: UserCog, category: 'Settings', canAccess: canAccessDelivery },
         { id: 'eta-settings', name: 'ETA Settings', icon: Shield, category: 'Settings', canAccess: canAccessETA },
@@ -252,12 +250,6 @@ export function MobileMore() {
 
     if (feature.id === 'promo-codes') {
       setCurrentMobileView('promo-codes');
-      setMobileViewOpen(true);
-      return;
-    }
-
-    if (feature.id === 'receipt') {
-      setCurrentMobileView('receipt');
       setMobileViewOpen(true);
       return;
     }
@@ -566,7 +558,6 @@ export function MobileMore() {
                 {currentMobileView === 'costs' && 'Costs'}
                 {currentMobileView === 'loyalty' && 'Loyalty Program'}
                 {currentMobileView === 'promo-codes' && 'Promo Codes'}
-                {currentMobileView === 'receipt' && 'Receipt Settings'}
                 {currentMobileView === 'delivery-areas' && 'Delivery Areas'}
                 {currentMobileView === 'couriers' && 'Couriers'}
                 {currentMobileView === 'eta-settings' && 'ETA Settings'}
@@ -587,7 +578,6 @@ export function MobileMore() {
             {currentMobileView === 'costs' && <MobileCosts />}
             {currentMobileView === 'loyalty' && <MobileLoyalty />}
             {currentMobileView === 'promo-codes' && <MobilePromoCodes />}
-            {currentMobileView === 'receipt' && <MobileReceiptSettings />}
             {currentMobileView === 'delivery-areas' && <MobileDeliveryAreas />}
             {currentMobileView === 'couriers' && <MobileCouriers />}
             {currentMobileView === 'eta-settings' && <MobileETASettings />}

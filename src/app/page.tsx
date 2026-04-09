@@ -39,7 +39,6 @@ import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { SyncOperationsViewer } from '@/components/sync-operations-viewer';
 import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
 import { MobileBottomNav } from '@/components/mobile-bottom-nav';
-import { MobileDashboard } from '@/components/mobile-dashboard';
 import { MobilePOS } from '@/components/mobile-pos';
 import { MobileOrders } from '@/components/mobile-orders';
 import { MobileShifts } from '@/components/mobile-shifts';
@@ -65,7 +64,7 @@ export default function POSDashboard() {
   const [storageAlert, setStorageAlert] = useState<any>(null);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [syncConflicts, setSyncConflicts] = useState<any[]>([]);
-  const [mobileActiveTab, setMobileActiveTab] = useState('mobile-dashboard');
+  const [mobileActiveTab, setMobileActiveTab] = useState('mobile-pos');
   const [isMobileView, setIsMobileView] = useState(false);
 
   // Start storage monitoring
@@ -803,7 +802,6 @@ export default function POSDashboard() {
         <>
           {/* Mobile Views */}
           <div className="flex-1 overflow-hidden">
-            {mobileActiveTab === 'mobile-dashboard' && <MobileDashboard />}
             {mobileActiveTab === 'mobile-pos' && <MobilePOS />}
             {mobileActiveTab === 'mobile-orders' && <MobileOrders />}
             {mobileActiveTab === 'mobile-shifts' && <MobileShifts />}

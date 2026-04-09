@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, ShoppingCart, ClipboardList, Clock, MoreHorizontal } from 'lucide-react';
+import { ShoppingCart, ClipboardList, Clock, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -11,7 +11,6 @@ interface MobileBottomNavProps {
 
 export function MobileBottomNav({ activeTab, onTabChange }: MobileBottomNavProps) {
   const tabs = [
-    { id: 'mobile-dashboard', label: 'Dash', icon: Home },
     { id: 'mobile-pos', label: 'POS', icon: ShoppingCart },
     { id: 'mobile-orders', label: 'Orders', icon: ClipboardList },
     { id: 'mobile-shifts', label: 'Shifts', icon: Clock },
