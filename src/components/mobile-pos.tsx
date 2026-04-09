@@ -567,17 +567,36 @@ export function MobilePOS() {
   const [customVariantValue, setCustomVariantValue] = useState<string>('');
   const [customPriceMode, setCustomPriceMode] = useState<'weight' | 'price'>('weight');
   const [customPriceValue, setCustomPriceValue] = useState<string>('');
+  const [inputKey, setInputKey] = useState(0); // Force input remount
 
-  // Focus custom input when variant dialog opens or mode changes
-  useEffect(() => {
-    if (variantDialogOpen && customInputRef.current && selectedItemForVariant?.variants?.some(v => v.variantType?.isCustomInput)) {
-      // Small delay to ensure the dialog is fully rendered
-      setTimeout(() => {
-        customInputRef.current?.focus();
-        customInputRef.current?.click(); // Click to ensure keyboard opens on mobile
-      }, 100);
+  // Function to focus custom input
+  const focusCustomInput = () => {
+    // Force input to remount to ensure clean focus
+    setInputKey(prev => prev + 1);
+    setTimeout(() => {
+      if (customInputRef.current) {
+        customInputRef.current.focus();
+        customInputRef.current.click();
+        // Additional focus attempts for stubborn mobile browsers
+        setTimeout(() => {
+          if (customInputRef.current) {
+            customInputRef.current.focus();
+          }
+        }, 50);
+      }
+    }, 200);
+  };
+
+  // Handle variant dialog open/close
+  const handleVariantDialogChange = (open: boolean) => {
+    setVariantDialogOpen(open);
+    if (open && selectedItemForVariant?.variants?.some(v => v.variantType?.isCustomInput)) {
+      focusCustomInput();
+    } else if (!open) {
+      // Reset input key when dialog closes
+      setInputKey(prev => prev + 1);
     }
-  }, [variantDialogOpen, customPriceMode, selectedItemForVariant]);
+  };
 
   // Add New Address dialog state
   const [showAddAddressDialog, setShowAddAddressDialog] = useState(false);
@@ -3619,7 +3638,7 @@ export function MobilePOS() {
       </Sheet>
 
       {/* Variant Selection Dialog */}
-      <Dialog open={variantDialogOpen} onOpenChange={setVariantDialogOpen}>
+      <Dialog open={variantDialogOpen} onOpenChange={handleVariantDialogChange}>
         <DialogContent className="sm:max-w-[520px] rounded-3xl">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1.5">
@@ -3653,6 +3672,7 @@ export function MobilePOS() {
                         setCustomPriceMode('weight');
                         setCustomVariantValue('');
                         setCustomPriceValue('');
+                        focusCustomInput();
                       }}
                       className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
                         customPriceMode === 'weight'
@@ -3668,6 +3688,7 @@ export function MobilePOS() {
                         setCustomPriceMode('price');
                         setCustomVariantValue('');
                         setCustomPriceValue('');
+                        focusCustomInput();
                       }}
                       className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
                         customPriceMode === 'price'
@@ -3684,6 +3705,7 @@ export function MobilePOS() {
                       {customPriceMode === 'weight' ? 'Enter Multiplier (x)' : 'Enter Price'}
                     </Label>
                     <Input
+                      key={inputKey}
                       ref={customInputRef}
                       id="customInput"
                       type="number"
@@ -3698,6 +3720,10 @@ export function MobilePOS() {
                           : setCustomPriceValue(e.target.value)
                       }
                       className="text-lg font-semibold text-center"
+                      autoFocus
+                      onFocus={(e) => {
+                        (e.target as HTMLInputElement).setAttribute('inputmode', 'decimal');
+                      }}
                     />
                     {customPriceMode === 'weight' && customVariantValue && (
                       <p className="text-sm text-slate-500 text-center">
