@@ -568,6 +568,17 @@ export function MobilePOS() {
   const [customPriceMode, setCustomPriceMode] = useState<'weight' | 'price'>('weight');
   const [customPriceValue, setCustomPriceValue] = useState<string>('');
 
+  // Focus custom input when variant dialog opens or mode changes
+  useEffect(() => {
+    if (variantDialogOpen && customInputRef.current && selectedItemForVariant?.variants?.some(v => v.variantType?.isCustomInput)) {
+      // Small delay to ensure the dialog is fully rendered
+      setTimeout(() => {
+        customInputRef.current?.focus();
+        customInputRef.current?.click(); // Click to ensure keyboard opens on mobile
+      }, 100);
+    }
+  }, [variantDialogOpen, customPriceMode, selectedItemForVariant]);
+
   // Add New Address dialog state
   const [showAddAddressDialog, setShowAddAddressDialog] = useState(false);
   const [newAddress, setNewAddress] = useState({
@@ -598,6 +609,7 @@ export function MobilePOS() {
   tableCartRef.current = tableCart;
   const printedQuantitiesRef = useRef<Map<string, number>>(new Map());
   printedQuantitiesRef.current = printedQuantities;
+  const customInputRef = useRef<HTMLInputElement>(null);
 
   // Restore selected table on mount (for dine-in)
   useEffect(() => {
@@ -3672,6 +3684,7 @@ export function MobilePOS() {
                       {customPriceMode === 'weight' ? 'Enter Multiplier (x)' : 'Enter Price'}
                     </Label>
                     <Input
+                      ref={customInputRef}
                       id="customInput"
                       type="number"
                       inputMode="decimal"
@@ -3685,7 +3698,6 @@ export function MobilePOS() {
                           : setCustomPriceValue(e.target.value)
                       }
                       className="text-lg font-semibold text-center"
-                      autoFocus
                     />
                     {customPriceMode === 'weight' && customVariantValue && (
                       <p className="text-sm text-slate-500 text-center">
