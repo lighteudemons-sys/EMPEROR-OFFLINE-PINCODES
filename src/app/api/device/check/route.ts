@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if device exists and is active
-    const device = await db.device.findFirst({
+    const device = await db.licenseDevice.findFirst({
       where: {
         deviceId: deviceId,
         branchId: branchId,
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Update last active time
-    await db.device.update({
+    await db.licenseDevice.update({
       where: { id: device.id },
       data: { lastActive: new Date() }
     });

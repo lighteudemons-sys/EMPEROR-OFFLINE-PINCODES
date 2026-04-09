@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if device already exists
-    const existingDevice = await db.device.findFirst({
+    const existingDevice = await db.licenseDevice.findFirst({
       where: {
         deviceId: deviceId,
         branchId: branchId
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     if (existingDevice) {
       // Update last active time
-      await db.device.update({
+      await db.licenseDevice.update({
         where: { id: existingDevice.id },
         data: {
           lastActive: new Date(),
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     // Check device limit
     if (license) {
-      const activeDevices = await db.device.count({
+      const activeDevices = await db.licenseDevice.count({
         where: {
           licenseId: license.id,
           isActive: true
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Register new device
-      await db.device.create({
+      await db.licenseDevice.create({
         data: {
           deviceId,
           branchId,
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Register device without license (for admin users or branches without license)
-      await db.device.create({
+      await db.licenseDevice.create({
         data: {
           deviceId,
           branchId,
