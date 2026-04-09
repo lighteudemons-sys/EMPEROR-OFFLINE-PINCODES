@@ -3704,27 +3704,42 @@ export function MobilePOS() {
                     <Label htmlFor="customInput">
                       {customPriceMode === 'weight' ? 'Enter Multiplier (x)' : 'Enter Price'}
                     </Label>
-                    <Input
-                      key={inputKey}
-                      ref={customInputRef}
-                      id="customInput"
-                      type="number"
-                      inputMode="decimal"
-                      step="0.001"
-                      min="0.001"
-                      placeholder={customPriceMode === 'weight' ? '1.0' : formatCurrency(selectedItemForVariant?.price || 0)}
-                      value={customPriceMode === 'weight' ? customVariantValue : customPriceValue}
-                      onChange={(e) =>
-                        customPriceMode === 'weight'
-                          ? setCustomVariantValue(e.target.value)
-                          : setCustomPriceValue(e.target.value)
-                      }
-                      className="text-lg font-semibold text-center"
-                      autoFocus
-                      onFocus={(e) => {
-                        (e.target as HTMLInputElement).setAttribute('inputmode', 'decimal');
+                    <div 
+                      className="relative"
+                      onClick={() => {
+                        if (customInputRef.current) {
+                          customInputRef.current.focus();
+                          customInputRef.current.click();
+                        }
                       }}
-                    />
+                    >
+                      <Input
+                        key={inputKey}
+                        ref={customInputRef}
+                        id="customInput"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.001"
+                        min="0.001"
+                        placeholder={customPriceMode === 'weight' ? '1.0' : formatCurrency(selectedItemForVariant?.price || 0)}
+                        value={customPriceMode === 'weight' ? customVariantValue : customPriceValue}
+                        onChange={(e) =>
+                          customPriceMode === 'weight'
+                            ? setCustomVariantValue(e.target.value)
+                            : setCustomPriceValue(e.target.value)
+                        }
+                        className="text-lg font-semibold text-center cursor-pointer"
+                        autoFocus
+                        onFocus={(e) => {
+                          (e.target as HTMLInputElement).setAttribute('inputmode', 'decimal');
+                        }}
+                      />
+                      {!customVariantValue && !customPriceValue && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 animate-pulse">
+                          <span className="text-xs text-slate-400">Tap to enter</span>
+                        </div>
+                      )}
+                    </div>
                     {customPriceMode === 'weight' && customVariantValue && (
                       <p className="text-sm text-slate-500 text-center">
                         Weight: {Math.round(parseFloat(customVariantValue) * 1000)}g • Price: {formatCurrency((selectedItemForVariant?.price || 0) * parseFloat(customVariantValue))}
