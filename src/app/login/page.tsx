@@ -39,16 +39,6 @@ export default function LoginPage() {
     }
   }, [user, router]);
 
-  // Check if device is activated on first visit
-  useEffect(() => {
-    const isActivated = localStorage.getItem('emperor_device_activated');
-    if (isActivated !== 'true') {
-      // Device not activated, redirect to license activation
-      console.log('[LoginPage] Device not activated, redirecting to license activation');
-      router.push('/license-activation');
-    }
-  }, [router]);
-
   // Check actual network connectivity and session validity
   const checkConnection = async () => {
     setIsCheckingConnection(true);

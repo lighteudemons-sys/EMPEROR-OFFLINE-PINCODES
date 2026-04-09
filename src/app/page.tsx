@@ -474,7 +474,16 @@ export default function POSDashboard() {
   // Check authentication on mount
   useEffect(() => {
     if (!user) {
-      router.push('/login');
+      // Check if device is activated before redirecting to login
+      const isActivated = localStorage.getItem('emperor_device_activated');
+      if (isActivated !== 'true') {
+        // Device not activated, redirect to license activation
+        console.log('[Dashboard] Device not activated, redirecting to license activation');
+        router.push('/license-activation');
+      } else {
+        // Device is activated, redirect to login
+        router.push('/login');
+      }
     }
   }, [user, router]);
 
