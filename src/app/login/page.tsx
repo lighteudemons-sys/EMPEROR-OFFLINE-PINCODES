@@ -20,6 +20,7 @@ export default function LoginPage() {
   // Standard login state
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [isDeactivating, setIsDeactivating] = useState(false);
 
   // Quick login state
   const [userCode, setUserCode] = useState('');
@@ -131,6 +132,40 @@ export default function LoginPage() {
       return;
     }
     await login(undefined, undefined, userCode, pin);
+  };
+
+  const handleDeactivateDevice = async () => {
+    if (!confirm('Are you sure you want to deactivate this device? You will need to enter a license key to activate it again.')) {
+      return;
+    }
+
+    setIsDeactivating(true);
+    try {
+      const response = await fetch('/api/license/deactivate-device', {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to deactivate device');
+      }
+
+      // Clear localStorage
+      localStorage.removeItem('emperor_device_activated');
+      localStorage.removeItem('emperor_device_activation_time');
+      localStorage.removeItem('emperor_branch_id');
+      localStorage.removeItem('emperor_branch_name');
+      localStorage.removeItem('emperor_license_expires');
+
+      // Redirect to license activation page
+      router.push('/license-activation');
+    } catch (err: any) {
+      console.error('[LoginPage] Deactivation error:', err);
+      alert(err.message || 'Failed to deactivate device');
+    } finally {
+      setIsDeactivating(false);
+    }
   };
 
   const handleUserCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -449,6 +484,18 @@ export default function LoginPage() {
                   </span>
                 </div>
               )}
+
+              {/* Deactivate Device Link */}
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={handleDeactivateDevice}
+                  disabled={isDeactivating}
+                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 underline transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeactivating ? 'Deactivating...' : 'Switch to different branch?'}
+                </button>
+              </div>
             </CardContent>
           </Card>
         </div>

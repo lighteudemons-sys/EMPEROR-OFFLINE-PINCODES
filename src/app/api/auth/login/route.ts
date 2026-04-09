@@ -129,6 +129,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate that user's branch matches the activated license (unless admin)
+    const activatedBranchId = request.cookies.get('activated_branch_id')?.value;
+
+    if (activatedBranchId && user.branchId) {
+      // Admin users can login to any branch for maintenance
+      const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
+
+      if (!isAdmin && user.branchId !== activatedBranchId) {
+        // Get the activated branch name for better error message
+        const activatedBranch = await db.branch.findUnique({
+          where: { id: activatedBranchId },
+          select: { branchName: true }
+        });
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: `This device is activated for branch "${activatedBranch?.branchName || activatedBranchId}". Please login with users from that branch only.`,
+            activatedBranchId,
+            userBranchId: user.branchId
+          },
+          { status: 403 }
+        );
+      }
+    } else if (activatedBranchId && !user.branchId) {
+      // Device has an activated license but user is not assigned to any branch
+      const activatedBranch = await db.branch.findUnique({
+        where: { id: activatedBranchId },
+        select: { branchName: true }
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: `This device is activated for branch "${activatedBranch?.branchName || activatedBranchId}". Your user account is not assigned to any branch. Please contact administrator.`
+        },
+        { status: 403 }
+      );
+    } else if (!activatedBranchId && user.branchId) {
+      // User has a branch but no activated license on this device
+      // This is okay - they might be using an old device without license activation
+      // Or an admin accessing the system
+      console.log('[Login] User has branch but no activated license on device');
+    }
+
     // Check if user's branch is active (if user has a branch)
     if (user.branchId) {
       const branch = await db.branch.findUnique({

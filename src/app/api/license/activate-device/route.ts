@@ -148,6 +148,10 @@ export async function POST(request: NextRequest) {
       expirationDate: license.expirationDate.toISOString(),
       isNewDevice: deviceResult.isNewDevice,
       maxDevices: license.maxDevices
+    }, {
+      headers: {
+        'Set-Cookie': `activated_branch_id=${branch.id}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=31536000`
+      }
     });
   } catch (error: any) {
     console.error('[License Activation] Error:', error);
