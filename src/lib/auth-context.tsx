@@ -60,6 +60,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Periodic session validation (for device revocation)
+  useEffect(() => {
+    if (!user || !navigator.onLine) return;
+
+    const validateSession = async () => {
+      try {
+        const response = await fetch('/api/auth/session', {
+          credentials: 'include',
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          // Session is invalid
+          console.warn('[Auth] Session validation failed:', data.error, 'Reason:', data.reason);
+
+          // If device was removed, redirect to license activation
+          if (data.reason === 'device_removed' || data.reason === 'device_deactivated') {
+            console.warn('[Auth] Device removed/deactivated, redirecting to license activation');
+            await storage.removeSetting('user');
+            await storage.removeSetting('isLoggedIn');
+            setUser(null);
+            window.location.href = '/license-activation';
+          } else {
+            // Other session issues, logout
+            await logout();
+          }
+        }
+      } catch (error) {
+        console.error('[Auth] Session validation error:', error);
+        // Don't logout on network errors, might be offline
+      }
+    };
+
+    // Validate session every 10 seconds
+    const interval = setInterval(validateSession, 10000);
+
+    // Also validate when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        validateSession();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, isOnline]);
+
   // Initialize offline manager when user is set
   useEffect(() => {
     if (user && user.branchId) {

@@ -131,11 +131,10 @@ export async function POST(request: NextRequest) {
 
     // Validate that user's branch matches the activated license (unless admin)
     const activatedBranchId = request.cookies.get('activated_branch_id')?.value;
+    const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
 
     if (activatedBranchId && user.branchId) {
-      // Admin users can login to any branch for maintenance
-      const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
-
+      // Non-admin users must login to the activated branch
       if (!isAdmin && user.branchId !== activatedBranchId) {
         // Get the activated branch name for better error message
         const activatedBranch = await db.branch.findUnique({
@@ -153,8 +152,8 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         );
       }
-    } else if (activatedBranchId && !user.branchId) {
-      // Device has an activated license but user is not assigned to any branch
+    } else if (activatedBranchId && !user.branchId && !isAdmin) {
+      // Device has an activated license but user is not assigned to any branch (and not admin)
       const activatedBranch = await db.branch.findUnique({
         where: { id: activatedBranchId },
         select: { branchName: true }
@@ -167,10 +166,9 @@ export async function POST(request: NextRequest) {
         },
         { status: 403 }
       );
-    } else if (!activatedBranchId && user.branchId) {
-      // User has a branch but no activated license on this device
+    } else if (!activatedBranchId && user.branchId && !isAdmin) {
+      // User has a branch but no activated license on this device (and not admin)
       // This is okay - they might be using an old device without license activation
-      // Or an admin accessing the system
       console.log('[Login] User has branch but no activated license on device');
     }
 

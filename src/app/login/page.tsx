@@ -39,20 +39,33 @@ export default function LoginPage() {
     }
   }, [user, router]);
 
-  // Check actual network connectivity
+  // Check actual network connectivity and session validity
   const checkConnection = async () => {
     setIsCheckingConnection(true);
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-      await fetch('/api/auth/session', {
-        method: 'HEAD',
+      const response = await fetch('/api/auth/session', {
+        method: 'GET',
         signal: controller.signal,
         cache: 'no-store',
+        credentials: 'include',
       });
 
       clearTimeout(timeoutId);
+
+      // Check if device was removed
+      if (response.ok) {
+        const data = await response.json();
+        if (!data.success && (data.reason === 'device_removed' || data.reason === 'device_deactivated')) {
+          // Device was removed, redirect to license activation
+          console.log('[LoginPage] Device was removed, redirecting to license activation');
+          router.push('/license-activation');
+          return;
+        }
+      }
+
       setIsOffline(false);
     } catch (err) {
       console.log('[LoginPage] Connection check failed - offline mode');
