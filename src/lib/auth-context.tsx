@@ -61,9 +61,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Periodic session validation (for device revocation)
   useEffect(() => {
-    if (!user || !navigator.onLine) return;
+    if (!user) return;
 
     const validateSession = async () => {
+      // Skip validation if currently offline
+      if (!navigator.onLine) {
+        console.log('[Auth] Skipping session validation - offline');
+        return;
+      }
+
       try {
         const response = await fetch('/api/auth/session', {
           credentials: 'include',
@@ -132,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, isOnline]);
+  }, [user]);
 
   // Initialize offline manager when user is set
   useEffect(() => {
