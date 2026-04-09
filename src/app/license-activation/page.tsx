@@ -147,15 +147,15 @@ export default function LicenseActivationPage() {
                       type="text"
                       placeholder="Enter your license key"
                       value={licenseKey}
-                      onChange={(e) => setLicenseKey(e.target.value.toUpperCase())}
-                      className="pl-12 pr-4 py-4 border-[#C7A35A]/30 focus:border-[#C7A35A] focus:ring-[#C7A35A]/50 h-14 text-lg font-mono uppercase tracking-wide"
+                      onChange={(e) => setLicenseKey(e.target.value)}
+                      className="pl-12 pr-4 py-4 border-[#C7A35A]/30 focus:border-[#C7A35A] focus:ring-[#C7A35A]/50 h-14 text-lg font-mono tracking-wide"
                       required
                       disabled={isLoading}
                       autoComplete="off"
                     />
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    License keys are case-insensitive and unique to your branch
+                    Enter the license key exactly as provided by your administrator
                   </p>
                 </div>
 
