@@ -496,7 +496,7 @@ export function MobileReports() {
           )}
         </TabsList>
 
-        <ScrollArea className="h-[calc(100vh-450px)]">
+        <ScrollArea className="h-[calc(100vh-450px)] w-full">
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-4">
             {/* KPI Cards */}

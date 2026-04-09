@@ -467,7 +467,7 @@ export default function DiscountsTracking() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto touch-pan-x">
               <Table>
                 <TableHeader>
                   <TableRow>
