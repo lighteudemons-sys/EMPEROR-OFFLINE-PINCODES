@@ -20,19 +20,21 @@ export function LicenseActivationGuard({ children }: LicenseActivationGuardProps
       return;
     }
 
-    // If user is authenticated as ADMIN, allow access (bypass license activation)
-    // This allows admins to login from any device without license key
-    if (user && user.role === 'ADMIN') {
-      console.log('[LicenseGuard] Admin user authenticated, bypassing license activation check');
+    // If user is authenticated, allow access (bypass license activation)
+    // This allows:
+    // 1. Admin users to login from any device without license key
+    // 2. Users who have already logged in to continue using the app
+    if (user) {
+      console.log('[LicenseGuard] User authenticated, bypassing license activation check:', user.role);
       return;
     }
 
-    // Check activation status
+    // No user session - check if device has been activated with license key
     const status = checkActivationStatus();
 
     if (!status.isActivated) {
       // Device not activated, redirect to license activation
-      console.log('[LicenseGuard] Device not activated, redirecting to license activation');
+      console.log('[LicenseGuard] No user session and device not activated, redirecting to license activation');
       router.replace('/license-activation');
       return;
     }

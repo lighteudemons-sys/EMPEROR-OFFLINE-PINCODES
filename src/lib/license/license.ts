@@ -35,8 +35,8 @@ export function generateLicenseKey(data: LicenseData): string {
     .update(payload)
     .digest('hex');
 
-  // Combine payload and signature (base64 encoded)
-  const combined = `${payload}.${signature}`;
+  // Combine payload and signature using | as delimiter (to avoid conflicts with dates)
+  const combined = `${payload}|${signature}`;
   return Buffer.from(combined).toString('base64');
 }
 
@@ -48,8 +48,8 @@ export function validateLicenseKey(licenseKey: string): LicenseInfo {
     // Decode the license key
     const combined = Buffer.from(licenseKey, 'base64').toString('utf-8');
 
-    // Split payload and signature
-    const parts = combined.split('.');
+    // Split payload and signature using | as delimiter
+    const parts = combined.split('|');
     if (parts.length !== 2) {
       return {
         isValid: false,
@@ -120,7 +120,7 @@ export function validateLicenseKey(licenseKey: string): LicenseInfo {
 export function parseLicenseKey(licenseKey: string): LicenseData | null {
   try {
     const combined = Buffer.from(licenseKey, 'base64').toString('utf-8');
-    const parts = combined.split('.');
+    const parts = combined.split('|');
 
     if (parts.length !== 2) {
       return null;
