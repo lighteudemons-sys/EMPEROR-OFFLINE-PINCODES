@@ -6,6 +6,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { I18nProvider } from "@/lib/i18n-context";
 import { LanguageStateProvider } from "@/components/language-state-provider";
 import { PWAProvider } from "@/components/pwa-provider";
+import { LicenseActivationGuard } from "@/components/license-activation-guard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,7 +68,9 @@ export default function RootLayout({
           <PWAProvider>
             <I18nProvider>
               <AuthProvider>
-                {children}
+                <LicenseActivationGuard>
+                  {children}
+                </LicenseActivationGuard>
               </AuthProvider>
               <Toaster />
             </I18nProvider>
