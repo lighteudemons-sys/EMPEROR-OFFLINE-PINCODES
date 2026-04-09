@@ -16,19 +16,6 @@ export default function AdminLoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  // Redirect if already logged in
-  useEffect(() => {
-    if (user) {
-      // Only allow ADMIN users
-      if (user.role === 'ADMIN') {
-        router.push('/');
-      } else {
-        showErrorToast('Access Denied', 'This page is for administrators only');
-        router.push('/license-activation');
-      }
-    }
-  }, [user, router]);
-
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     

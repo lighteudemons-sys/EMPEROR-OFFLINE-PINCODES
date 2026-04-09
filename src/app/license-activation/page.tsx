@@ -292,12 +292,12 @@ export default function LicenseActivationPage() {
           </DialogFooter>
 
           {/* Secret admin access - hidden word */}
-          <div 
+          <div
             className="mt-4 text-center cursor-default select-none"
             onClick={handleSecretClick}
           >
             <p className="text-xs text-slate-400 dark:text-slate-600">
-              Emperor Coffee POS © 2024
+              Emperor Coffee POS © 2026
             </p>
           </div>
         </DialogContent>
