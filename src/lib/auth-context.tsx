@@ -75,6 +75,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           credentials: 'include',
         });
 
+        // Check for network/server errors (5xx, 0 for offline)
+        if (!response.ok && response.status >= 500) {
+          console.warn('[Auth] Server error during session validation (status:', response.status, '), might be offline');
+          // Don't logout on server errors, might be temporary network issue
+          return;
+        }
+
         const data = await response.json();
 
         if (!data.success) {
@@ -481,6 +488,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           credentials: 'include',
         })
           .then(async (response) => {
+            // Check for network/server errors (5xx, 0 for offline)
+            if (!response.ok && response.status >= 500) {
+              console.warn('[Auth] Server error during session validation (status:', response.status, '), might be offline');
+              // Keep the IndexedDB user as fallback
+              return;
+            }
+
             const data = await response.json();
             if (data.success && data.user) {
               // Server session is valid, update user state
