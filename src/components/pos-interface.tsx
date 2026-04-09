@@ -4773,16 +4773,7 @@ export default function POSInterface() {
               </Badge>
             </div>
             <div className="flex items-center gap-1">
-              {/* Daily Expenses Button in Cart Header - ALWAYS VISIBLE */}
-              <Button
-                onClick={() => setShowDailyExpenseDialog(true)}
-                variant="outline"
-                className="h-8 px-2 border-amber-500 dark:border-amber-500 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/50 text-xs font-bold rounded-md gap-0.5 shadow-sm"
-              >
-                <Wallet className="h-3 w-3" />
-                <span className="font-black">{t('pos.exp')}</span>
-              </Button>
-              {/* View Shift Expenses Button */}
+              {/* View Shift Expenses Button - Now includes Add Expense functionality */}
               <Button
                 onClick={() => {
                   setShowViewExpensesDialog(true);
@@ -6525,10 +6516,21 @@ export default function POSInterface() {
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-3">
+            <Button
+              onClick={() => {
+                setShowViewExpensesDialog(false);
+                setShowDailyExpenseDialog(true);
+              }}
+              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl h-11 px-6 font-semibold shadow-lg shadow-amber-500/30"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Expense
+            </Button>
             <Button
               onClick={() => setShowViewExpensesDialog(false)}
-              className="flex-1 rounded-xl h-11 font-semibold"
+              variant="outline"
+              className="rounded-xl h-11 px-6 font-semibold"
             >
               Close
             </Button>
