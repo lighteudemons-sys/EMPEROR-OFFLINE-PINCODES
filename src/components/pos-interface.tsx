@@ -90,6 +90,16 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
       const unitPrice = cartItem.price || 0;
       const totalPrice = unitPrice * cartItem.quantity;
 
+      console.log('[Order] Preparing cart item:', {
+        menuItemId: cartItem.menuItemId,
+        itemName: cartItem.name,
+        variantName: cartItem.variantName,
+        customVariantValue: cartItem.customVariantValue,
+        customPriceMode: cartItem.customPriceMode,
+        unitPrice,
+        quantity: cartItem.quantity,
+      });
+
       return {
         menuItemId: cartItem.menuItemId,
         itemName: cartItem.name, // Include item name for receipt
@@ -97,6 +107,7 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
         unitPrice,
         subtotal: totalPrice, // Include subtotal for receipt
         menuItemVariantId: cartItem.variantId || null,
+        variantName: cartItem.variantName || null, // CRITICAL: Include variantName
         customVariantValue: cartItem.customVariantValue || null,
         totalPrice,
         specialInstructions: cartItem.note || null,
