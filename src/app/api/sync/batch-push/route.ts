@@ -74,9 +74,10 @@ function getOperationPriority(type: OperationTypeType): number {
     'CREATE_SHIFT': 1,
     'UPDATE_SHIFT': 1,
 
-    // MEDIUM (2) - Orders depend on shifts
+    // MEDIUM (2) - Orders depend on shifts, Expenses depend on shifts
     'CREATE_ORDER': 2,
     'UPDATE_ORDER': 2,
+    'CREATE_DAILY_EXPENSE': 2,  // Must be processed BEFORE CLOSE_SHIFT to link expenses correctly
 
     // LOW (3) - Close operations and others
     'CLOSE_SHIFT': 3,
@@ -98,7 +99,6 @@ function getOperationPriority(type: OperationTypeType): number {
     'CREATE_PURCHASE_ORDER': 4,
     'UPDATE_PURCHASE_ORDER': 4,
     'CREATE_WASTE': 4,
-    'CREATE_DAILY_EXPENSE': 4,
     'CREATE_VOIDED_ITEM': 4,
     'CREATE_PROMO_CODE': 4,
     'USE_PROMO_CODE': 4,
