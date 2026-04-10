@@ -131,14 +131,29 @@ export async function GET(
     };
 
     // Detect if an item is a custom input (weight-based) item
+    // Handles both formats: "وزن: 0.755x" and "0.755x"
     const isCustomInputItem = (orderItem: any): boolean => {
-      return !!(orderItem.variantName && orderItem.variantName.includes('وزن:'));
+      if (!orderItem.variantName) return false;
+
+      // Check for "وزن:" prefix
+      if (orderItem.variantName.includes('وزن:')) return true;
+
+      // Check for pattern like "0.755x" or "1.5x" (number followed by 'x')
+      const multiplierPattern = /^\s*[\d.]+\s*x\s*$/i;
+      return multiplierPattern.test(orderItem.variantName);
     };
 
-    // Extract weight from variant name (e.g., "وزن: 0.125x (125g)" -> 0.125)
+    // Extract weight from variant name (e.g., "وزن: 0.125x (125g)" -> 0.125, "0.125x" -> 0.125)
     const extractWeight = (variantName: string): number => {
-      const match = variantName.match(/وزن:\s*([\d.]+)x/);
-      return match ? parseFloat(match[1]) : 0;
+      // Try to match "وزن: X.XXx" pattern
+      let match = variantName.match(/وزن:\s*([\d.]+)x/i);
+      if (match) return parseFloat(match[1]);
+
+      // Try to match "X.XXx" pattern (without "وزن:" prefix)
+      match = variantName.match(/^[\s]*([\d.]+)x/i);
+      if (match) return parseFloat(match[1]);
+
+      return 0;
     };
 
     // Get display name for item (including variant if present)

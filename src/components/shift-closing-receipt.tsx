@@ -12,11 +12,24 @@ import { formatCurrency } from '@/lib/utils';
 import { type ShiftClosingReportData } from '@/lib/escpos-encoder';
 
 // Helper function to format item name with rounded multipliers
+// Handles both formats: "Item Name - وزن: 0.755x (755g)" and "Item Name - 0.755x"
 function formatItemName(itemName: string): string {
   if (!itemName) return '';
 
   // Pattern to match: " - وزن: 0.09615384615384616x"
-  const multiplierMatch = itemName.match(/(- وزن: )([0-9.]+)(x)/);
+  let multiplierMatch = itemName.match(/(- وزن: )([0-9.]+)(x)/);
+  if (multiplierMatch) {
+    const prefix = itemName.substring(0, multiplierMatch.index);
+    const multiplier = parseFloat(multiplierMatch[2]);
+    const roundedMultiplier = Math.round(multiplier * 1000) / 1000;
+    // Calculate weight in grams (assuming base is 1kg = 1000g)
+    const weightInGrams = Math.round(multiplier * 1000);
+
+    return `${prefix} - وزن: ${roundedMultiplier}x (${weightInGrams}g)`;
+  }
+
+  // Pattern to match: " - 0.09615384615384616x" (without "وزن:" prefix)
+  multiplierMatch = itemName.match(/(- )([0-9.]+)(x)/);
   if (multiplierMatch) {
     const prefix = itemName.substring(0, multiplierMatch.index);
     const multiplier = parseFloat(multiplierMatch[2]);
@@ -159,18 +172,22 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         console.log('[Shift Closing Receipt] shiftData.shiftNumber:', shiftData?.shiftNumber);
         console.log('[Shift Closing Receipt] shiftData.closingRevenue:', shiftData?.closingRevenue);
         console.log('[Shift Closing Receipt] shiftData.closingOrders:', shiftData?.closingOrders);
+        console.log('[Shift Closing Receipt] navigator.onLine:', navigator.onLine);
 
-        // Only use shiftData directly for offline shifts (temp IDs)
-        // For online shifts, always fetch from API to get complete order data
+        // Determine if we should use shiftData directly
         const hasTempId = shiftData?.id?.startsWith('temp-');
         const hasRealClosingData = (shiftData?.closingRevenue !== null && shiftData?.closingRevenue !== undefined) ||
                                    (shiftData?.closingOrders !== null && shiftData?.closingOrders !== undefined);
+        const isOffline = !navigator.onLine;
+        const useShiftData = (shiftData && shiftData.id && (hasTempId || hasRealClosingData || isOffline));
 
         console.log('[Shift Closing Receipt] hasTempId:', hasTempId);
         console.log('[Shift Closing Receipt] hasRealClosingData:', hasRealClosingData);
+        console.log('[Shift Closing Receipt] isOffline:', isOffline);
+        console.log('[Shift Closing Receipt] useShiftData:', useShiftData);
 
-        if (shiftData && shiftData.id && hasTempId) {
-          console.log('[Shift Closing Receipt] Using provided shiftData prop (offline shift):', shiftData);
+        if (useShiftData) {
+          console.log('[Shift Closing Receipt] Using provided shiftData prop:', shiftData);
           await loadReceiptFromShiftData(shiftData);
         } else if (shiftId) {
           // For online shifts, always fetch from API
@@ -379,13 +396,28 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       console.log('[Shift Closing Receipt] Built category map for', menuItemCategoryMap.size, 'menu items');
 
       // Helper functions for custom input items (weight-based)
+      // Handles both formats: "وزن: 0.755x" and "0.755x"
       const isCustomInputItem = (item: any): boolean => {
-        return !!(item.variantName && item.variantName.includes('وزن:'));
+        if (!item.variantName) return false;
+
+        // Check for "وزن:" prefix
+        if (item.variantName.includes('وزن:')) return true;
+
+        // Check for pattern like "0.755x" or "1.5x" (number followed by 'x')
+        const multiplierPattern = /^\s*[\d.]+\s*x\s*$/i;
+        return multiplierPattern.test(item.variantName);
       };
 
       const extractWeight = (variantName: string): number => {
-        const match = variantName.match(/وزن:\s*([\d.]+)x/);
-        return match ? parseFloat(match[1]) : 0;
+        // Try to match "وزن: X.XXx" pattern
+        let match = variantName.match(/وزن:\s*([\d.]+)x/i);
+        if (match) return parseFloat(match[1]);
+
+        // Try to match "X.XXx" pattern (without "وزن:" prefix)
+        match = variantName.match(/^[\s]*([\d.]+)x/i);
+        if (match) return parseFloat(match[1]);
+
+        return 0;
       };
 
       const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean } => {
@@ -787,13 +819,28 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     console.log('[Shift Closing Receipt] Built category map for', menuItemCategoryMap.size, 'menu items (offline)');
 
     // Helper functions for custom input items (weight-based)
+    // Handles both formats: "وزن: 0.755x" and "0.755x"
     const isCustomInputItem = (item: any): boolean => {
-      return !!(item.variantName && item.variantName.includes('وزن:'));
+      if (!item.variantName) return false;
+
+      // Check for "وزن:" prefix
+      if (item.variantName.includes('وزن:')) return true;
+
+      // Check for pattern like "0.755x" or "1.5x" (number followed by 'x')
+      const multiplierPattern = /^\s*[\d.]+\s*x\s*$/i;
+      return multiplierPattern.test(item.variantName);
     };
 
     const extractWeight = (variantName: string): number => {
-      const match = variantName.match(/وزن:\s*([\d.]+)x/);
-      return match ? parseFloat(match[1]) : 0;
+      // Try to match "وزن: X.XXx" pattern
+      let match = variantName.match(/وزن:\s*([\d.]+)x/i);
+      if (match) return parseFloat(match[1]);
+
+      // Try to match "X.XXx" pattern (without "وزن:" prefix)
+      match = variantName.match(/^[\s]*([\d.]+)x/i);
+      if (match) return parseFloat(match[1]);
+
+      return 0;
     };
 
     const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean } => {
