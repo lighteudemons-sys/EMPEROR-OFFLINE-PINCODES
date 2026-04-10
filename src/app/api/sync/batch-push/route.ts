@@ -357,9 +357,18 @@ export async function POST(request: NextRequest) {
 
         if (shift && shift.isClosed && shift.startTime && shift.endTime) {
           const shiftEndTime = shift.endTime || new Date();
-          addLog(`[BatchPush] Post-sync: Checking shift ${shiftId} (${shift.startTime.toISOString()} - ${shiftEndTime.toISOString()}) for unlinked orders`);
-          
+          addLog(`[BatchPush] Post-sync: Checking shift ${shiftId} (${shift.startTime.toISOString()} - ${shiftEndTime.toISOString()}) for unlinked orders and expenses`);
+
+          // Link unlinked orders
           await linkUnlinkedOrdersToShift(
+            shiftId,
+            shift.cashierId,
+            shift.startTime,
+            shiftEndTime
+          );
+
+          // Link unlinked expenses
+          await linkUnlinkedExpensesToShift(
             shiftId,
             shift.cashierId,
             shift.startTime,
@@ -1393,6 +1402,101 @@ async function linkUnlinkedOrdersToShift(
 }
 
 /**
+ * Link unlinked daily expenses to a shift
+ * This function finds expenses created during a shift's time window that don't have a shiftId
+ * or have a temp shiftId, and links them to the real shift
+ */
+async function linkUnlinkedExpensesToShift(
+  shiftId: string,
+  cashierId: string,
+  shiftStartTime: Date,
+  shiftEndTime: Date
+): Promise<void> {
+  addLog(`[BatchPush] linkUnlinkedExpensesToShift: Looking for expenses between ${shiftStartTime.toISOString()} and ${shiftEndTime.toISOString()}`);
+
+  // Get the shift to access its branchId
+  const shift = await db.shift.findUnique({
+    where: { id: shiftId },
+    select: { branchId: true },
+  });
+
+  if (!shift) {
+    addLog(`[BatchPush] linkUnlinkedExpensesToShift: Shift ${shiftId} not found, skipping`);
+    return;
+  }
+
+  // DEBUG: Check ALL expenses for this branch
+  const allExpensesForBranch = await db.dailyExpense.findMany({
+    where: {
+      branchId: shift.branchId,
+    },
+    select: {
+      id: true,
+      amount: true,
+      reason: true,
+      recordedBy: true,
+      shiftId: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  addLog(`[BatchPush] linkUnlinkedExpensesToShift: ALL expenses for branch ${shift.branchId}:` + JSON.stringify({
+    total: allExpensesForBranch.length,
+    withShiftId: allExpensesForBranch.filter(e => e.shiftId !== null).length,
+    withoutShiftId: allExpensesForBranch.filter(e => e.shiftId === null).length,
+    withTempShiftId: allExpensesForBranch.filter(e => e.shiftId?.startsWith('temp-')).length,
+  }, null, 2));
+
+  // Find expenses created during this shift's time window that don't have a shiftId OR have a temp shiftId
+  const unlinkedExpenses = await db.dailyExpense.findMany({
+    where: {
+      branchId: shift.branchId,
+      OR: [
+        { shiftId: null },
+        { shiftId: { startsWith: 'temp-' } }
+      ],
+      createdAt: {
+        gte: shiftStartTime,
+        lte: shiftEndTime,
+      },
+    },
+    select: {
+      id: true,
+      amount: true,
+      reason: true,
+      recordedBy: true,
+      createdAt: true,
+      shiftId: true,
+    },
+  });
+
+  addLog(`[BatchPush] linkUnlinkedExpensesToShift: Found ${unlinkedExpenses.length} unlinked expenses for shift ${shiftId}:` + JSON.stringify(unlinkedExpenses.map(e => ({
+    amount: e.amount,
+    reason: e.reason,
+    shiftId: e.shiftId,
+    createdAt: e.createdAt
+  }))));
+
+  if (unlinkedExpenses.length > 0) {
+    addLog(`[BatchPush] linkUnlinkedExpensesToShift: Linking ${unlinkedExpenses.length} unlinked expenses to shift ${shiftId}`);
+    await db.dailyExpense.updateMany({
+      where: {
+        id: {
+          in: unlinkedExpenses.map(e => e.id),
+        },
+      },
+      data: {
+        shiftId: shiftId,
+      },
+    });
+    addLog(`[BatchPush] linkUnlinkedExpensesToShift: Linked ${unlinkedExpenses.length} expenses to shift ${shiftId}`);
+  } else {
+    addLog(`[BatchPush] linkUnlinkedExpensesToShift: No unlinked expenses found for shift ${shiftId}`);
+  }
+}
+
+/**
  * Close shift
  * Similar to updateShift but specifically for closing a shift
  * Improved to handle temporary IDs and prevent duplicate shifts
@@ -1499,13 +1603,15 @@ async function closeShift(data: any, branchId: string): Promise<void> {
               addLog(`[BatchPush] Using recent shift ID ${shiftId} (within 24h window, ${Math.floor(timeDiff / 1000)}s difference) for temp shift ${data.id}, isClosed: ${anyShift.isClosed}`);
 
               // If the shift is already closed, skip the close operation
-              // BUT STILL LINK ANY UNLINKED ORDERS that were created during this shift
+              // BUT STILL LINK ANY UNLINKED ORDERS AND EXPENSES that were created during this shift
               if (anyShift.isClosed) {
-                addLog(`[BatchPush] Shift ${shiftId} is already closed, skipping close operation but will link unlinked orders`);
+                addLog(`[BatchPush] Shift ${shiftId} is already closed, skipping close operation but will link unlinked orders and expenses`);
                 tempIdToRealIdMap.set(data.id, shiftId);
 
                 // CRITICAL: Still link unlinked orders even though we're skipping close
                 await linkUnlinkedOrdersToShift(shiftId, data.cashierId, anyShift.startTime, anyShift.endTime || new Date());
+                // CRITICAL: Also link unlinked expenses
+                await linkUnlinkedExpensesToShift(shiftId, data.cashierId, anyShift.startTime, anyShift.endTime || new Date());
                 return;
               }
 
@@ -1589,13 +1695,17 @@ async function closeShift(data: any, branchId: string): Promise<void> {
     cashierRevenue,
   });
 
-  // IMPORTANT: Link any unlinked orders to this shift before closing
-  // This handles the case where orders were created before the shift ID was mapped
+  // IMPORTANT: Link any unlinked orders and expenses to this shift before closing
+  // This handles the case where orders/expenses were created before the shift ID was mapped
   if (data.startTime) {
     const shiftStartTime = new Date(data.startTime);
     const shiftEndTime = new Date(endTime);
 
+    // Link unlinked orders
     await linkUnlinkedOrdersToShift(shiftId, data.cashierId, shiftStartTime, shiftEndTime);
+
+    // Link unlinked expenses
+    await linkUnlinkedExpensesToShift(shiftId, data.cashierId, shiftStartTime, shiftEndTime);
 
     // Recalculate order stats after linking
     const updatedOrderStats = await db.order.aggregate({
@@ -2015,9 +2125,39 @@ async function createDailyExpense(data: any, branchId: string): Promise<void> {
       shiftId = realShiftId;
       console.log(`[Sync] Mapped temp shift ID ${data.shiftId} to real ID ${realShiftId} for daily expense`);
     } else {
-      console.error(`[Sync] ERROR: Temp shift ID ${shiftId} not mapped for daily expense`);
-      console.log(`[Sync] Available mappings:`, Array.from(tempIdToRealIdMap.entries()));
-      throw new Error(`Shift ID ${shiftId} not found. Cannot create daily expense.`);
+      // Try to find the shift by time window instead of throwing an error
+      console.warn(`[Sync] Temp shift ID ${shiftId} not mapped for daily expense, attempting to find shift by time window`);
+
+      if (data.createdAt && data.recordedBy) {
+        const expenseCreatedAt = new Date(data.createdAt);
+        const timeWindowStart = new Date(expenseCreatedAt.getTime() - 24 * 60 * 60 * 1000); // 24 hours before
+        const timeWindowEnd = new Date(expenseCreatedAt.getTime() + 24 * 60 * 60 * 1000);   // 24 hours after
+
+        const matchingShift = await db.shift.findFirst({
+          where: {
+            branchId,
+            startTime: { lte: expenseCreatedAt },
+            OR: [
+              { endTime: { gte: expenseCreatedAt } },
+              { endTime: null }
+            ],
+          },
+          orderBy: { startTime: 'desc' },
+        });
+
+        if (matchingShift) {
+          shiftId = matchingShift.id;
+          console.log(`[Sync] Found shift ${shiftId} by time window for daily expense (start: ${matchingShift.startTime}, end: ${matchingShift.endTime})`);
+          // Store the mapping for future use
+          tempIdToRealIdMap.set(data.shiftId, shiftId);
+        } else {
+          console.error(`[Sync] Could not find shift by time window for daily expense, will create with null shiftId`);
+          shiftId = null;
+        }
+      } else {
+        console.error(`[Sync] Cannot find shift for daily expense - missing createdAt or recordedBy`);
+        shiftId = null;
+      }
     }
   }
 
