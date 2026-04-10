@@ -203,11 +203,13 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
       transactionHash,
       // Include items for receipt display
       items: preparedItems.map(item => {
-        // Find the matching cart item - match by menuItemId AND menuItemVariantId (or undefined for non-variant items)
+        // Find the matching cart item using multiple criteria for better accuracy
         const cartItem = cartItems.find(c =>
           c.menuItemId === item.menuItemId &&
-          (c.variantId || null) === (item.menuItemVariantId || null)
-        );
+          c.variantId === item.menuItemVariantId &&
+          c.price === item.unitPrice &&
+          (item.customVariantValue === null || c.customVariantValue === item.customVariantValue)
+        ) || cartItems.find(c => c.menuItemId === item.menuItemId && c.variantId === item.menuItemVariantId);
 
         return {
           id: `${tempId}-${item.menuItemId}-${item.menuItemVariantId || 'no-variant'}`,
@@ -218,12 +220,12 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
           subtotal: item.subtotal,
           recipeVersion: 1,
           menuItemVariantId: item.menuItemVariantId,
-          variantName: cartItem?.variantName,
-          customVariantValue: cartItem?.customVariantValue, // Save for receipt formatting
+          variantName: item.variantName, // Use variantName from preparedItems
+          customVariantValue: item.customVariantValue, // Use customVariantValue from preparedItems
           specialInstructions: item.specialInstructions,
-          categoryName: cartItem?.category,
-          categoryId: cartItem?.categoryId,
-          requiresCaptainReceipt: cartItem?.requiresCaptainReceipt || false,
+          categoryName: cartItem?.category, // Get category from matched cart item
+          categoryId: cartItem?.categoryId, // Get categoryId from matched cart item
+          requiresCaptainReceipt: cartItem?.requiresCaptainReceipt || false, // Get requiresCaptainReceipt from matched cart item
           createdAt: new Date().toISOString(),
         };
       }),
