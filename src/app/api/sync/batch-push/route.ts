@@ -1348,12 +1348,15 @@ async function linkUnlinkedOrdersToShift(
     }))
   }, null, 2));
 
-  // Find orders created during this shift's time window that don't have a shiftId
+  // Find orders created during this shift's time window that don't have a shiftId OR have a temp shiftId
   const unlinkedOrders = await db.order.findMany({
     where: {
       branchId: shift.branchId,
       cashierId: cashierId,
-      shiftId: null,
+      OR: [
+        { shiftId: null },
+        { shiftId: { startsWith: 'temp-' } }
+      ],
       orderTimestamp: {
         gte: shiftStartTime,
         lte: shiftEndTime,

@@ -262,7 +262,8 @@ export async function GET(
         // For custom input items, accumulate weight
         if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
           const weight = extractWeight(orderItem.variantName || '');
-          itemData.totalWeight += weight * orderItem.quantity;
+          // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
+          itemData.totalWeight += weight;
         }
       });
     });

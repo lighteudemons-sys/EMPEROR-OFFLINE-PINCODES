@@ -529,7 +529,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
               // For custom input items, accumulate weight
               if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
                 const weight = extractWeight(item.variantName || '');
-                itemData.totalWeight += weight * (item.quantity || 0);
+                // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
+                itemData.totalWeight += weight;
               }
             } catch (error) {
               console.error('[Shift Closing Receipt] Error processing item:', item, error);
@@ -946,7 +947,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
           // For custom input items, accumulate weight
           if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
             const weight = extractWeight(item.variantName || '');
-            itemData.totalWeight += weight * (item.quantity || 0);
+            // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
+            itemData.totalWeight += weight;
           }
         });
       }
