@@ -397,24 +397,32 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       console.log('[Shift Closing Receipt] Built category map for', menuItemCategoryMap.size, 'menu items');
 
       // Helper functions for custom input items (weight-based)
-      // Handles both formats: "وزن: 0.755x" and "0.755x"
+      // Handles formats: "وزن: 0.755x", "Weight: 1.008x", and "0.755x"
       const isCustomInputItem = (item: any): boolean => {
         if (!item.variantName) return false;
 
-        // Check for "وزن:" prefix
+        // Check for "وزن:" prefix (Arabic "Weight:")
         if (item.variantName.includes('وزن:')) return true;
 
-        // Check for pattern like "0.755x" or "1.5x" (number followed by 'x')
+        // Check for pattern like "{any text}: 0.755x" (the actual POS format)
+        const posFormatPattern = /[^:]*:\s*[\d.]+\s*x\s*$/i;
+        if (posFormatPattern.test(item.variantName)) return true;
+
+        // Check for pattern like "0.755x" or "1.5x" (number followed by 'x' without prefix)
         const multiplierPattern = /^\s*[\d.]+\s*x\s*$/i;
         return multiplierPattern.test(item.variantName);
       };
 
       const extractWeight = (variantName: string): number => {
-        // Try to match "وزن: X.XXx" pattern
+        // Try to match "وزن: X.XXx" pattern (Arabic "Weight:" prefix)
         let match = variantName.match(/وزن:\s*([\d.]+)x/i);
         if (match) return parseFloat(match[1]);
 
-        // Try to match "X.XXx" pattern (without "وزن:" prefix)
+        // Try to match "{any text}: X.XXx" pattern (the actual POS format, e.g., "Weight: 1.008x")
+        match = variantName.match(/[^:]*:\s*([\d.]+)x/i);
+        if (match) return parseFloat(match[1]);
+
+        // Try to match "X.XXx" pattern (without any prefix)
         match = variantName.match(/^[\s]*([\d.]+)x/i);
         if (match) return parseFloat(match[1]);
 
@@ -821,24 +829,32 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     console.log('[Shift Closing Receipt] Built category map for', menuItemCategoryMap.size, 'menu items (offline)');
 
     // Helper functions for custom input items (weight-based)
-    // Handles both formats: "وزن: 0.755x" and "0.755x"
+    // Handles formats: "وزن: 0.755x", "Weight: 1.008x", and "0.755x"
     const isCustomInputItem = (item: any): boolean => {
       if (!item.variantName) return false;
 
-      // Check for "وزن:" prefix
+      // Check for "وزن:" prefix (Arabic "Weight:")
       if (item.variantName.includes('وزن:')) return true;
 
-      // Check for pattern like "0.755x" or "1.5x" (number followed by 'x')
+      // Check for pattern like "{any text}: 0.755x" (the actual POS format)
+      const posFormatPattern = /[^:]*:\s*[\d.]+\s*x\s*$/i;
+      if (posFormatPattern.test(item.variantName)) return true;
+
+      // Check for pattern like "0.755x" or "1.5x" (number followed by 'x' without prefix)
       const multiplierPattern = /^\s*[\d.]+\s*x\s*$/i;
       return multiplierPattern.test(item.variantName);
     };
 
     const extractWeight = (variantName: string): number => {
-      // Try to match "وزن: X.XXx" pattern
+      // Try to match "وزن: X.XXx" pattern (Arabic "Weight:" prefix)
       let match = variantName.match(/وزن:\s*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
-      // Try to match "X.XXx" pattern (without "وزن:" prefix)
+      // Try to match "{any text}: X.XXx" pattern (the actual POS format, e.g., "Weight: 1.008x")
+      match = variantName.match(/[^:]*:\s*([\d.]+)x/i);
+      if (match) return parseFloat(match[1]);
+
+      // Try to match "X.XXx" pattern (without any prefix)
       match = variantName.match(/^[\s]*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
