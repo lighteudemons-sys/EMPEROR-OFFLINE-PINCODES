@@ -202,7 +202,7 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
       // Include transaction hash for tamper detection
       transactionHash,
       // Include items for receipt display
-      items: preparedItems.map(item => {
+      items: preparedItems.map((item, index) => {
         // Find the matching cart item using multiple criteria for better accuracy
         const cartItem = cartItems.find(c =>
           c.menuItemId === item.menuItemId &&
@@ -210,6 +210,20 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
           c.price === item.unitPrice &&
           (item.customVariantValue === null || c.customVariantValue === item.customVariantValue)
         ) || cartItems.find(c => c.menuItemId === item.menuItemId && c.variantId === item.menuItemVariantId);
+
+        console.log('[Order] Mapping prepared item to order item:', {
+          index,
+          preparedItem: {
+            variantName: item.variantName,
+            customVariantValue: item.customVariantValue,
+            unitPrice: item.unitPrice
+          },
+          matchedCartItem: cartItem ? {
+            variantName: cartItem.variantName,
+            customVariantValue: cartItem.customVariantValue,
+            price: cartItem.price
+          } : 'NOT FOUND'
+        });
 
         return {
           id: `${tempId}-${item.menuItemId}-${item.menuItemVariantId || 'no-variant'}`,
@@ -255,6 +269,12 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
     };
 
     console.log('[Order] Created order object:', newOrder);
+    console.log('[Order] Order items saved to IndexedDB:', newOrder.items.map(i => ({
+      itemName: i.itemName,
+      variantName: i.variantName,
+      customVariantValue: i.customVariantValue,
+      subtotal: i.subtotal
+    })));
 
     // Add branch information for receipt
     if (branchInfo) {
