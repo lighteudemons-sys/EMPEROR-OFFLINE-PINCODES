@@ -536,15 +536,26 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
               // For custom input items, accumulate weight
               if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
+                // Debug logging
+                console.log('[Shift Closing Receipt] Processing custom input item:', {
+                  itemName: item.itemName,
+                  variantName: item.variantName,
+                  customVariantValue: item.customVariantValue,
+                  subtotal: item.subtotal
+                });
+
                 // Use customVariantValue if available (stored multiplier), otherwise extract from variantName
                 let weight = 0;
                 if (item.customVariantValue !== undefined && item.customVariantValue !== null) {
                   weight = item.customVariantValue;
+                  console.log('[Shift Closing Receipt] Using customVariantValue:', weight);
                 } else {
                   weight = extractWeight(item.variantName || '');
+                  console.log('[Shift Closing Receipt] Extracted weight from variantName:', weight, 'from', item.variantName);
                 }
                 // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
                 itemData.totalWeight += weight;
+                console.log('[Shift Closing Receipt] Accumulated totalWeight:', itemData.totalWeight);
               }
             } catch (error) {
               console.error('[Shift Closing Receipt] Error processing item:', item, error);
