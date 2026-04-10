@@ -553,7 +553,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
                   itemName: item.itemName,
                   variantName: item.variantName,
                   customVariantValue: item.customVariantValue,
-                  subtotal: item.subtotal
+                  subtotal: item.subtotal,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice
                 });
 
                 // Use customVariantValue if available (stored multiplier), otherwise extract from variantName
@@ -564,6 +566,16 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
                 } else {
                   weight = extractWeight(item.variantName || '');
                   console.log('[Shift Closing Receipt] Extracted weight from variantName:', weight, 'from', item.variantName);
+
+                  // Try more aggressive extraction if weight is 0
+                  if (weight === 0 && item.variantName) {
+                    console.log('[Shift Closing Receipt] Weight is 0, trying to extract from price/subtotal:', {
+                      subtotal: item.subtotal,
+                      quantity: item.quantity,
+                      unitPrice: item.unitPrice,
+                      'calculated weight from subtotal/520': item.subtotal ? (item.subtotal / 520) : 'N/A'
+                    });
+                  }
                 }
                 // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
                 itemData.totalWeight += weight;
