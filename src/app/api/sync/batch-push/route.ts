@@ -1168,11 +1168,11 @@ async function createShift(data: any, branchId: string): Promise<void> {
     }
   }
 
-  // Check for duplicate shift by matching branchId, cashierId, and startTime (within 24 hours)
+  // Check for duplicate shift by matching branchId, cashierId, and EXACT startTime (within 1 second)
   // This prevents creating duplicate shifts when the same offline shift syncs multiple times
-  // Using 24-hour window to handle extended offline periods
-  const timeWindowStart = new Date(startTime.getTime() - 24 * 60 * 60 * 1000); // 24 hours before
-  const timeWindowEnd = new Date(startTime.getTime() + 24 * 60 * 60 * 1000);   // 24 hours after
+  // Using 1-second window to match the exact same shift, NOT different shifts
+  const timeWindowStart = new Date(startTime.getTime() - 1000); // 1 second before
+  const timeWindowEnd = new Date(startTime.getTime() + 1000);   // 1 second after
 
   addLog(`[BatchPush] Checking for duplicate shift with branchId=${branchId}, cashierId=${data.cashierId}, startTime=${startTime.toISOString()}, window=[${timeWindowStart.toISOString()}, ${timeWindowEnd.toISOString()}]`);
 
