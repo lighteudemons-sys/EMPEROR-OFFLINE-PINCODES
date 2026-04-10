@@ -536,7 +536,13 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
               // For custom input items, accumulate weight
               if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
-                const weight = extractWeight(item.variantName || '');
+                // Use customVariantValue if available (stored multiplier), otherwise extract from variantName
+                let weight = 0;
+                if (item.customVariantValue !== undefined && item.customVariantValue !== null) {
+                  weight = item.customVariantValue;
+                } else {
+                  weight = extractWeight(item.variantName || '');
+                }
                 // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
                 itemData.totalWeight += weight;
               }

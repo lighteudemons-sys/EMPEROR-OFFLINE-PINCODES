@@ -1168,11 +1168,11 @@ async function createShift(data: any, branchId: string): Promise<void> {
     }
   }
 
-  // Check for duplicate shift by matching branchId, cashierId, and startTime (within 5 minutes)
+  // Check for duplicate shift by matching branchId, cashierId, and startTime (within 24 hours)
   // This prevents creating duplicate shifts when the same offline shift syncs multiple times
-  // Using 5-minute window to handle reasonable offline periods
-  const timeWindowStart = new Date(startTime.getTime() - 300000); // 5 minutes before
-  const timeWindowEnd = new Date(startTime.getTime() + 300000);   // 5 minutes after
+  // Using 24-hour window to handle extended offline periods
+  const timeWindowStart = new Date(startTime.getTime() - 24 * 60 * 60 * 1000); // 24 hours before
+  const timeWindowEnd = new Date(startTime.getTime() + 24 * 60 * 60 * 1000);   // 24 hours after
 
   addLog(`[BatchPush] Checking for duplicate shift with branchId=${branchId}, cashierId=${data.cashierId}, startTime=${startTime.toISOString()}, window=[${timeWindowStart.toISOString()}, ${timeWindowEnd.toISOString()}]`);
 
@@ -1251,15 +1251,19 @@ async function createShift(data: any, branchId: string): Promise<void> {
   // This handles the case where CREATE_ORDER runs BEFORE CREATE_SHIFT in the same batch
   if (data.startTime && data.id && data.id.startsWith('temp-')) {
     addLog(`[BatchPush] Looking for unlinked orders created with temp shift ID ${data.id}...`);
-    
+
     const shiftStartTime = new Date(data.startTime);
     const shiftEndTime = data.endTime ? new Date(data.endTime) : new Date();
 
+    // Find orders with null shiftId OR with this temp shiftId
     const unlinkedOrders = await db.order.findMany({
       where: {
         branchId,
         cashierId: data.cashierId,
-        shiftId: null,
+        OR: [
+          { shiftId: null },
+          { shiftId: data.id } // Orders with this temp shiftId
+        ],
         orderTimestamp: {
           gte: shiftStartTime,
           lte: shiftEndTime,
@@ -1271,12 +1275,14 @@ async function createShift(data: any, branchId: string): Promise<void> {
         orderNumber: true,
         orderTimestamp: true,
         subtotal: true,
+        shiftId: true,
       },
     });
 
     if (unlinkedOrders.length > 0) {
       addLog(`[BatchPush] Found ${unlinkedOrders.length} unlinked orders created before this shift, linking them now...`);
-      
+      addLog(`[BatchPush] Orders to link:`, unlinkedOrders.map(o => ({ number: o.orderNumber, currentShiftId: o.shiftId })));
+
       await db.order.updateMany({
         where: {
           id: { in: unlinkedOrders.map(o => o.id) },
