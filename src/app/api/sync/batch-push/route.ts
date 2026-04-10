@@ -1342,7 +1342,9 @@ async function createShift(data: any, branchId: string): Promise<void> {
         cashierId: data.cashierId,
         OR: [
           { shiftId: null },
-          { shiftId: data.id } // Orders with this temp shiftId
+          { shiftId: data.id }, // Orders with this temp shiftId
+          // Also check for orders that might have been linked to a wrong shift (from a different time)
+          { shiftId: { not: null } } // We'll filter by time below
         ],
         orderTimestamp: {
           gte: shiftStartTime,
@@ -1359,20 +1361,60 @@ async function createShift(data: any, branchId: string): Promise<void> {
       },
     });
 
-    if (unlinkedOrders.length > 0) {
-      addLog(`[BatchPush] Found ${unlinkedOrders.length} unlinked orders created before this shift, linking them now...`);
-      addLog(`[BatchPush] Orders to link:`, unlinkedOrders.map(o => ({ number: o.orderNumber, currentShiftId: o.shiftId })));
+    // Filter out orders that are already correctly linked to this shift (if it existed before)
+    // and keep only unlinked ones or ones with the temp shift ID
+    const ordersToLink = unlinkedOrders.filter(o => o.shiftId === null || o.shiftId === data.id);
+
+    if (ordersToLink.length > 0) {
+      addLog(`[BatchPush] Found ${ordersToLink.length} unlinked orders created before this shift, linking them now...`);
+      addLog(`[BatchPush] Orders to link:`, ordersToLink.map(o => ({ number: o.orderNumber, currentShiftId: o.shiftId })));
 
       await db.order.updateMany({
         where: {
-          id: { in: unlinkedOrders.map(o => o.id) },
+          id: { in: ordersToLink.map(o => o.id) },
         },
         data: { shiftId: newShift.id },
       });
 
-      addLog(`[BatchPush] Linked ${unlinkedOrders.length} orders to shift ${newShift.id}:`, unlinkedOrders.map(o => o.orderNumber));
+      addLog(`[BatchPush] Linked ${ordersToLink.length} orders to shift ${newShift.id}:`, ordersToLink.map(o => o.orderNumber));
     } else {
       addLog(`[BatchPush] No unlinked orders found for this shift`);
+      addLog(`[BatchPush] All orders in time window already linked:`, unlinkedOrders.map(o => ({ number: o.orderNumber, shiftId: o.shiftId })));
+    }
+
+    // CRITICAL: Also link any expenses with temp shift ID or null shiftId
+    const unlinkedExpenses = await db.dailyExpense.findMany({
+      where: {
+        branchId,
+        OR: [
+          { shiftId: null },
+          { shiftId: data.id }
+        ],
+        createdAt: {
+          gte: shiftStartTime,
+          lte: shiftEndTime,
+        },
+      },
+      select: {
+        id: true,
+        amount: true,
+        reason: true,
+        shiftId: true,
+        createdAt: true,
+      },
+    });
+
+    if (unlinkedExpenses.length > 0) {
+      addLog(`[BatchPush] Found ${unlinkedExpenses.length} unlinked expenses for this shift, linking them now...`);
+      await db.dailyExpense.updateMany({
+        where: {
+          id: { in: unlinkedExpenses.map(e => e.id) },
+        },
+        data: { shiftId: newShift.id },
+      });
+      addLog(`[BatchPush] Linked ${unlinkedExpenses.length} expenses to shift ${newShift.id}`);
+    } else {
+      addLog(`[BatchPush] No unlinked expenses found for this shift`);
     }
   }
 }

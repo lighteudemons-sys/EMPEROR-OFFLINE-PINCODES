@@ -401,6 +401,10 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       const isCustomInputItem = (item: any): boolean => {
         if (!item.variantName) return false;
 
+        // Check for weight in parentheses (e.g., "(125g)", "(96g)")
+        // This is a clear indicator of custom input items
+        if (/\(([\d.]+)g\)/i.test(item.variantName)) return true;
+
         // Check for "وزن:" prefix (Arabic "Weight:") - handles BOTH weight and price modes
         if (item.variantName.includes('وزن:')) return true;
 
@@ -414,15 +418,23 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       };
 
       const extractWeight = (variantName: string): number => {
-        // Try to match "وزن: X.XXx" pattern (Arabic "Weight:" prefix)
+        // PRIORITY 1: Extract weight from parentheses (e.g., "(125g)", "(96g)")
+        // This is the ACTUAL weight and should be used if available
+        const weightInParentheses = variantName.match(/\(([\d.]+)g\)/i);
+        if (weightInParentheses) {
+          // Convert grams to kilograms
+          return parseFloat(weightInParentheses[1]) / 1000;
+        }
+
+        // PRIORITY 2: Try to match "وزن: X.XXx" pattern (Arabic "Weight:" prefix with multiplier)
         let match = variantName.match(/وزن:\s*([\d.]+)x/i);
         if (match) return parseFloat(match[1]);
 
-        // Try to match "{any text}: X.XXx" pattern (the actual POS format, e.g., "Weight: 1.008x")
+        // PRIORITY 3: Try to match "{any text}: X.XXx" pattern (the actual POS format, e.g., "Weight: 1.008x")
         match = variantName.match(/[^:]*:\s*([\d.]+)x/i);
         if (match) return parseFloat(match[1]);
 
-        // Try to match "X.XXx" pattern (without any prefix)
+        // PRIORITY 4: Try to match "X.XXx" pattern (without any prefix)
         match = variantName.match(/^[\s]*([\d.]+)x/i);
         if (match) return parseFloat(match[1]);
 
@@ -846,9 +858,13 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     console.log('[Shift Closing Receipt] Built category map for', menuItemCategoryMap.size, 'menu items (offline)');
 
     // Helper functions for custom input items (weight-based)
-    // Handles formats: "وزن: 0.755x", "Weight: 1.008x", and "0.755x"
+    // Handles formats: "وزن: 0.755x", "Weight: 1.008x", "وزن: EGP 50.00 (96g)", "0.755x", and "(125g)"
     const isCustomInputItem = (item: any): boolean => {
       if (!item.variantName) return false;
+
+      // Check for weight in parentheses (e.g., "(125g)", "(96g)")
+      // This is a clear indicator of custom input items
+      if (/\(([\d.]+)g\)/i.test(item.variantName)) return true;
 
       // Check for "وزن:" prefix (Arabic "Weight:")
       if (item.variantName.includes('وزن:')) return true;
@@ -863,15 +879,23 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     };
 
     const extractWeight = (variantName: string): number => {
-      // Try to match "وزن: X.XXx" pattern (Arabic "Weight:" prefix)
+      // PRIORITY 1: Extract weight from parentheses (e.g., "(125g)", "(96g)")
+      // This is the ACTUAL weight and should be used if available
+      const weightInParentheses = variantName.match(/\(([\d.]+)g\)/i);
+      if (weightInParentheses) {
+        // Convert grams to kilograms
+        return parseFloat(weightInParentheses[1]) / 1000;
+      }
+
+      // PRIORITY 2: Try to match "وزن: X.XXx" pattern (Arabic "Weight:" prefix with multiplier)
       let match = variantName.match(/وزن:\s*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
-      // Try to match "{any text}: X.XXx" pattern (the actual POS format, e.g., "Weight: 1.008x")
+      // PRIORITY 3: Try to match "{any text}: X.XXx" pattern (the actual POS format, e.g., "Weight: 1.008x")
       match = variantName.match(/[^:]*:\s*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
-      // Try to match "X.XXx" pattern (without any prefix)
+      // PRIORITY 4: Try to match "X.XXx" pattern (without any prefix)
       match = variantName.match(/^[\s]*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
@@ -979,9 +1003,26 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
           // For custom input items, accumulate weight
           if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
-            const weight = extractWeight(item.variantName || '');
+            // Debug logging
+            console.log('[Shift Closing Receipt Offline] Processing custom input item:', {
+              itemName: item.itemName,
+              variantName: item.variantName,
+              customVariantValue: item.customVariantValue,
+              subtotal: item.subtotal
+            });
+
+            // Use customVariantValue if available (stored multiplier), otherwise extract from variantName
+            let weight = 0;
+            if (item.customVariantValue !== undefined && item.customVariantValue !== null) {
+              weight = item.customVariantValue;
+              console.log('[Shift Closing Receipt Offline] Using customVariantValue:', weight);
+            } else {
+              weight = extractWeight(item.variantName || '');
+              console.log('[Shift Closing Receipt Offline] Extracted weight from variantName:', weight, 'from', item.variantName);
+            }
             // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
             itemData.totalWeight += weight;
+            console.log('[Shift Closing Receipt Offline] Accumulated totalWeight:', itemData.totalWeight);
           }
         });
       }

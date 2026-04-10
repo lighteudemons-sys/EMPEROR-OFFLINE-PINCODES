@@ -147,17 +147,27 @@ export async function GET(
       return multiplierPattern.test(orderItem.variantName);
     };
 
-    // Extract weight from variant name (e.g., "وزن: 0.125x (125g)" -> 0.125, "Weight: 1.008x" -> 1.008, "0.125x" -> 0.125)
+    // Extract weight from variant name
+    // PRIORITY 1: Extract weight from parentheses (e.g., "(125g)", "(96g)") - this is the ACTUAL weight
+    // PRIORITY 2: Extract multiplier (e.g., "وزن: 0.125x (125g)" -> 0.125, "Weight: 1.008x" -> 1.008)
     const extractWeight = (variantName: string): number => {
-      // Try to match "وزن: X.XXx" pattern (Arabic "Weight:" prefix)
+      // PRIORITY 1: Extract weight from parentheses (e.g., "(125g)", "(96g)")
+      // This is the ACTUAL weight and should be used if available
+      const weightInParentheses = variantName.match(/\(([\d.]+)g\)/i);
+      if (weightInParentheses) {
+        // Convert grams to kilograms
+        return parseFloat(weightInParentheses[1]) / 1000;
+      }
+
+      // PRIORITY 2: Try to match "وزن: X.XXx" pattern (Arabic "Weight:" prefix with multiplier)
       let match = variantName.match(/وزن:\s*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
-      // Try to match "{any text}: X.XXx" pattern (the actual POS format, e.g., "Weight: 1.008x")
+      // PRIORITY 3: Try to match "{any text}: X.XXx" pattern (the actual POS format, e.g., "Weight: 1.008x")
       match = variantName.match(/[^:]*:\s*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
-      // Try to match "X.XXx" pattern (without any prefix)
+      // PRIORITY 4: Try to match "X.XXx" pattern (without any prefix)
       match = variantName.match(/^[\s]*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
