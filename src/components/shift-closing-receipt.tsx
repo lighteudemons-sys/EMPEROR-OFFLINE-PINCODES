@@ -375,6 +375,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
     // Initialize daily expenses variables
     let totalDailyExpenses = 0;
     let finalDailyExpenses = 0;
+    let shiftDailyExpenses: any[] = []; // Initialize outside try block
 
     try {
       const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
@@ -582,8 +583,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
       // Get daily expenses from IndexedDB
       const allDailyExpenses = await indexedDBStorage.getAllDailyExpenses();
-      const shiftDailyExpenses = allDailyExpenses.filter((exp: any) => exp.shiftId === shift.id);
-      const totalDailyExpenses = shiftDailyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+      shiftDailyExpenses = allDailyExpenses.filter((exp: any) => exp.shiftId === shift.id);
+      totalDailyExpenses = shiftDailyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
 
       console.log('[Shift Closing Receipt] Daily expenses for shift:', {
         shiftId: shift.id,
