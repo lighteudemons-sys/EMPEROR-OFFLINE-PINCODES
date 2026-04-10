@@ -130,27 +130,49 @@ export async function GET(
       return category.trim().replace(/\s+/g, ' ');
     };
 
-    // Detect if an item is a custom input (weight-based) item
-    // Handles both formats: "وزن: 0.755x" and "0.755x"
-    const isCustomInputItem = (orderItem: any): boolean => {
-      if (!orderItem.variantName) return false;
+    // Detect if an item is a custom input item
+    // Correctly detects custom input items entered by WEIGHT (shows weight) vs PRICE (shows quantity)
+    const isCustomInputItem = (orderItem: any): { isCustom: boolean; mode: 'weight' | 'price' | null } => {
+      if (!orderItem.variantName) return { isCustom: false, mode: null };
 
-      // Check for "وزن:" prefix
-      if (orderItem.variantName.includes('وزن:')) return true;
+      // Check if variantName contains a price indicator (EGP)
+      // This indicates the user entered PRICE, not WEIGHT
+      if (orderItem.variantName.includes('EGP') || orderItem.variantName.includes('ج.م')) {
+        return { isCustom: true, mode: 'price' };
+      }
 
-      // Check for pattern like "0.755x" or "1.5x" (number followed by 'x')
-      const multiplierPattern = /^\s*[\d.]+\s*x\s*$/i;
-      return multiplierPattern.test(orderItem.variantName);
+      // Check for "وزن:" prefix followed by a multiplier pattern
+      // This is a clear indicator of weight-based custom input
+      const weightPatternWithPrefix = /وزن:\s*[\d.]+x/i;
+      if (weightPatternWithPrefix.test(orderItem.variantName)) {
+        return { isCustom: true, mode: 'weight' };
+      }
+
+      // Check for pure multiplier pattern at the START or AFTER a colon
+      // Pattern: "VariantType: 0.5x" or "0.5x"
+      // But NOT if it's part of the variant type name (like "ط - م")
+      const multiplierPattern = /:\s*[\d.]+x\s*$/i;
+      const pureMultiplierPattern = /^[\d.]+x\s*$/i;
+      
+      if (multiplierPattern.test(orderItem.variantName) || pureMultiplierPattern.test(orderItem.variantName)) {
+        return { isCustom: true, mode: 'weight' };
+      }
+
+      return { isCustom: false, mode: null };
     };
 
-    // Extract weight from variant name (e.g., "وزن: 0.125x (125g)" -> 0.125, "0.125x" -> 0.125)
+    // Extract weight from variant name
     const extractWeight = (variantName: string): number => {
       // Try to match "وزن: X.XXx" pattern
       let match = variantName.match(/وزن:\s*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
-      // Try to match "X.XXx" pattern (without "وزن:" prefix)
-      match = variantName.match(/^[\s]*([\d.]+)x/i);
+      // Try to match "VariantType: X.XXx" pattern (multiplier after colon)
+      match = variantName.match(/:\s*([\d.]+)x\s*$/i);
+      if (match) return parseFloat(match[1]);
+
+      // Try to match pure "X.XXx" pattern (standalone multiplier)
+      match = variantName.match(/^[\s]*([\d.]+)x\s*$/i);
       if (match) return parseFloat(match[1]);
 
       return 0;
@@ -190,14 +212,15 @@ export async function GET(
     };
 
     // Get aggregation key for custom input items
-    const getAggregationKey = (orderItem: any): { key: string; baseName: string; isCustomInput: boolean } => {
-      const isCustom = isCustomInputItem(orderItem);
+    const getAggregationKey = (orderItem: any): { key: string; baseName: string; isCustomInput: boolean; inputMode: 'weight' | 'price' | null } => {
+      const { isCustom, mode } = isCustomInputItem(orderItem);
       if (!isCustom) {
         // For regular items, use the full display name
         return {
           key: orderItem.menuItemId + (orderItem.menuItemVariantId ? `_${orderItem.menuItemVariantId}` : ''),
           baseName: getItemDisplayName(orderItem),
-          isCustomInput: false
+          isCustomInput: false,
+          inputMode: null
         };
       }
 
@@ -207,7 +230,8 @@ export async function GET(
       return {
         key: `custom_${orderItem.menuItemId}`,
         baseName: baseName,
-        isCustomInput: true
+        isCustomInput: true,
+        inputMode: mode
       };
     };
 
@@ -251,7 +275,8 @@ export async function GET(
             quantity: 0,
             totalPrice: 0,
             isCustomInput: aggKey.isCustomInput,
-            totalWeight: aggKey.isCustomInput ? 0 : undefined
+            inputMode: aggKey.inputMode,
+            totalWeight: aggKey.inputMode === 'weight' ? 0 : undefined
           });
         }
 
@@ -259,8 +284,9 @@ export async function GET(
         itemData.quantity += orderItem.quantity;
         itemData.totalPrice += orderItem.subtotal;
 
-        // For custom input items, accumulate weight
-        if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
+        // For custom input items in WEIGHT mode, accumulate weight
+        // For PRICE mode, don't accumulate weight (just use quantity)
+        if (aggKey.isCustomInput && aggKey.inputMode === 'weight' && itemData.totalWeight !== undefined) {
           const weight = extractWeight(orderItem.variantName || '');
           // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
           itemData.totalWeight += weight;

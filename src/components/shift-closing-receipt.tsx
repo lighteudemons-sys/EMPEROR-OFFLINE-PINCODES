@@ -396,17 +396,35 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
       console.log('[Shift Closing Receipt] Built category map for', menuItemCategoryMap.size, 'menu items');
 
-      // Helper functions for custom input items (weight-based)
-      // Handles both formats: "وزن: 0.755x" and "0.755x"
-      const isCustomInputItem = (item: any): boolean => {
-        if (!item.variantName) return false;
+      // Helper functions for custom input items
+      // Correctly detects custom input items entered by WEIGHT (shows weight) vs PRICE (shows quantity)
+      const isCustomInputItem = (item: any): { isCustom: boolean; mode: 'weight' | 'price' | null } => {
+        if (!item.variantName) return { isCustom: false, mode: null };
 
-        // Check for "وزن:" prefix
-        if (item.variantName.includes('وزن:')) return true;
+        // Check if variantName contains a price indicator (EGP)
+        // This indicates the user entered PRICE, not WEIGHT
+        if (item.variantName.includes('EGP') || item.variantName.includes('ج.م')) {
+          return { isCustom: true, mode: 'price' };
+        }
 
-        // Check for pattern like "0.755x" or "1.5x" (number followed by 'x')
-        const multiplierPattern = /^\s*[\d.]+\s*x\s*$/i;
-        return multiplierPattern.test(item.variantName);
+        // Check for "وزن:" prefix followed by a multiplier pattern
+        // This is a clear indicator of weight-based custom input
+        const weightPatternWithPrefix = /وزن:\s*[\d.]+x/i;
+        if (weightPatternWithPrefix.test(item.variantName)) {
+          return { isCustom: true, mode: 'weight' };
+        }
+
+        // Check for pure multiplier pattern at the START or AFTER a colon
+        // Pattern: "VariantType: 0.5x" or "0.5x"
+        // But NOT if it's part of the variant type name (like "ط - م")
+        const multiplierPattern = /:\s*[\d.]+x\s*$/i;
+        const pureMultiplierPattern = /^[\d.]+x\s*$/i;
+        
+        if (multiplierPattern.test(item.variantName) || pureMultiplierPattern.test(item.variantName)) {
+          return { isCustom: true, mode: 'weight' };
+        }
+
+        return { isCustom: false, mode: null };
       };
 
       const extractWeight = (variantName: string): number => {
@@ -414,15 +432,19 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         let match = variantName.match(/وزن:\s*([\d.]+)x/i);
         if (match) return parseFloat(match[1]);
 
-        // Try to match "X.XXx" pattern (without "وزن:" prefix)
-        match = variantName.match(/^[\s]*([\d.]+)x/i);
+        // Try to match "VariantType: X.XXx" pattern (multiplier after colon)
+        match = variantName.match(/:\s*([\d.]+)x\s*$/i);
+        if (match) return parseFloat(match[1]);
+
+        // Try to match pure "X.XXx" pattern (standalone multiplier)
+        match = variantName.match(/^[\s]*([\d.]+)x\s*$/i);
         if (match) return parseFloat(match[1]);
 
         return 0;
       };
 
-      const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean } => {
-        const isCustom = isCustomInputItem(item);
+      const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean; inputMode: 'weight' | 'price' | null } => {
+        const { isCustom, mode } = isCustomInputItem(item);
         if (!isCustom) {
           // For regular items, use only variant option name (excludes variant type name)
           const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
@@ -441,7 +463,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
           return {
             key: itemId,
             baseName: itemName,
-            isCustomInput: false
+            isCustomInput: false,
+            inputMode: null
           };
         }
 
@@ -451,7 +474,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         return {
           key: `custom_${item.menuItemId}`,
           baseName: baseName,
-          isCustomInput: true
+          isCustomInput: true,
+          inputMode: mode
         };
       };
 
@@ -518,7 +542,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
                   quantity: 0,
                   totalPrice: 0,
                   isCustomInput: aggKey.isCustomInput,
-                  totalWeight: aggKey.isCustomInput ? 0 : undefined
+                  inputMode: aggKey.inputMode,
+                  totalWeight: aggKey.inputMode === 'weight' ? 0 : undefined
                 });
               }
 
@@ -526,8 +551,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
               itemData.quantity += item.quantity || 0;
               itemData.totalPrice += item.subtotal || 0;
 
-              // For custom input items, accumulate weight
-              if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
+              // For custom input items in WEIGHT mode, accumulate weight
+              // For PRICE mode, don't accumulate weight (just use quantity)
+              if (aggKey.isCustomInput && aggKey.inputMode === 'weight' && itemData.totalWeight !== undefined) {
                 const weight = extractWeight(item.variantName || '');
                 // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
                 itemData.totalWeight += weight;
@@ -820,17 +846,35 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
 
     console.log('[Shift Closing Receipt] Built category map for', menuItemCategoryMap.size, 'menu items (offline)');
 
-    // Helper functions for custom input items (weight-based)
-    // Handles both formats: "وزن: 0.755x" and "0.755x"
-    const isCustomInputItem = (item: any): boolean => {
-      if (!item.variantName) return false;
+    // Helper functions for custom input items
+    // Correctly detects custom input items entered by WEIGHT (shows weight) vs PRICE (shows quantity)
+    const isCustomInputItem = (item: any): { isCustom: boolean; mode: 'weight' | 'price' | null } => {
+      if (!item.variantName) return { isCustom: false, mode: null };
 
-      // Check for "وزن:" prefix
-      if (item.variantName.includes('وزن:')) return true;
+      // Check if variantName contains a price indicator (EGP)
+      // This indicates the user entered PRICE, not WEIGHT
+      if (item.variantName.includes('EGP') || item.variantName.includes('ج.م')) {
+        return { isCustom: true, mode: 'price' };
+      }
 
-      // Check for pattern like "0.755x" or "1.5x" (number followed by 'x')
-      const multiplierPattern = /^\s*[\d.]+\s*x\s*$/i;
-      return multiplierPattern.test(item.variantName);
+      // Check for "وزن:" prefix followed by a multiplier pattern
+      // This is a clear indicator of weight-based custom input
+      const weightPatternWithPrefix = /وزن:\s*[\d.]+x/i;
+      if (weightPatternWithPrefix.test(item.variantName)) {
+        return { isCustom: true, mode: 'weight' };
+      }
+
+      // Check for pure multiplier pattern at the START or AFTER a colon
+      // Pattern: "VariantType: 0.5x" or "0.5x"
+      // But NOT if it's part of the variant type name (like "ط - م")
+      const multiplierPattern = /:\s*[\d.]+x\s*$/i;
+      const pureMultiplierPattern = /^[\d.]+x\s*$/i;
+      
+      if (multiplierPattern.test(item.variantName) || pureMultiplierPattern.test(item.variantName)) {
+        return { isCustom: true, mode: 'weight' };
+      }
+
+      return { isCustom: false, mode: null };
     };
 
     const extractWeight = (variantName: string): number => {
@@ -838,15 +882,19 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       let match = variantName.match(/وزن:\s*([\d.]+)x/i);
       if (match) return parseFloat(match[1]);
 
-      // Try to match "X.XXx" pattern (without "وزن:" prefix)
-      match = variantName.match(/^[\s]*([\d.]+)x/i);
+      // Try to match "VariantType: X.XXx" pattern (multiplier after colon)
+      match = variantName.match(/:\s*([\d.]+)x\s*$/i);
+      if (match) return parseFloat(match[1]);
+
+      // Try to match pure "X.XXx" pattern (standalone multiplier)
+      match = variantName.match(/^[\s]*([\d.]+)x\s*$/i);
       if (match) return parseFloat(match[1]);
 
       return 0;
     };
 
-    const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean } => {
-      const isCustom = isCustomInputItem(item);
+    const getAggregationKey = (item: any): { key: string; baseName: string; isCustomInput: boolean; inputMode: 'weight' | 'price' | null } => {
+      const { isCustom, mode } = isCustomInputItem(item);
       if (!isCustom) {
         // For regular items, use only variant option name (excludes variant type name)
         const itemId = item.menuItemId + (item.menuItemVariantId ? `_${item.menuItemVariantId}` : '');
@@ -865,7 +913,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         return {
           key: itemId,
           baseName: itemName,
-          isCustomInput: false
+          isCustomInput: false,
+          inputMode: null
         };
       }
 
@@ -875,7 +924,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       return {
         key: `custom_${item.menuItemId}`,
         baseName: baseName,
-        isCustomInput: true
+        isCustomInput: true,
+        inputMode: mode
       };
     };
 
@@ -936,7 +986,8 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
               quantity: 0,
               totalPrice: 0,
               isCustomInput: aggKey.isCustomInput,
-              totalWeight: aggKey.isCustomInput ? 0 : undefined
+              inputMode: aggKey.inputMode,
+              totalWeight: aggKey.inputMode === 'weight' ? 0 : undefined
             });
           }
 
@@ -944,8 +995,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
           itemData.quantity += item.quantity || 0;
           itemData.totalPrice += item.subtotal || 0;
 
-          // For custom input items, accumulate weight
-          if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
+          // For custom input items in WEIGHT mode, accumulate weight
+          // For PRICE mode, don't accumulate weight (just use quantity)
+          if (aggKey.isCustomInput && aggKey.inputMode === 'weight' && itemData.totalWeight !== undefined) {
             const weight = extractWeight(item.variantName || '');
             // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
             itemData.totalWeight += weight;
@@ -1483,6 +1535,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
       console.log('[Shift Closing Receipt] Items in category:', category.items.map(i => ({
         name: i.itemName,
         isCustomInput: i.isCustomInput,
+        inputMode: i.inputMode,
         quantity: i.quantity,
         totalPrice: i.totalPrice,
         totalWeight: i.totalWeight
@@ -1504,13 +1557,15 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
           originalName: item.itemName,
           displayName,
           isCustomInput: item.isCustomInput,
+          inputMode: item.inputMode,
           totalWeight: item.totalWeight,
           quantity: item.quantity,
           totalPrice: item.totalPrice
         });
 
-        // For custom input items, show total weight instead of quantity
-        if (item.isCustomInput && item.totalWeight !== undefined) {
+        // For custom input items in WEIGHT mode, show total weight instead of quantity
+        // For PRICE mode or regular items, show quantity
+        if (item.isCustomInput && item.inputMode === 'weight' && item.totalWeight !== undefined) {
           const weightInKG = item.totalWeight.toFixed(3);
           itemsHtml += `
             <div style="display: flex; align-items: center; margin: 1px 0; font-size: 12px;">
@@ -1520,7 +1575,7 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
             </div>
           `;
         } else {
-          // Regular items: show quantity
+          // Regular items or PRICE mode: show quantity
           itemsHtml += `
             <div style="display: flex; align-items: center; margin: 1px 0; font-size: 12px;">
               <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayName}</span>

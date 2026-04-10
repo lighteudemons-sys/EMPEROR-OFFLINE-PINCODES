@@ -609,6 +609,7 @@ export interface ShiftClosingReportData {
       quantity: number;
       totalPrice: number;
       isCustomInput?: boolean;
+      inputMode?: 'weight' | 'price' | null;
       totalWeight?: number;
     }>;
   }>;
@@ -855,6 +856,7 @@ export interface DayClosingReportData {
       quantity: number;
       totalPrice: number;
       isCustomInput?: boolean;
+      inputMode?: 'weight' | 'price' | null;
       totalWeight?: number;
     }>;
   }>;
