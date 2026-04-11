@@ -179,7 +179,9 @@ export function ShiftClosingReceipt({ shiftId, shiftData, open, onClose }: Shift
         const hasRealClosingData = (shiftData?.closingRevenue !== null && shiftData?.closingRevenue !== undefined) ||
                                    (shiftData?.closingOrders !== null && shiftData?.closingOrders !== undefined);
         const isOffline = !navigator.onLine;
-        const useShiftData = (shiftData && shiftData.id && (hasTempId || hasRealClosingData || isOffline));
+        // Only use shiftData directly for offline shifts (temp- IDs) or when truly offline
+        // For online shifts with real IDs, always fetch from API to get complete data
+        const useShiftData = (shiftData && shiftData.id && (hasTempId || isOffline));
 
         console.log('[Shift Closing Receipt] hasTempId:', hasTempId);
         console.log('[Shift Closing Receipt] hasRealClosingData:', hasRealClosingData);
