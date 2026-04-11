@@ -6651,3 +6651,45 @@ Files Modified:
 - All changes maintain mobile flow integrity
 - No breaking changes to existing functionality
 - Form structure allows for future field additions
+
+---
+Task ID: 1 - Dine-In System Analysis and Improvement Recommendations
+Agent: z-ai-code
+Task: Fully understand the dine-in system and suggest world-class AAA dine-in orders system improvements.
+
+Work Log:
+- Read table-grid.tsx - Basic table management component with status tracking
+- Read table-grid-view.tsx - Main table grid view with offline support and IndexedDB integration
+- Read pos-interface.tsx (large file) - Main POS interface with dine-in order handling
+- Analyzed table state management flow:
+  1. Table opening via handleOpenTable() sets OCCUPIED status in IndexedDB
+  2. Items stored in tableCart state and IndexedDB as table-cart-{tableId}
+  3. TableGridView fetches tables and displays status
+  4. Issue: Table status not consistently preserved across tab switches
+- Read /api/tables/route.ts - API endpoint that returns tables with total amounts from orders
+- Read /api/tables/[id]/open/route.ts - Opens table and sets OCCUPIED status in database
+- Read /api/tables/[id]/close/route.ts - Closes table and sets AVAILABLE status in database
+- Read indexeddb-storage.ts - Storage layer for offline data persistence
+
+Stage Summary:
+- Identified the root cause of table state not preserving:
+  * Table status stored in multiple places (database API, IndexedDB with _offlineModified flag)
+  * Table cart stored separately as table-cart-{tableId}
+  * No single source of truth for table occupancy
+  * fetchTables() in TableGridView merges API data with offline modifications but has race conditions
+  * When switching tabs or performing actions, useEffect triggers fetchTables() which may override offline status with API data
+- Current architecture issues:
+  * Separation of table status and table cart data creates synchronization problems
+  * Offline modifications not consistently preserved during API merges
+  * No derived status based on actual cart contents
+  * Table status should be computed from: hasActiveCart OR hasOpenOrders in database
+
+### Files Analyzed:
+1. `src/components/table-grid.tsx` - Basic table management (not actively used in POS flow)
+2. `src/components/table-grid-view.tsx` - Main table grid with offline support
+3. `src/components/pos-interface.tsx` - Main POS with dine-in order handling
+4. `src/app/api/tables/route.ts` - Tables API endpoint
+5. `src/app/api/tables/[id]/open/route.ts` - Open table API
+6. `src/app/api/tables/[id]/close/route.ts` - Close table API
+7. `src/lib/storage/indexeddb-storage.ts` - IndexedDB storage layer
+
