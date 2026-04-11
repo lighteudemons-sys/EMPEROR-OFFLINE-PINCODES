@@ -32,6 +32,7 @@ import { useOfflineData, offlineDataFetchers } from '@/hooks/use-offline-data';
 import { useAutoSync } from '@/hooks/use-auto-sync';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import TableGridView from '@/components/table-grid-view';
+import ClockInOutButton from '@/components/attendance-clock-in-out';
 
 // Create IndexedDB storage instance for table cart persistence
 const storage = getIndexedDBStorage();
@@ -4720,6 +4721,13 @@ export default function POSInterface() {
                 <Utensils className="h-3 w-3 mr-1" />
                 Table
               </Button>
+            )}
+
+            {/* Clock In/Out Button - Show for all users */}
+            {user?.branchId && (
+              <ClockInOutButton
+                branchId={user.role === 'ADMIN' ? selectedBranch : user.branchId}
+              />
             )}
           </div>
 

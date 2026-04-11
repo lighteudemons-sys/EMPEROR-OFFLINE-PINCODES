@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { ShoppingCart, LayoutDashboard, Utensils, Package, Store, BarChart3, Settings, Users, LogOut, Lock, Globe, Coffee, Clock, TrendingUp, MapPin, UserRound, DollarSign, AlertTriangle, ArrowRight, Trash2, Gift, RefreshCw, Menu, Receipt as ReceiptIcon, Building, Tag, LayoutGrid, FileText, Eye, Shield } from 'lucide-react';
+import { ShoppingCart, LayoutDashboard, Utensils, Package, Store, BarChart3, Settings, Users, LogOut, Lock, Globe, Coffee, Clock, TrendingUp, MapPin, UserRound, DollarSign, AlertTriangle, ArrowRight, Trash2, Gift, RefreshCw, Menu, Receipt as ReceiptIcon, Building, Tag, LayoutGrid, FileText, Eye, Shield, CheckCircle } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { useI18n, Language } from '@/lib/i18n-context';
 import MenuManagement from '@/components/menu-management';
@@ -34,6 +34,7 @@ import PurchaseOrdersManagement from '@/components/purchase-orders-management';
 import TableManagement from '@/components/table-management';
 import AuditLogs from '@/components/audit-logs';
 import ETASettings from '@/components/eta-settings';
+import AttendanceManagement from '@/components/attendance-management';
 import { OfflineStatusIndicator } from '@/components/offline-status-indicator';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { SyncOperationsViewer } from '@/components/sync-operations-viewer';
@@ -536,6 +537,7 @@ export default function POSDashboard() {
   const canAccessTables = user.role === 'ADMIN';
   const canAccessAuditLogs = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
   const canAccessETA = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
+  const canAccessAttendance = user.role === 'ADMIN' || user.role === 'BRANCH_MANAGER';
 
   const handleLogout = async () => {
     await logout();
@@ -545,6 +547,7 @@ export default function POSDashboard() {
   // Navigation items for mobile menu
   const navigationItems = [
     { id: 'pos', label: t('dashboard.pos'), icon: ShoppingCart, show: canAccessPOS },
+    { id: 'attendance', label: 'Attendance', icon: CheckCircle, show: canAccessAttendance },
     { id: 'menu', label: t('dashboard.menu'), icon: Utensils, show: canAccessHQFeatures },
     { id: 'recipes', label: t('dashboard.recipes'), icon: Package, show: canAccessHQFeatures },
     { id: 'ingredients', label: t('dashboard.ingredients'), icon: Store, show: canAccessInventory },
@@ -1003,6 +1006,14 @@ export default function POSDashboard() {
             <TabsContent value="eta-settings" className="space-y-4">
               {canAccessETA ? (
                 <ETASettings />
+              ) : (
+                <AccessDenied />
+              )}
+            </TabsContent>
+
+            <TabsContent value="attendance" className="space-y-4">
+              {canAccessAttendance ? (
+                <AttendanceManagement />
               ) : (
                 <AccessDenied />
               )}

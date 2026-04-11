@@ -6,7 +6,7 @@
 
 // Database configuration
 const DB_NAME = 'emperor-pos-db';
-const DB_VERSION = 6; // Incremented to 6 to ensure business_days store is created
+const DB_VERSION = 7; // Incremented to 7 to ensure attendances store is created
 const STORES = [
   'sync_operations',
   'sync_state',
@@ -31,6 +31,7 @@ const STORES = [
   'temp_id_mappings',  // Store temporary ID to real ID mappings
   'settings',  // Store simple key-value settings (replaces localStorage)
   'business_days',  // Store business days for offline access
+  'attendances',  // Store attendance records for offline access
 ] as const;
 
 // Operation types
@@ -62,6 +63,9 @@ export enum OperationType {
   UPDATE_TABLE = 'UPDATE_TABLE',
   CLOSE_TABLE = 'CLOSE_TABLE',
   CREATE_INVENTORY_TRANSACTION = 'CREATE_INVENTORY_TRANSACTION',
+  CLOCK_IN = 'CLOCK_IN',
+  CLOCK_OUT = 'CLOCK_OUT',
+  MARK_ATTENDANCE_PAID = 'MARK_ATTENDANCE_PAID',
 }
 
 export interface SyncOperation {
@@ -144,6 +148,13 @@ class IndexedDBStorage {
                 store.createIndex('branchId', 'branchId', { unique: false });
                 store.createIndex('tableNumber', 'tableNumber', { unique: false });
                 store.createIndex('status', 'status', { unique: false });
+              } else if (storeName === 'attendances') {
+                store.createIndex('userId', 'userId', { unique: false });
+                store.createIndex('branchId', 'branchId', { unique: false });
+                store.createIndex('clockIn', 'clockIn', { unique: false });
+                store.createIndex('clockOut', 'clockOut', { unique: false });
+                store.createIndex('isPaid', 'isPaid', { unique: false });
+                store.createIndex('createdAt', 'createdAt', { unique: false });
               }
             }
           });
@@ -333,6 +344,17 @@ class IndexedDBStorage {
         break;
       case OperationType.CREATE_DAILY_EXPENSE:
         uniqueId = data.id || `${data.shiftId}_${data.timestamp || data.createdAt || Date.now()}`;
+        break;
+      case OperationType.CLOCK_IN:
+        uniqueId = `${data.userId}_${data.clockIn || data.createdAt || Date.now()}`;
+        break;
+      case OperationType.CLOCK_OUT:
+        uniqueId = `${data.attendanceId || data.id}_${data.clockOut || Date.now()}`;
+        break;
+      case OperationType.MARK_ATTENDANCE_PAID:
+        uniqueId = Array.isArray(data.attendanceIds)
+          ? data.attendanceIds.join('_')
+          : `${data.attendanceId}_${data.paidAt || Date.now()}`;
         break;
       default:
         // For other operations, use a combination of type and timestamp
@@ -584,6 +606,87 @@ class IndexedDBStorage {
       await this.delete('business_days', id);
     } catch (error) {
       console.error('[IndexedDBStorage] Error deleting business day:', error);
+    }
+  }
+
+  // ============================================
+  // ATTENDANCE METHODS
+  // ============================================
+
+  async batchSaveAttendances(items: any[]): Promise<void> {
+    await this.batchPut('attendances', items);
+  }
+
+  async getAllAttendances(): Promise<any[]> {
+    try {
+      return await this.getAll('attendances');
+    } catch (error) {
+      console.error('[IndexedDBStorage] Error getting attendances:', error);
+      return [];
+    }
+  }
+
+  async saveAttendance(attendance: any): Promise<void> {
+    try {
+      await this.put('attendances', attendance);
+      console.log('[IndexedDBStorage] Saved attendance:', attendance.id);
+    } catch (error) {
+      console.error('[IndexedDBStorage] Error saving attendance:', error);
+    }
+  }
+
+  async getAttendance(id: string): Promise<any | null> {
+    try {
+      return await this.get('attendances', id);
+    } catch (error) {
+      console.error('[IndexedDBStorage] Error getting attendance:', error);
+      return null;
+    }
+  }
+
+  async getAttendancesByUser(userId: string): Promise<any[]> {
+    try {
+      return await this.getByIndex('attendances', 'userId', userId);
+    } catch (error) {
+      console.error('[IndexedDBStorage] Error getting attendances by user:', error);
+      return [];
+    }
+  }
+
+  async getAttendancesByBranch(branchId: string): Promise<any[]> {
+    try {
+      return await this.getByIndex('attendances', 'branchId', branchId);
+    } catch (error) {
+      console.error('[IndexedDBStorage] Error getting attendances by branch:', error);
+      return [];
+    }
+  }
+
+  async getTodayAttendance(userId: string, branchId: string): Promise<any | null> {
+    try {
+      const allAttendances = await this.getAllAttendances();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      return allAttendances.find((a: any) =>
+        a.userId === userId &&
+        a.branchId === branchId &&
+        new Date(a.clockIn) >= today &&
+        new Date(a.clockIn) < tomorrow
+      ) || null;
+    } catch (error) {
+      console.error('[IndexedDBStorage] Error getting today attendance:', error);
+      return null;
+    }
+  }
+
+  async deleteAttendance(id: string): Promise<void> {
+    try {
+      await this.delete('attendances', id);
+    } catch (error) {
+      console.error('[IndexedDBStorage] Error deleting attendance:', error);
     }
   }
 
