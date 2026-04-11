@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
         role: true,
         branchId: true,
         userCode: true,
+        dailyRate: true,
         pin: true, // Note: PIN is returned but should be displayed as masked
         isActive: true,
         createdAt: true,
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { username, email, password, name, role, branchId, userCode: providedUserCode } = validation.data!;
+    const { username, email, password, name, role, branchId, userCode: providedUserCode, dailyRate } = validation.data!;
 
     // Validate branchId for non-admin roles
     if (role !== 'ADMIN' && !branchId) {
@@ -195,6 +196,7 @@ export async function POST(request: NextRequest) {
         role,
         branchId: role === 'ADMIN' ? null : branchId,
         userCode,
+        dailyRate,
         isActive: true,
       },
       select: {
@@ -205,6 +207,7 @@ export async function POST(request: NextRequest) {
         role: true,
         branchId: true,
         userCode: true,
+        dailyRate: true,
         isActive: true,
         createdAt: true,
       },

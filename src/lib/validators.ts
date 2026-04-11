@@ -50,7 +50,8 @@ export const userCreateSchema = z.object({
   name: z.string().max(100).optional(),
   role: z.enum(['ADMIN', 'BRANCH_MANAGER', 'CASHIER']),
   branchId: cuidSchema.optional(),
-  userCode: z.string().regex(/^\d{4}$/).optional() // Optional 4-digit user code
+  userCode: z.string().regex(/^\d{4}$/).optional(), // Optional 4-digit user code
+  dailyRate: z.number().nonnegative().optional() // Daily wage rate for staff
 })
 
 // Login validation (supports username/password and userCode/password or userCode/PIN)

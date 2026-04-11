@@ -12,7 +12,7 @@ export async function PATCH(
     const { id } = await params;
 
     const body = await request.json();
-    const { username, email, name, role, branchId, requesterId, requesterRole, isActive, userCode } = body;
+    const { username, email, name, role, branchId, requesterId, requesterRole, isActive, userCode, dailyRate } = body;
 
     // Verify requester exists
     const requester = await db.user.findUnique({
@@ -119,6 +119,7 @@ export async function PATCH(
     if (name !== undefined) updateData.name = name;
     if (isActive !== undefined) updateData.isActive = isActive;
     if (userCode !== undefined) updateData.userCode = userCode;
+    if (dailyRate !== undefined) updateData.dailyRate = dailyRate;
 
     // Only admins can change roles
     if (requesterRole === 'ADMIN' && role) {
@@ -143,6 +144,7 @@ export async function PATCH(
         role: true,
         branchId: true,
         userCode: true,
+        dailyRate: true,
         isActive: true,
         createdAt: true,
       },

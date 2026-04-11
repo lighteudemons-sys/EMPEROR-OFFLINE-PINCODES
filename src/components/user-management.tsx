@@ -10,7 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Pencil, Trash2, Users, Shield, Search, Key, Lock, Power, PowerOff } from 'lucide-react';
+import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
+import { formatCurrency } from '@/lib/utils';
+import { Plus, Pencil, Trash2, Users, Shield, Search, Key, Lock, Power, PowerOff, DollarSign } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
 
@@ -24,6 +26,7 @@ interface User {
   branchName?: string;
   userCode?: string;
   hasPin?: boolean;
+  dailyRate?: number;
   isActive: boolean;
   createdAt: Date;
 }
@@ -36,6 +39,7 @@ interface UserFormData {
   role: 'ADMIN' | 'BRANCH_MANAGER' | 'CASHIER';
   branchId?: string;
   userCode?: string;
+  dailyRate?: number;
 }
 
 interface ChangePasswordData {
@@ -45,7 +49,7 @@ interface ChangePasswordData {
 
 export default function UserManagement() {
   const { user: currentUser } = useAuth();
-  const { t } = useI18n();
+  const { t, currency } = useI18n();
 
   const roles = [
     { value: 'ADMIN', label: t('users.admin'), description: 'Full control over all branches' },
@@ -71,6 +75,7 @@ export default function UserManagement() {
     role: 'CASHIER',
     branchId: '',
     userCode: '',
+    dailyRate: undefined,
   });
   const [passwordData, setPasswordData] = useState<ChangePasswordData>({
     newPassword: '',
@@ -450,6 +455,7 @@ export default function UserManagement() {
         createdBy: currentUser?.id,
         // For ADMIN role, don't send branchId (backend will set it to null)
         branchId: formData.role === 'ADMIN' ? undefined : formData.branchId,
+        dailyRate: formData.dailyRate,
       };
 
       if (editingUser) {
@@ -532,6 +538,7 @@ export default function UserManagement() {
       role: user.role,
       branchId: user.branchId || '',
       userCode: user.userCode || '',
+      dailyRate: user.dailyRate,
     });
     setDialogOpen(true);
     setMessage(null);
@@ -619,6 +626,7 @@ export default function UserManagement() {
       role: 'CASHIER',
       branchId: currentUser?.branchId || '',
       userCode: '',
+      dailyRate: undefined,
     });
     setEditingUser(null);
     setMessage(null);
@@ -824,6 +832,24 @@ export default function UserManagement() {
                           </p>
                         </div>
                       )}
+                      <div className="space-y-2">
+                        <Label htmlFor="dailyRate" className="flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          Daily Rate (Wage)
+                        </Label>
+                        <Input
+                          id="dailyRate"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.dailyRate || ''}
+                          onChange={(e) => setFormData({ ...formData, dailyRate: e.target.value ? parseFloat(e.target.value) : undefined })}
+                          placeholder="0.00"
+                        />
+                        <p className="text-xs text-slate-500">
+                          Daily wage for staff attendance tracking. Leave empty for no daily rate.
+                        </p>
+                      </div>
                     </div>
                     <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
                       <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto h-11 min-h-[44px]">
@@ -857,6 +883,7 @@ export default function UserManagement() {
                     <TableHead>{t('form.name')}</TableHead>
                     <TableHead>{t('users.role')}</TableHead>
                     <TableHead>{t('users.branch')}</TableHead>
+                    <TableHead className="text-right">Daily Rate</TableHead>
                     <TableHead>{'Status'}</TableHead>
                     <TableHead>{'Created'}</TableHead>
                     <TableHead className="text-right">{t('table.actions')}</TableHead>
@@ -879,6 +906,11 @@ export default function UserManagement() {
                       <TableCell>{user.name || '-'}</TableCell>
                       <TableCell>{getRoleBadge(user.role)}</TableCell>
                       <TableCell>{user.branchName || '-'}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {user.dailyRate !== undefined && user.dailyRate !== null 
+                          ? formatCurrency(user.dailyRate, currency) 
+                          : '-'}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={user.isActive ? 'default' : 'secondary'}>
                           {user.isActive ? t('users.active') : 'Inactive'}
