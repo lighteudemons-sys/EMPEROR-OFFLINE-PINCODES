@@ -279,7 +279,14 @@ export async function GET(
 
         // For custom input items, accumulate weight
         if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
-          const weight = extractWeight(orderItem.variantName || '');
+          // PRIORITY 1: Use customVariantValue if available (stored accurate weight multiplier)
+          let weight = 0;
+          if (orderItem.customVariantValue !== null && orderItem.customVariantValue !== undefined) {
+            weight = orderItem.customVariantValue;
+          } else {
+            // PRIORITY 2: Fall back to extracting from variantName
+            weight = extractWeight(orderItem.variantName || '');
+          }
           // For weight-based items, the weight multiplier already represents total weight, don't multiply by quantity
           itemData.totalWeight += weight;
         }
