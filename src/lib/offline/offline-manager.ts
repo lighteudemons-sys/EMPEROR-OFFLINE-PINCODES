@@ -532,6 +532,10 @@ class OfflineManager {
           savePromises.push(storageService.batchSaveInventory(result.data.inventory));
           console.log('[OfflineManager] Queued save for', result.data.inventory.length, 'inventory records');
         }
+        if (result.data.attendances && Array.isArray(result.data.attendances)) {
+          savePromises.push(storageService.batchSaveAttendances(result.data.attendances));
+          console.log('[OfflineManager] Queued save for', result.data.attendances.length, 'attendances');
+        }
 
         console.log('[OfflineManager] pullData: Waiting for', savePromises.length, 'save operations to complete...');
         await Promise.all(savePromises);

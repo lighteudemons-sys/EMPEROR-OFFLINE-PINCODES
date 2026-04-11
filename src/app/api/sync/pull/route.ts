@@ -209,13 +209,42 @@ export async function POST(request: NextRequest) {
           username: true,
           name: true,
           role: true,
-          branchId: true
+          branchId: true,
+          dailyRate: true
         }
       });
       dataToReturn.users = users;
       totalRecordsProcessed += users.length;
       updates.push(`Users: ${users.length}`);
     }
+
+    // ============================================
+    // Sync Attendances for this branch (minimal data)
+    // ============================================
+    const attendances = await db.attendance.findMany({
+      where: { branchId },
+      select: {
+        id: true,
+        userId: true,
+        branchId: true,
+        clockIn: true,
+        clockOut: true,
+        status: true,
+        notes: true,
+        isPaid: true,
+        paidAt: true,
+        paidBy: true,
+        dailyRate: true,
+        createdAt: true,
+        updatedAt: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    dataToReturn.attendances = attendances;
+    totalRecordsProcessed += attendances.length;
+    updates.push(`Attendances: ${attendances.length}`);
 
     // ============================================
     // Update Branch Last Sync Time

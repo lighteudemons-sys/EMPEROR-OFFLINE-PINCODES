@@ -44,6 +44,9 @@ const OperationType = {
   UPDATE_PURCHASE_ORDER: 'UPDATE_PURCHASE_ORDER',
   CREATE_RECEIPT_SETTINGS: 'CREATE_RECEIPT_SETTINGS',
   UPDATE_RECEIPT_SETTINGS: 'UPDATE_RECEIPT_SETTINGS',
+  CLOCK_IN: 'CLOCK_IN',
+  CLOCK_OUT: 'CLOCK_OUT',
+  MARK_ATTENDANCE_PAID: 'MARK_ATTENDANCE_PAID',
 } as const;
 
 type OperationTypeType = typeof OperationType[keyof typeof OperationType];
@@ -106,6 +109,9 @@ function getOperationPriority(type: OperationTypeType): number {
     'CREATE_RECEIPT_SETTINGS': 4,
     'UPDATE_RECEIPT_SETTINGS': 4,
     'UPDATE_USER': 4,
+    'CLOCK_IN': 4,
+    'CLOCK_OUT': 4,
+    'MARK_ATTENDANCE_PAID': 4,
   };
 
   const priority = priorityMap[type];
@@ -621,6 +627,18 @@ async function processOperation(operation: SyncOperation, branchId: string): Pro
 
     case OperationType.UPDATE_RECEIPT_SETTINGS:
       await updateReceiptSettings(operation.data);
+      break;
+
+    case OperationType.CLOCK_IN:
+      await clockIn(operation.data, branchId);
+      break;
+
+    case OperationType.CLOCK_OUT:
+      await clockOut(operation.data, branchId);
+      break;
+
+    case OperationType.MARK_ATTENDANCE_PAID:
+      await markAttendancePaid(operation.data, branchId);
       break;
 
     default:
@@ -3356,3 +3374,158 @@ async function updateReceiptSettings(data: any): Promise<void> {
   });
 }
 
+
+/**
+ * Clock in - Create attendance record
+ */
+async function clockIn(data: any, branchId: string): Promise<void> {
+  addLog('[BatchPush] Processing CLOCK_IN with data:' + JSON.stringify(data, null, 2));
+
+  const { userId, clockIn, notes, dailyRate } = data;
+
+  // Check if user exists
+  const user = await db.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error(`User not found: ${userId}`);
+  }
+
+  // Check if already clocked in today
+  const clockInDate = new Date(clockIn);
+  const todayStart = new Date(clockInDate);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+
+  const existingAttendance = await db.attendance.findFirst({
+    where: {
+      userId,
+      branchId,
+      clockIn: {
+        gte: todayStart,
+        lt: todayEnd,
+      },
+    },
+  });
+
+  if (existingAttendance) {
+    addLog(`[BatchPush] User ${userId} already clocked in today at ${existingAttendance.clockIn}, skipping creation`);
+    return;
+  }
+
+  // Create attendance record
+  const attendanceData: any = {
+    userId,
+    branchId,
+    clockIn: new Date(clockIn),
+    status: data.status || 'PRESENT',
+    notes: notes || null,
+  };
+
+  // Only include ID if it's not a temporary ID
+  if (data.id && !data.id.startsWith('temp-')) {
+    attendanceData.id = data.id;
+  }
+
+  // Handle temp ID mapping
+  if (data.id && data.id.startsWith('temp-')) {
+    const attendance = await db.attendance.create({
+      data: attendanceData,
+    });
+    tempIdToRealIdMap.set(data.id, attendance.id);
+    addLog(`[BatchPush] Created attendance ${attendance.id} and mapped temp ID ${data.id}`);
+  } else {
+    await db.attendance.create({
+      data: attendanceData,
+    });
+    addLog('[BatchPush] Created attendance record');
+  }
+}
+
+/**
+ * Clock out - Update attendance record
+ */
+async function clockOut(data: any, branchId: string): Promise<void> {
+  addLog('[BatchPush] Processing CLOCK_OUT with data:' + JSON.stringify(data, null, 2));
+
+  const { attendanceId, clockOut, notes } = data;
+
+  // Map temp ID if needed
+  let finalAttendanceId = attendanceId;
+  if (attendanceId && attendanceId.startsWith('temp-')) {
+    finalAttendanceId = tempIdToRealIdMap.get(attendanceId) || attendanceId;
+    addLog(`[BatchPush] Mapped temp attendance ID ${attendanceId} to ${finalAttendanceId}`);
+  }
+
+  // Check if attendance exists
+  const attendance = await db.attendance.findUnique({
+    where: { id: finalAttendanceId },
+  });
+
+  if (!attendance) {
+    throw new Error(`Attendance not found: ${finalAttendanceId}`);
+  }
+
+  if (attendance.clockOut) {
+    addLog(`[BatchPush] Attendance ${finalAttendanceId} already clocked out at ${attendance.clockOut}, skipping update`);
+    return;
+  }
+
+  // Update attendance with clock out time
+  await db.attendance.update({
+    where: { id: finalAttendanceId },
+    data: {
+      clockOut: new Date(clockOut),
+      notes: notes || attendance.notes,
+    },
+  });
+
+  addLog(`[BatchPush] Clocked out attendance ${finalAttendanceId}`);
+}
+
+/**
+ * Mark attendance as paid
+ */
+async function markAttendancePaid(data: any, branchId: string): Promise<void> {
+  addLog('[BatchPush] Processing MARK_ATTENDANCE_PAID with data:' + JSON.stringify(data, null, 2));
+
+  const { attendanceIds, paidBy, markAsPaid = true } = data;
+
+  if (!attendanceIds || !Array.isArray(attendanceIds) || attendanceIds.length === 0) {
+    throw new Error('attendanceIds array is required');
+  }
+
+  if (!paidBy) {
+    throw new Error('paidBy is required');
+  }
+
+  // Map temp IDs to real IDs
+  const finalAttendanceIds = attendanceIds.map((id: string) => {
+    if (id.startsWith('temp-')) {
+      const realId = tempIdToRealIdMap.get(id);
+      if (!realId) {
+        throw new Error(`Temp attendance ID ${id} not found in mapping`);
+      }
+      return realId;
+    }
+    return id;
+  });
+
+  // Update all attendance records
+  await db.attendance.updateMany({
+    where: {
+      id: {
+        in: finalAttendanceIds,
+      },
+    },
+    data: {
+      isPaid: markAsPaid,
+      paidAt: markAsPaid ? new Date() : null,
+      paidBy: markAsPaid ? paidBy : null,
+    },
+  });
+
+  addLog(`[BatchPush] Marked ${finalAttendanceIds.length} attendance records as ${markAsPaid ? 'paid' : 'unpaid'}`);
+}
