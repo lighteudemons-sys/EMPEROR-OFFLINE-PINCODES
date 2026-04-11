@@ -81,21 +81,25 @@ export default function TableGridView({ branchId, onTableSelect, selectedTableId
 
           setTables(mergedTables);
 
-          // Cache tables to IndexedDB (but don't overwrite offline modifications)
+          // Cache tables to IndexedDB (PRESERVE offline modifications)
           try {
             const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
             const indexedDBStorage = getIndexedDBStorage();
             await indexedDBStorage.init();
 
-            // Only update tables that weren't modified offline
-            const tablesToCache = apiTables.filter((apiTable: any) => {
-              return !offlineTables.find((t: any) => t.id === apiTable.id && t._offlineModified);
+            // Build final cache: preserve offline-modified tables exactly, use API data for others
+            const finalTablesToCache = apiTables.map((apiTable: any) => {
+              // If this table was modified offline, use the OFFLINE table (not the merged one)
+              const offlineModified = offlineTables.find((t: any) => t.id === apiTable.id && t._offlineModified);
+              if (offlineModified) {
+                return offlineModified; // Keep exact offline state
+              }
+              // Otherwise use API data (or merged data if we want to preserve customer info)
+              return mergedTables.find((t: any) => t.id === apiTable.id) || apiTable;
             });
 
-            if (tablesToCache.length > 0) {
-              await indexedDBStorage.batchSaveTables(mergedTables);
-              console.log('[TableGridView] Tables cached to IndexedDB:', mergedTables.length);
-            }
+            await indexedDBStorage.batchSaveTables(finalTablesToCache);
+            console.log('[TableGridView] Tables cached to IndexedDB (preserving offline modifications):', finalTablesToCache.length);
           } catch (cacheError) {
             console.error('[TableGridView] Failed to cache tables:', cacheError);
           }
