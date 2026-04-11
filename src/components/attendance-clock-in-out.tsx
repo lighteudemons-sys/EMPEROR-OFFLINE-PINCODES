@@ -83,7 +83,11 @@ export default function AttendanceClockInOut() {
       };
 
       // Queue for offline sync
-      await storage.queueOperation(OperationType.CLOCK_IN, attendanceData);
+      await storage.addOperation({
+        type: OperationType.CLOCK_IN,
+        data: attendanceData,
+        branchId: user.branchId,
+      });
 
       // Save to IndexedDB immediately
       const tempId = `temp-attendance-${Date.now()}`;
@@ -128,7 +132,11 @@ export default function AttendanceClockInOut() {
       };
 
       // Queue for offline sync
-      await storage.queueOperation(OperationType.CLOCK_OUT, clockOutData);
+      await storage.addOperation({
+        type: OperationType.CLOCK_OUT,
+        data: clockOutData,
+        branchId: user.branchId,
+      });
 
       // Update local attendance
       const updatedAttendance = {

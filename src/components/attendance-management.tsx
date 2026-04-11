@@ -100,6 +100,30 @@ export default function AttendanceManagement() {
   // Staff list for filter
   const [staffList, setStaffList] = useState<Array<{ id: string; name: string; username: string }>>([]);
 
+  // Fetch all staff members
+  const fetchStaffList = async () => {
+    try {
+      const params = new URLSearchParams({
+        currentUserRole: user.role,
+        currentUserBranchId: user.branchId || '',
+      });
+      const response = await fetch(`/api/users?${params.toString()}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.users && Array.isArray(data.users)) {
+          setStaffList(data.users.map((u: any) => ({
+            id: u.id,
+            name: u.name || u.username,
+            username: u.username,
+          })));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching staff list:', error);
+    }
+  };
+
   // Fetch attendance records
   const fetchAttendances = async () => {
     try {
@@ -130,13 +154,6 @@ export default function AttendanceManagement() {
       if (response.ok) {
         const data = await response.json();
         setAttendances(data.attendances || []);
-
-        // Build staff list from attendances
-        const uniqueStaff = Array.from(
-          new Map(data.attendances.map((a: AttendanceRecord) => [a.userId, a.user])).values()
-        );
-        setStaffList(uniqueStaff);
-
         // Fetch salary summary
         await fetchSalarySummary();
       } else {
@@ -340,6 +357,11 @@ export default function AttendanceManagement() {
     return true;
   });
 
+  // Load staff list on mount
+  useEffect(() => {
+    fetchStaffList();
+  }, []);
+
   // Load attendances on mount
   useEffect(() => {
     fetchAttendances();
@@ -383,7 +405,7 @@ export default function AttendanceManagement() {
               <Users className="h-4 w-4" />
               Total Staff
             </CardDescription>
-            <CardTitle className="text-2xl">{totals.totalStaff || 0}</CardTitle>
+            <CardTitle className="text-2xl">{staffList.length}</CardTitle>
           </CardHeader>
         </Card>
 
