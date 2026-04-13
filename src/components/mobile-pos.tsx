@@ -55,6 +55,76 @@ function formatVariantDisplay(item: CartItem, basePrice?: number): string {
   return `${roundedMultiplier}x (${weightInGrams}g)`;
 }
 
+// Helper function to check if any staff is clocked in (works in both online and offline modes)
+async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
+  try {
+    const activeStaff: any[] = [];
+
+    // Check API first if online
+    if (navigator.onLine) {
+      try {
+        const response = await fetch(`/api/attendance?branchId=${branchId}`);
+        if (response.ok) {
+          const data = await response.json();
+          // Filter for today's active staff (clocked in but not clocked out)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const todayActive = data.filter((a: any) => {
+            const clockInDate = new Date(a.clockIn);
+            return clockInDate >= today && !a.clockOut;
+          });
+
+          activeStaff.push(...todayActive);
+        }
+      } catch (error) {
+        console.error('[Active Staff Check] API error:', error);
+      }
+    }
+
+    // Check IndexedDB for offline records
+    try {
+      const indexedDBStorage = getIndexedDBStorage();
+      await indexedDBStorage.init();
+      const offlineAttendance = await indexedDBStorage.getAllAttendances();
+
+      if (offlineAttendance && offlineAttendance.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Filter for today's active staff (clocked in but not clocked out)
+        const todayOfflineActive = offlineAttendance.filter((a: any) => {
+          const clockInDate = new Date(a.clockIn);
+          return a.branchId === branchId && clockInDate >= today && !a.clockOut;
+        });
+
+        // Merge offline active staff (avoiding duplicates by attendance ID)
+        todayOfflineActive.forEach((offlineStaff: any) => {
+          if (!activeStaff.find((s: any) => s.id === offlineStaff.id)) {
+            activeStaff.push(offlineStaff);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('[Active Staff Check] IndexedDB error:', error);
+    }
+
+    const activeStaffNames = activeStaff.map((s: any) => s.userName || s.name || 'Unknown');
+    return {
+      hasActiveStaff: activeStaff.length > 0,
+      activeStaffCount: activeStaff.length,
+      activeStaffNames,
+    };
+  } catch (error) {
+    console.error('[Active Staff Check] Failed:', error);
+    return {
+      hasActiveStaff: false,
+      activeStaffCount: 0,
+      activeStaffNames: [],
+    };
+  }
+}
+
 // Helper function to create order offline (SAME AS DESKTOP)
 async function createOrderOffline(orderData: any, shift: any, cartItems: CartItem[], branchInfo?: { id: string; name: string; phone?: string; address?: string }): Promise<any> {
   try {
@@ -1267,6 +1337,19 @@ export function MobilePOS() {
         showErrorToast('Shift Required', 'Please open a shift to complete the order');
         setProcessing(false);
         return;
+      }
+
+      // For cashiers and branch managers, check if any staff is clocked in
+      if (user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') {
+        const activeStaffCheck = await checkActiveStaff(branchId);
+        if (!activeStaffCheck.hasActiveStaff) {
+          showErrorToast(
+            'Staff Not Clocked In',
+            'At least one staff member must be clocked in before processing orders. Please clock in from the POS tab.'
+          );
+          setProcessing(false);
+          return;
+        }
       }
 
       const orderItems = cart.map((item) => ({

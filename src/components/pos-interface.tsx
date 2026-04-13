@@ -45,20 +45,91 @@ function formatVariantDisplay(item: CartItem, basePrice?: number): string {
 
   // If it's a custom variant (has multiplier), format it nicely
   const multiplier = item.customVariantValue;
-  
+
   // Round multiplier to 3 decimal places for display
   const roundedMultiplier = Math.round(multiplier * 1000) / 1000;
-  
+
   // Calculate weight in grams (assuming base is 1kg = 1000g)
   const weightInGrams = Math.round(multiplier * 1000);
-  
+
   // For price mode, show weight in parentheses
   if (item.customPriceMode === 'price') {
     return `${item.variantName} (${weightInGrams}g)`;
   }
-  
+
   // For weight mode, show rounded multiplier with weight
   return `${roundedMultiplier}x (${weightInGrams}g)`;
+}
+
+// Helper function to check if any staff is clocked in (works in both online and offline modes)
+async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
+  try {
+    const activeStaff: any[] = [];
+
+    // Check API first if online
+    if (navigator.onLine) {
+      try {
+        const response = await fetch(`/api/attendance?branchId=${branchId}`);
+        if (response.ok) {
+          const data = await response.json();
+          // Filter for today's active staff (clocked in but not clocked out)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const todayActive = data.filter((a: any) => {
+            const clockInDate = new Date(a.clockIn);
+            return clockInDate >= today && !a.clockOut;
+          });
+
+          activeStaff.push(...todayActive);
+        }
+      } catch (error) {
+        console.error('[Active Staff Check] API error:', error);
+      }
+    }
+
+    // Check IndexedDB for offline records
+    try {
+      const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+      const indexedDBStorage = getIndexedDBStorage();
+      await indexedDBStorage.init();
+      const offlineAttendance = await indexedDBStorage.getAllAttendances();
+
+      if (offlineAttendance && offlineAttendance.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Filter for today's active staff (clocked in but not clocked out)
+        const todayOfflineActive = offlineAttendance.filter((a: any) => {
+          const clockInDate = new Date(a.clockIn);
+          return a.branchId === branchId && clockInDate >= today && !a.clockOut;
+        });
+
+        // Merge offline active staff (avoiding duplicates by attendance ID)
+        todayOfflineActive.forEach((offlineStaff: any) => {
+          if (!activeStaff.find((s: any) => s.id === offlineStaff.id)) {
+            activeStaff.push(offlineStaff);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('[Active Staff Check] IndexedDB error:', error);
+    }
+
+    const activeStaffNames = activeStaff.map((s: any) => s.userName || s.name || 'Unknown');
+    return {
+      hasActiveStaff: activeStaff.length > 0,
+      activeStaffCount: activeStaff.length,
+      activeStaffNames,
+    };
+  } catch (error) {
+    console.error('[Active Staff Check] Failed:', error);
+    return {
+      hasActiveStaff: false,
+      activeStaffCount: 0,
+      activeStaffNames: [],
+    };
+  }
 }
 
 // Helper function to create order offline
@@ -2451,6 +2522,23 @@ export default function POSInterface() {
         return;
       }
 
+      // For cashiers and branch managers, check if they have an active shift
+      if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && !currentShift) {
+        alert('Please open a shift first');
+        setProcessing(false);
+        return;
+      }
+
+      // For cashiers and branch managers, check if any staff is clocked in
+      if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && currentShift) {
+        const activeStaffCheck = await checkActiveStaff(branchId);
+        if (!activeStaffCheck.hasActiveStaff) {
+          alert('⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab.');
+          setProcessing(false);
+          return;
+        }
+      }
+
       // Calculate totals
       const subtotal = tableCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const total = subtotal; // No delivery fee for dine-in
@@ -2595,6 +2683,23 @@ export default function POSInterface() {
         alert('Branch not found');
         setProcessing(false);
         return;
+      }
+
+      // For cashiers and branch managers, check if they have an active shift
+      if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && !currentShift) {
+        alert('Please open a shift first');
+        setProcessing(false);
+        return;
+      }
+
+      // For cashiers and branch managers, check if any staff is clocked in
+      if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && currentShift) {
+        const activeStaffCheck = await checkActiveStaff(branchId);
+        if (!activeStaffCheck.hasActiveStaff) {
+          alert('⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab.');
+          setProcessing(false);
+          return;
+        }
       }
 
       // Calculate totals
@@ -4304,6 +4409,19 @@ export default function POSInterface() {
       alert(t('shift.orders.open'));
       setProcessing(false);
       return;
+    }
+
+    // For cashiers and branch managers, check if any staff is clocked in
+    if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && currentShift) {
+      const branchId = user?.branchId;
+      if (branchId) {
+        const activeStaffCheck = await checkActiveStaff(branchId);
+        if (!activeStaffCheck.hasActiveStaff) {
+          alert('⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab.');
+          setProcessing(false);
+          return;
+        }
+      }
     }
 
     // Validate branch selection for admin

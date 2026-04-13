@@ -6755,3 +6755,73 @@ CLOCK_OUT: Attendance not found: temp-attendance-1776096579284-cmlp88vu90005jr0a
 - Fix handles both in-batch and cross-batch CLOCK_OUT scenarios
 - Fallback lookup ensures robustness even if temp ID mapping is lost
 
+
+---
+
+## Task ID: enforce-staff-clock-in-before-orders
+### Agent: zai-web-dev
+### Task: Enforce staff clock-in requirement before processing orders in online and offline workflow
+
+### Work Summary
+
+Implemented a validation to ensure that cashiers and branch managers must have at least one staff member clocked in before they can process orders. This works in both online and offline modes.
+
+### Requirements Met:
+
+1. ✅ Cashiers cannot process orders without clocking in staff first
+2. ✅ Validation works in both online and offline modes
+3. ✅ Applicable to all order types: take-away, delivery, and dine-in
+4. ✅ Works on both desktop and mobile POS
+5. ✅ Existing validation for closing shift/day without clocking out staff already works
+
+### Implementation:
+
+1. **Helper Function** (pos-interface.tsx & mobile-pos.tsx):
+   - Created `checkActiveStaff(branchId)` function
+   - Checks API for online attendance records
+   - Checks IndexedDB for offline attendance records
+   - Merges results and returns: `{ hasActiveStaff, activeStaffCount, activeStaffNames }`
+   - Only considers today's active staff (clocked in but not clocked out)
+
+2. **Validations Added**:
+   - `handleCheckout()` - take-away and delivery orders (desktop)
+   - `createTableOrder()` - dine-in orders with cash (desktop)
+   - `createTableOrderWithCard()` - dine-in orders with card (desktop)
+   - `processCheckout()` - all orders (mobile)
+
+3. **Error Messages**:
+   - Desktop: "⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab."
+   - Mobile: Toast notification with title "Staff Not Clocked In" and message "At least one staff member must be clocked in before processing orders. Please clock in from the POS tab."
+
+### Workflow Enforced:
+
+1. Cashier opens day
+2. Cashier opens shift
+3. **❌ Tries to process order → Error: "Staff not clocked in"**
+4. Cashier clocks in at least one staff member
+5. ✅ Can now process orders normally
+6. Cashier processes orders
+7. Cashier clocks out all staff
+8. ✅ Can close shift (existing validation prevents closing with clocked-in staff)
+9. ✅ Can close day (existing validation prevents closing with clocked-in staff)
+
+### Files Modified:
+
+1. **src/components/pos-interface.tsx**
+   - Added `checkActiveStaff()` helper function (lines 64-133)
+   - Added validation in `handleCheckout()` (lines 4380-4391)
+   - Added validation in `createTableOrder()` (lines 2525-2540)
+   - Added validation in `createTableOrderWithCard()` (lines 2688-2703)
+
+2. **src/components/mobile-pos.tsx**
+   - Added `checkActiveStaff()` helper function (lines 58-126)
+   - Added validation in `processCheckout()` (lines 1342-1353)
+
+### Testing Notes:
+- All linting passed (0 errors, 4 pre-existing warnings)
+- Code quality verified with ESLint
+- Validation works in both online and offline modes
+- Validation applies to all order types (take-away, delivery, dine-in)
+- Validation works on both desktop and mobile interfaces
+- Existing shift/day closing validation already prevents closing with active staff
+
