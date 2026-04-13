@@ -2569,8 +2569,9 @@ export default function POSInterface() {
         return;
       }
 
-      // For cashiers and branch managers, check if any staff is clocked in
-      if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && currentShift) {
+      // For cashiers only, check if any staff is clocked in
+      // Branch managers bypass this validation
+      if (user?.role === 'CASHIER' && currentShift) {
         const activeStaffCheck = await checkActiveStaff(branchId, user.id);
         if (!activeStaffCheck.hasActiveStaff) {
           alert('⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab.');
@@ -2732,8 +2733,9 @@ export default function POSInterface() {
         return;
       }
 
-      // For cashiers and branch managers, check if any staff is clocked in
-      if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && currentShift) {
+      // For cashiers only, check if any staff is clocked in
+      // Branch managers bypass this validation
+      if (user?.role === 'CASHIER' && currentShift) {
         const activeStaffCheck = await checkActiveStaff(branchId, user.id);
         if (!activeStaffCheck.hasActiveStaff) {
           alert('⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab.');

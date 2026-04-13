@@ -1374,8 +1374,9 @@ export function MobilePOS() {
         return;
       }
 
-      // For cashiers and branch managers, check if any staff is clocked in
-      if (user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') {
+      // For cashiers only, check if any staff is clocked in
+      // Branch managers bypass this validation
+      if (user?.role === 'CASHIER') {
         const activeStaffCheck = await checkActiveStaff(branchId, user.id);
         if (!activeStaffCheck.hasActiveStaff) {
           showErrorToast(
