@@ -234,19 +234,9 @@ export default function AttendanceManagement() {
             params.append('status', filterStatus);
           }
 
-          console.log('[Attendance Tab] Fetching with params:', {
-            startDate: startDate,
-            endDate: endDate,
-            filterStaff,
-            filterBranch,
-            filterPayment,
-            filterStatus,
-          });
-
           const response = await fetch(`/api/attendance?${params.toString()}`);
           if (response.ok) {
             const data = await response.json();
-            console.log('[Attendance Tab] Received attendances:', data.attendances?.length);
             allAttendances = data.attendances || [];
           }
         } catch (error) {

@@ -14,8 +14,6 @@ export async function GET(request: NextRequest) {
     const isPaid = searchParams.get('isPaid');
     const currentUserId = searchParams.get('currentUserId');
 
-    console.log('[Attendance API] Request params:', { userId, branchId, status, startDate, endDate, isPaid, currentUserId });
-
     if (!currentUserId) {
       return NextResponse.json(
         { error: 'User not authenticated' },
@@ -35,8 +33,6 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
-
-    console.log('[Attendance API] Current user:', { id: currentUser.id, role: currentUser.role, branchId: currentUser.branchId });
 
     // Build where clause with role-based access control
     const where: any = {};
@@ -60,19 +56,15 @@ export async function GET(request: NextRequest) {
       where.clockIn = {}; // Filter by clockIn date, not createdAt
       if (startDate) {
         where.clockIn.gte = new Date(startDate);
-        console.log('[Attendance API] Filter clockIn >=', new Date(startDate));
       }
       if (endDate) {
         where.clockIn.lte = new Date(endDate);
-        console.log('[Attendance API] Filter clockIn <=', new Date(endDate));
       }
     }
 
     if (isPaid !== null && isPaid !== undefined) {
       where.isPaid = isPaid === 'true';
     }
-
-    console.log('[Attendance API] Final where clause:', where);
 
     const attendances = await db.attendance.findMany({
       where,
@@ -102,11 +94,6 @@ export async function GET(request: NextRequest) {
       orderBy: {
         createdAt: 'desc',
       },
-    });
-
-    console.log('[Attendance API] Found attendances:', attendances.length);
-    attendances.forEach((a, i) => {
-      console.log(`[Attendance API]   ${i+1}. User: ${a.user?.username}, Branch: ${a.branchId}, ClockIn: ${a.clockIn}, ClockOut: ${a.clockOut}`);
     });
 
     return NextResponse.json({ attendances });
