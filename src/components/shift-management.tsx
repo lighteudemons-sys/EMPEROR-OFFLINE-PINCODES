@@ -1743,7 +1743,7 @@ export default function ShiftManagement() {
         const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
         const indexedDBStorage = getIndexedDBStorage();
         await indexedDBStorage.init();
-        const offlineAttendance = await indexedDBStorage.getAllAttendance();
+        const offlineAttendance = await indexedDBStorage.getAllAttendances();
         
         if (offlineAttendance && offlineAttendance.length > 0) {
           const today = new Date();

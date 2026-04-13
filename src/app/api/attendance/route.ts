@@ -53,12 +53,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (startDate || endDate) {
-      where.createdAt = {};
+      where.clockIn = {}; // Filter by clockIn date, not createdAt
       if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+        where.clockIn.gte = new Date(startDate);
       }
       if (endDate) {
-        where.createdAt.lte = new Date(endDate);
+        where.clockIn.lte = new Date(endDate);
       }
     }
 
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if already clocked in today
+    // Check if already clocked in today (only active, not clocked out)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -146,6 +146,7 @@ export async function POST(request: NextRequest) {
           gte: today,
           lt: tomorrow,
         },
+        clockOut: null, // Only check for active (not clocked out) attendance
       },
     });
 

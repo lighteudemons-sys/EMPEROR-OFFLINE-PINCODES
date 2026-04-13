@@ -3392,7 +3392,7 @@ async function clockIn(data: any, branchId: string): Promise<void> {
     throw new Error(`User not found: ${userId}`);
   }
 
-  // Check if already clocked in today
+  // Check if already clocked in today (only active, not clocked out)
   const clockInDate = new Date(clockIn);
   const todayStart = new Date(clockInDate);
   todayStart.setHours(0, 0, 0, 0);
@@ -3407,6 +3407,7 @@ async function clockIn(data: any, branchId: string): Promise<void> {
         gte: todayStart,
         lt: todayEnd,
       },
+      clockOut: null, // Only check for active (not clocked out) attendance
     },
   });
 
