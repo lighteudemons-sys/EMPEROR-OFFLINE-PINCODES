@@ -1718,7 +1718,7 @@ export default function ShiftManagement() {
       // Check API first if online
       if (navigator.onLine) {
         try {
-          const response = await fetch(`/api/attendance?branchId=${branchId}`);
+          const response = await fetch(`/api/attendance?branchId=${branchId}&currentUserId=${user.id}`);
           if (response.ok) {
             const data = await response.json();
             if (data.attendances) {
