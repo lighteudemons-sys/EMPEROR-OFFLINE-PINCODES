@@ -129,6 +129,8 @@ export default function AttendanceClockInOut({ branchId }: { branchId: string })
     try {
       const clockOutData = {
         attendanceId: todayAttendance.id,
+        userId: todayAttendance.userId,
+        clockIn: todayAttendance.clockIn,
         clockOut: new Date().toISOString(),
         notes: clockOutNotes || null,
       };

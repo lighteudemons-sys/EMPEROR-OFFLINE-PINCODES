@@ -2,7 +2,7 @@
  * Batch Push API Endpoint
  * Handles multiple sync operations in a single request
  * Optimized for offline-first sync where branches may queue many operations
- * Version: 0.2.1 - Fixed order-shift linking with detailed logging
+ * Version: 0.3.1 - Fixed CLOCK_IN/CLOCK_OUT sync with predictable temp IDs and fallback lookup
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -77,10 +77,11 @@ function getOperationPriority(type: OperationTypeType): number {
     'CREATE_SHIFT': 1,
     'UPDATE_SHIFT': 1,
 
-    // MEDIUM (2) - Orders depend on shifts, Expenses depend on shifts
+    // MEDIUM (2) - Orders depend on shifts, Expenses depend on shifts, Attendance CLOCK_IN
     'CREATE_ORDER': 2,
     'UPDATE_ORDER': 2,
     'CREATE_DAILY_EXPENSE': 2,  // Must be processed BEFORE CLOSE_SHIFT to link expenses correctly
+    'CLOCK_IN': 2,  // Clock in must be processed BEFORE CLOCK_OUT and CLOSE_SHIFT
 
     // LOW (3) - Close operations and others
     'CLOSE_SHIFT': 3,
@@ -91,7 +92,7 @@ function getOperationPriority(type: OperationTypeType): number {
     'UPDATE_TABLE': 3,
     'CLOSE_TABLE': 3,
 
-    // LOWER (4) - Inventory, menu, transfers, logs
+    // LOWER (4) - Inventory, menu, transfers, logs, Attendance CLOCK_OUT
     'CREATE_INGREDIENT': 4,
     'UPDATE_INGREDIENT': 4,
     'CREATE_MENU_ITEM': 4,
@@ -109,8 +110,7 @@ function getOperationPriority(type: OperationTypeType): number {
     'CREATE_RECEIPT_SETTINGS': 4,
     'UPDATE_RECEIPT_SETTINGS': 4,
     'UPDATE_USER': 4,
-    'CLOCK_IN': 4,
-    'CLOCK_OUT': 4,
+    'CLOCK_OUT': 4,  // Clock out must be processed AFTER CLOCK_IN
     'MARK_ATTENDANCE_PAID': 4,
   };
 
@@ -219,7 +219,7 @@ async function safeInventoryDeduct(
 export async function POST(request: NextRequest) {
   syncLogs.length = 0; // Clear logs at start
   addLog('[BatchPush] Starting batch push request...');
-  addLog('[BatchPush] Version: 0.3.0 - CRITICAL FIX: Allow duplicate order numbers from different shifts (timestamp-based duplicate detection)');
+  addLog('[BatchPush] Version: 0.3.1 - Fixed CLOCK_IN/CLOCK_OUT sync with predictable temp IDs and fallback lookup');
 
   // Clear the temp ID mapping at the start of each request
   tempIdToRealIdMap.clear();
@@ -3413,6 +3413,10 @@ async function clockIn(data: any, branchId: string): Promise<void> {
 
   if (existingAttendance) {
     addLog(`[BatchPush] User ${userId} already clocked in today at ${existingAttendance.clockIn}, skipping creation`);
+    // Map the existing attendance to the predictable temp ID for CLOCK_OUT to find it
+    const tempId = `temp-attendance-${Date.parse(clockIn)}-${userId}`;
+    tempIdToRealIdMap.set(tempId, existingAttendance.id);
+    addLog(`[BatchPush] Mapped existing attendance ${existingAttendance.id} to temp ID ${tempId}`);
     return;
   }
 
@@ -3425,24 +3429,23 @@ async function clockIn(data: any, branchId: string): Promise<void> {
     notes: notes || null,
   };
 
+  // Generate a predictable temp ID based on userId, branchId, and clockIn time
+  // This allows CLOCK_OUT operations to find the attendance record even when offline
+  const tempId = data.id || `temp-attendance-${Date.parse(clockIn)}-${userId}`;
+
   // Only include ID if it's not a temporary ID
   if (data.id && !data.id.startsWith('temp-')) {
     attendanceData.id = data.id;
   }
 
-  // Handle temp ID mapping
-  if (data.id && data.id.startsWith('temp-')) {
-    const attendance = await db.attendance.create({
-      data: attendanceData,
-    });
-    tempIdToRealIdMap.set(data.id, attendance.id);
-    addLog(`[BatchPush] Created attendance ${attendance.id} and mapped temp ID ${data.id}`);
-  } else {
-    await db.attendance.create({
-      data: attendanceData,
-    });
-    addLog('[BatchPush] Created attendance record');
-  }
+  // Create attendance and map temp ID
+  const attendance = await db.attendance.create({
+    data: attendanceData,
+  });
+
+  // Always map the predictable temp ID to the real ID
+  tempIdToRealIdMap.set(tempId, attendance.id);
+  addLog(`[BatchPush] Created attendance ${attendance.id} and mapped temp ID ${tempId}`);
 }
 
 /**
@@ -3451,13 +3454,44 @@ async function clockIn(data: any, branchId: string): Promise<void> {
 async function clockOut(data: any, branchId: string): Promise<void> {
   addLog('[BatchPush] Processing CLOCK_OUT with data:' + JSON.stringify(data, null, 2));
 
-  const { attendanceId, clockOut, notes } = data;
+  const { attendanceId, clockOut, notes, userId } = data;
 
   // Map temp ID if needed
   let finalAttendanceId = attendanceId;
   if (attendanceId && attendanceId.startsWith('temp-')) {
-    finalAttendanceId = tempIdToRealIdMap.get(attendanceId) || attendanceId;
-    addLog(`[BatchPush] Mapped temp attendance ID ${attendanceId} to ${finalAttendanceId}`);
+    finalAttendanceId = tempIdToRealIdMap.get(attendanceId);
+    addLog(`[BatchPush] Mapped temp attendance ID ${attendanceId} to ${finalAttendanceId || 'NOT FOUND'}`);
+  }
+
+  // If we couldn't map the temp ID, try to find the attendance by userId and clockOut time
+  if (!finalAttendanceId && userId && data.clockIn) {
+    addLog(`[BatchPush] Temp ID not found in map, trying to find attendance by userId and clockIn time`);
+    const clockInDate = new Date(data.clockIn);
+    const todayStart = new Date(clockInDate);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+
+    const attendance = await db.attendance.findFirst({
+      where: {
+        userId,
+        branchId,
+        clockIn: {
+          gte: todayStart,
+          lt: todayEnd,
+        },
+        clockOut: null, // Only find active (not clocked out) attendance
+      },
+    });
+
+    if (attendance) {
+      finalAttendanceId = attendance.id;
+      addLog(`[BatchPush] Found active attendance ${attendance.id} for user ${userId}`);
+      // Map this temp ID to the found attendance for future use in this batch
+      if (attendanceId) {
+        tempIdToRealIdMap.set(attendanceId, attendance.id);
+      }
+    }
   }
 
   // Check if attendance exists
@@ -3466,7 +3500,7 @@ async function clockOut(data: any, branchId: string): Promise<void> {
   });
 
   if (!attendance) {
-    throw new Error(`Attendance not found: ${finalAttendanceId}`);
+    throw new Error(`Attendance not found: ${finalAttendanceId || attendanceId}`);
   }
 
   if (attendance.clockOut) {

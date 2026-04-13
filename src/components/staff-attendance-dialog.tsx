@@ -429,6 +429,8 @@ export default function StaffAttendanceDialog({
             // OFFLINE: Use operation queue
             const clockOutData = {
               attendanceId: existing.id,
+              userId: existing.userId,
+              clockIn: existing.clockIn,
               clockOut: new Date().toISOString(),
               notes: clockOutNotes || null,
             };

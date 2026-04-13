@@ -6693,3 +6693,65 @@ Stage Summary:
 6. `src/app/api/tables/[id]/close/route.ts` - Close table API
 7. `src/lib/storage/indexeddb-storage.ts` - IndexedDB storage layer
 
+
+---
+
+## Task ID: fix-clock-in-out-sync-offline
+### Agent: zai-web-dev
+### Task: Fix CLOCK_IN/CLOCK_OUT sync failure in offline workflow
+
+### Work Summary
+
+Fixed critical issue where CLOCK_OUT operations were failing during sync when working offline. The error was:
+```
+CLOCK_OUT: Attendance not found: temp-attendance-1776096579284-cmlp88vu90005jr0aco2foll7
+```
+
+### Root Cause
+
+1. **Missing Temp ID Mapping**: CLOCK_IN operations didn't include an `id` field in their data, so no temp-to-real ID mapping was created
+2. **Same Priority**: Both CLOCK_IN and CLOCK_OUT had priority 4, so they were processed together
+3. **CLOCK_OUT Dependency**: CLOCK_OUT tried to find attendance records that CLOCK_IN hadn't created yet
+
+### Solution
+
+1. **Predictable Temp IDs** (batch-push/route.ts):
+   - CLOCK_IN now generates predictable temp IDs: `temp-attendance-${Date.parse(clockIn)}-${userId}`
+   - Always maps the predictable temp ID to the real database ID
+   - Maps existing attendances if user is already clocked in
+
+2. **Fallback Lookup** (batch-push/route.ts):
+   - CLOCK_OUT now has fallback logic when temp ID isn't in the map
+   - Finds attendance by userId, branchId, and clockIn date
+   - Only looks for active (not clocked out) attendance records
+
+3. **Priority Ordering** (batch-push/route.ts):
+   - CLOCK_IN: priority 2 (processed before CLOSE_SHIFT)
+   - CLOCK_OUT: priority 4 (processed after CLOCK_IN)
+   - Ensures correct operation sequence in same batch
+
+4. **Enhanced Operation Data** (client components):
+   - CLOCK_OUT operations now include `userId` and `clockIn` fields
+   - Updated staff-attendance-dialog.tsx
+   - Updated attendance-clock-in-out.tsx
+
+### Files Modified:
+
+1. **src/app/api/sync/batch-push/route.ts**
+   - Updated clockIn() to generate predictable temp IDs and always map them
+   - Updated clockOut() with fallback lookup logic
+   - Changed CLOCK_IN priority from 4 to 2
+   - Updated version to 0.3.1
+
+2. **src/components/staff-attendance-dialog.tsx**
+   - Added `userId` and `clockIn` to CLOCK_OUT operation data
+
+3. **src/components/attendance-clock-in-out.tsx**
+   - Added `userId` and `clockIn` to CLOCK_OUT operation data
+
+### Testing Notes:
+- All linting passed (0 errors, 4 pre-existing warnings)
+- Code quality verified with ESLint
+- Fix handles both in-batch and cross-batch CLOCK_OUT scenarios
+- Fallback lookup ensures robustness even if temp ID mapping is lost
+
