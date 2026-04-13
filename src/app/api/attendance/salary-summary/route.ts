@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    console.log('[Salary Summary] Where clause:', where);
+
     // Get all attendance records matching criteria
     const attendances = await db.attendance.findMany({
       where,
@@ -71,6 +73,11 @@ export async function GET(request: NextRequest) {
       orderBy: {
         createdAt: 'desc',
       },
+    });
+
+    console.log('[Salary Summary] Found attendances:', attendances.length);
+    attendances.forEach((a, i) => {
+      console.log(`[Salary Summary]   ${i+1}. User: ${a.user?.username}, Branch: ${a.branchId}, ClockIn: ${a.clockIn}`);
     });
 
     // Calculate summary by user
@@ -120,6 +127,9 @@ export async function GET(request: NextRequest) {
       totalOwed: summaries.reduce((sum, s) => sum + s.totalOwed, 0),
       totalPaid: summaries.reduce((sum, s) => sum + s.totalPaid, 0),
     };
+
+    console.log('[Salary Summary] Totals:', totals);
+    console.log('[Salary Summary] Summaries:', summaries);
 
     return NextResponse.json({
       summaries,

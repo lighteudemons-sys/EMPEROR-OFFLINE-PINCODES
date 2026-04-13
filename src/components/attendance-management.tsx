@@ -317,10 +317,11 @@ export default function AttendanceManagement() {
     try {
       const { from: startDate, to: endDate } = getDateRange();
 
+      // Use same date format as attendance fetch (full ISO timestamps)
       const params = new URLSearchParams({
         currentUserId: user.id,
-        startDate: startDate.split('T')[0],
-        endDate: new Date(endDate).toISOString().split('T')[0],
+        startDate: startDate,
+        endDate: endDate,
       });
 
       if (filterStaff !== 'all') {
