@@ -102,9 +102,44 @@ export default function AttendanceClockInOut({ branchId }: { branchId: string })
 
   if (loading) {
     return (
-      <Button variant="outline" size="sm" disabled>
-        Loading...
-      </Button>
+      <>
+        <Button variant="outline" size="sm" disabled>
+          Loading...
+        </Button>
+        {/* Always render the dialog */}
+        <StaffAttendanceDialog
+          open={showStaffAttendanceDialog}
+          onOpenChange={setShowStaffAttendanceDialog}
+          branchId={branchId}
+          onSuccess={() => {
+            // Refresh current user's attendance after marking staff (for cashiers)
+            const fetchTodayAttendance = async () => {
+              try {
+                const offlineAttendance = await storage.getTodayAttendance(user.id, branchId);
+                if (offlineAttendance) {
+                  setTodayAttendance(offlineAttendance);
+                }
+
+                if (offlineManager.isCurrentlyOnline()) {
+                  const response = await fetch(`/api/attendance?userId=${user.id}&branchId=${branchId}&currentUserId=${user.id}`);
+                  if (response.ok) {
+                    const data = await response.json();
+                    const attendances = data.attendances || [];
+                    if (attendances.length > 0) {
+                      setTodayAttendance(attendances[0]);
+                    } else {
+                      setTodayAttendance(null);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error('Error refreshing attendance:', error);
+              }
+            };
+            fetchTodayAttendance();
+          }}
+        />
+      </>
     );
   }
 
@@ -112,8 +147,8 @@ export default function AttendanceClockInOut({ branchId }: { branchId: string })
 
   // For branch managers and admins: show "Manage Staff Attendance" button only
   // For cashiers: show their personal clock in/out button
-  if (user.role === 'BRANCH_MANAGER' || user.role === 'ADMIN') {
-    return (
+  const button =
+    user.role === 'BRANCH_MANAGER' || user.role === 'ADMIN' ? (
       <Button
         variant="outline"
         size="sm"
@@ -123,32 +158,31 @@ export default function AttendanceClockInOut({ branchId }: { branchId: string })
         <UserX className="h-4 w-4 mr-2" />
         Manage Staff Attendance
       </Button>
+    ) : isClockedIn ? (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowStaffAttendanceDialog(true)}
+        className="text-emerald-600 border-emerald-600 hover:bg-emerald-50"
+      >
+        <UserCheck className="h-4 w-4 mr-2" />
+        Clocked In
+      </Button>
+    ) : (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowStaffAttendanceDialog(true)}
+        className="text-amber-600 border-amber-600 hover:bg-amber-50"
+      >
+        <UserX className="h-4 w-4 mr-2" />
+        Clock In
+      </Button>
     );
-  }
 
   return (
     <>
-      {isClockedIn ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowStaffAttendanceDialog(true)}
-          className="text-emerald-600 border-emerald-600 hover:bg-emerald-50"
-        >
-          <UserCheck className="h-4 w-4 mr-2" />
-          Clocked In
-        </Button>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowStaffAttendanceDialog(true)}
-          className="text-amber-600 border-amber-600 hover:bg-amber-50"
-        >
-          <UserX className="h-4 w-4 mr-2" />
-          Clock In
-        </Button>
-      )}
+      {button}
 
       {/* Staff Attendance Dialog (for all users - manage cashier attendance) */}
       <StaffAttendanceDialog
