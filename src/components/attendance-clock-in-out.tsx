@@ -216,7 +216,15 @@ export default function AttendanceClockInOut({ branchId }: { branchId: string })
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setShowClockOutDialog(true)}
+          onClick={() => {
+            // For cashiers, open the staff attendance dialog (clock-out mode)
+            // For admins/managers, open the simple clock-out dialog
+            if (user.role === 'CASHIER') {
+              setShowStaffAttendanceDialog(true);
+            } else {
+              setShowClockOutDialog(true);
+            }
+          }}
           className="text-emerald-600 border-emerald-600 hover:bg-emerald-50"
         >
           <UserCheck className="h-4 w-4 mr-2" />

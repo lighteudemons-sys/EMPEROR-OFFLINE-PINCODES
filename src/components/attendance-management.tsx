@@ -666,10 +666,10 @@ export default function AttendanceManagement() {
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white text-sm font-semibold">
-                            {summary.userName.charAt(0).toUpperCase()}
+                            {(summary.userName || 'U').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-medium text-slate-900 dark:text-white">{summary.userName}</div>
+                            <div className="font-medium text-slate-900 dark:text-white">{summary.userName || 'Unknown'}</div>
                           </div>
                         </div>
                       </td>
@@ -844,7 +844,7 @@ export default function AttendanceManagement() {
                   >
                     <div className="flex items-center gap-4 flex-1">
                       <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-semibold">
-                        {(attendance.user.name || attendance.user.username).charAt(0).toUpperCase()}
+                        {(attendance.user.name || attendance.user.username || 'U').charAt(0).toUpperCase()}
                       </div>
 
                       <div className="flex-1">
