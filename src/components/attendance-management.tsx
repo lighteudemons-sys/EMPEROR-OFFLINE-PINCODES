@@ -92,6 +92,7 @@ export default function AttendanceManagement() {
 
   // Filters
   const [filterStaff, setFilterStaff] = useState<string>('all');
+  const [filterBranch, setFilterBranch] = useState<string>('all');
   const [filterPayment, setFilterPayment] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [dateRange, setDateRange] = useState<string>('today'); // today, week, month, custom
@@ -108,8 +109,28 @@ export default function AttendanceManagement() {
 
   // Staff list for filter
   const [staffList, setStaffList] = useState<Array<{ id: string; name: string; username: string; role: string }>>([]);
+  // Branch list for filter
+  const [branchList, setBranchList] = useState<Array<{ id: string; branchName: string }>>([]);
 
   const storage = getIndexedDBStorage();
+
+  // Fetch all branches (for admin filter)
+  const fetchBranches = async () => {
+    try {
+      const response = await fetch('/api/branches');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.branches && Array.isArray(data.branches)) {
+          setBranchList(data.branches.map((b: any) => ({
+            id: b.id,
+            branchName: b.branchName,
+          })));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+    }
+  };
 
   // Fetch all staff members
   const fetchStaffList = async () => {
@@ -203,6 +224,9 @@ export default function AttendanceManagement() {
           if (filterStaff !== 'all') {
             params.append('userId', filterStaff);
           }
+          if (filterBranch !== 'all') {
+            params.append('branchId', filterBranch);
+          }
           if (filterPayment !== 'all') {
             params.append('isPaid', filterPayment);
           }
@@ -214,6 +238,7 @@ export default function AttendanceManagement() {
             startDate: startDate,
             endDate: endDate,
             filterStaff,
+            filterBranch,
             filterPayment,
             filterStatus,
           });
@@ -543,10 +568,17 @@ export default function AttendanceManagement() {
     fetchStaffList();
   }, []);
 
+  // Load branches on mount (only for admins)
+  useEffect(() => {
+    if (user.role === 'ADMIN') {
+      fetchBranches();
+    }
+  }, [user.role]);
+
   // Load attendances when filters change
   useEffect(() => {
     fetchAttendances();
-  }, [filterStaff, filterPayment, filterStatus, dateRange, dateFrom, dateTo]);
+  }, [filterStaff, filterBranch, filterPayment, filterStatus, dateRange, dateFrom, dateTo]);
 
   return (
     <div className="space-y-6">
@@ -731,6 +763,25 @@ export default function AttendanceManagement() {
               </div>
             </div>
 
+            {user.role === 'ADMIN' && (
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Branch</Label>
+                <Select value={filterBranch} onValueChange={setFilterBranch}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Branches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Branches</SelectItem>
+                    {branchList.map(branch => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.branchName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div>
               <Label className="text-sm font-medium mb-2 block">Cashier</Label>
               <Select value={filterStaff} onValueChange={setFilterStaff}>
@@ -897,6 +948,12 @@ export default function AttendanceManagement() {
                             </span>
                           )}
                         </div>
+                        {attendance.notes && (
+                          <div className="mt-2 flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
+                            <FileText className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                            <span className="italic">{attendance.notes}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
