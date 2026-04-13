@@ -223,7 +223,7 @@ export default function AttendanceManagement() {
       // Fetch from IndexedDB
       try {
         await storage.init();
-        const offlineAttendance = await storage.getAllAttendance();
+        const offlineAttendance = await storage.getAllAttendances();
         
         if (offlineAttendance && offlineAttendance.length > 0) {
           const filteredOffline = offlineAttendance

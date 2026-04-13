@@ -221,6 +221,8 @@ export default function StaffAttendanceDialog({
         skipped: 0,
       };
 
+      const isOnline = offlineManager.isCurrentlyOnline();
+
       // Clock in each selected staff member
       for (const staffId of selectedStaffIds) {
         try {
@@ -237,43 +239,77 @@ export default function StaffAttendanceDialog({
             continue;
           }
 
-          const attendanceData = {
-            userId: staffId,
-            branchId,
-            clockIn: new Date().toISOString(),
-            status: 'PRESENT',
-          };
+          if (isOnline) {
+            // ONLINE: Direct API call
+            const response = await fetch('/api/attendance', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: staffId,
+                branchId,
+                clockIn: new Date().toISOString(),
+                status: 'PRESENT',
+                currentUserId: user.id,
+              }),
+            });
 
-          // Queue for offline sync
-          await storage.addOperation({
-            type: 'CLOCK_IN',
-            data: attendanceData,
-            branchId,
-          });
+            if (response.ok) {
+              const data = await response.json();
+              const attendance = data.attendance;
 
-          // Save to IndexedDB immediately
-          const tempId = `temp-attendance-${Date.now()}-${staffId}`;
-          const localAttendance = {
-            ...attendanceData,
-            id: tempId,
-            clockOut: null,
-            isPaid: false,
-            paidAt: null,
-            paidBy: null,
-            dailyRate: null,
-            notes: null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          await storage.saveAttendance(localAttendance);
+              // Update local state with the server response
+              setTodayAttendance((prev) => ({
+                ...prev,
+                [staffId]: attendance,
+              }));
 
-          // Update local state
-          setTodayAttendance((prev) => ({
-            ...prev,
-            [staffId]: localAttendance,
-          }));
+              results.success++;
+            } else {
+              const error = await response.json();
+              console.error(`Error clocking in staff ${staffId}:`, error);
+              results.failed++;
+            }
+          } else {
+            // OFFLINE: Use operation queue
+            const attendanceData = {
+              userId: staffId,
+              branchId,
+              clockIn: new Date().toISOString(),
+              status: 'PRESENT',
+            };
 
-          results.success++;
+            // Queue for offline sync
+            await storage.addOperation({
+              type: 'CLOCK_IN',
+              data: attendanceData,
+              branchId,
+            });
+
+            // Save to IndexedDB immediately
+            const tempId = `temp-attendance-${Date.now()}-${staffId}`;
+            const localAttendance = {
+              ...attendanceData,
+              id: tempId,
+              clockOut: null,
+              isPaid: false,
+              paidAt: null,
+              paidBy: null,
+              dailyRate: null,
+              notes: null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            await storage.saveAttendance(localAttendance);
+
+            // Update local state
+            setTodayAttendance((prev) => ({
+              ...prev,
+              [staffId]: localAttendance,
+            }));
+
+            results.success++;
+          }
+
           setProcessingStaff((prev) => {
             const newSet = new Set(prev);
             newSet.delete(staffId);
@@ -288,11 +324,6 @@ export default function StaffAttendanceDialog({
             return newSet;
           });
         }
-      }
-
-      // Sync if online
-      if (offlineManager.isCurrentlyOnline()) {
-        await offlineManager.forceSync();
       }
 
       // Show results
@@ -336,11 +367,13 @@ export default function StaffAttendanceDialog({
         skipped: 0,
       };
 
+      const isOnline = offlineManager.isCurrentlyOnline();
+
       // Clock out each selected staff member
       for (const staffId of selectedStaffIds) {
         try {
           const existing = todayAttendance[staffId];
-          
+
           // Check if already clocked out or not clocked in
           if (!existing) {
             // Not clocked in
@@ -364,34 +397,66 @@ export default function StaffAttendanceDialog({
             continue;
           }
 
-          const clockOutData = {
-            attendanceId: existing.id,
-            clockOut: new Date().toISOString(),
-            notes: clockOutNotes || null,
-          };
+          if (isOnline) {
+            // ONLINE: Direct API call
+            const response = await fetch('/api/attendance/clock-out', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                attendanceId: existing.id,
+                clockOut: new Date().toISOString(),
+                notes: clockOutNotes || null,
+              }),
+            });
 
-          // Queue for offline sync
-          await storage.addOperation({
-            type: 'CLOCK_OUT',
-            data: clockOutData,
-            branchId,
-          });
+            if (response.ok) {
+              const data = await response.json();
+              const attendance = data.attendance;
 
-          // Update local attendance
-          const updatedAttendance = {
-            ...existing,
-            clockOut: new Date().toISOString(),
-            notes: clockOutNotes || existing.notes,
-          };
-          await storage.saveAttendance(updatedAttendance);
+              // Update local state with the server response
+              setTodayAttendance((prev) => ({
+                ...prev,
+                [staffId]: attendance,
+              }));
 
-          // Update local state
-          setTodayAttendance((prev) => ({
-            ...prev,
-            [staffId]: updatedAttendance,
-          }));
+              results.success++;
+            } else {
+              const error = await response.json();
+              console.error(`Error clocking out staff ${staffId}:`, error);
+              results.failed++;
+            }
+          } else {
+            // OFFLINE: Use operation queue
+            const clockOutData = {
+              attendanceId: existing.id,
+              clockOut: new Date().toISOString(),
+              notes: clockOutNotes || null,
+            };
 
-          results.success++;
+            // Queue for offline sync
+            await storage.addOperation({
+              type: 'CLOCK_OUT',
+              data: clockOutData,
+              branchId,
+            });
+
+            // Update local attendance
+            const updatedAttendance = {
+              ...existing,
+              clockOut: new Date().toISOString(),
+              notes: clockOutNotes || existing.notes,
+            };
+            await storage.saveAttendance(updatedAttendance);
+
+            // Update local state
+            setTodayAttendance((prev) => ({
+              ...prev,
+              [staffId]: updatedAttendance,
+            }));
+
+            results.success++;
+          }
+
           setProcessingStaff((prev) => {
             const newSet = new Set(prev);
             newSet.delete(staffId);
@@ -406,11 +471,6 @@ export default function StaffAttendanceDialog({
             return newSet;
           });
         }
-      }
-
-      // Sync if online
-      if (offlineManager.isCurrentlyOnline()) {
-        await offlineManager.forceSync();
       }
 
       // Show results
@@ -516,8 +576,8 @@ export default function StaffAttendanceDialog({
             <div className="text-center py-8">
               <AlertCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
               <p className="text-slate-600 dark:text-slate-400">
-                {mode === 'clock-out' 
-                  ? 'No cashiers currently clocked in' 
+                {mode === 'clock-out'
+                  ? 'No cashiers currently clocked in'
                   : 'No cashiers found for this branch'}
               </p>
             </div>
@@ -525,7 +585,7 @@ export default function StaffAttendanceDialog({
             <>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-600 dark:text-slate-400">
-                  {mode === 'clock-in' 
+                  {mode === 'clock-in'
                     ? `${staffList.length} cashier(s) total`
                     : `${filteredStaff.length} cashier(s) currently clocked in`}
                 </span>
@@ -554,7 +614,7 @@ export default function StaffAttendanceDialog({
                     const attendance = todayAttendance[staff.id];
 
                     // Calculate work duration if clocked in
-                    const workDuration = attendance && !attendance.clockOut 
+                    const workDuration = attendance && !attendance.clockOut
                       ? Math.floor((Date.now() - new Date(attendance.clockIn).getTime()) / (1000 * 60 * 60))
                       : null;
 
