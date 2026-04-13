@@ -79,7 +79,7 @@ function getDateString(dateValue: Date | string | undefined | null): string {
 }
 
 // Helper function to check if any staff is clocked in (works in both online and offline modes)
-async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
+async function checkActiveStaff(branchId: string, currentUserId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
   try {
     const activeStaff: any[] = [];
     const todayStr = getTodayDateString();
@@ -88,7 +88,7 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
     // Check API first if online
     if (navigator.onLine) {
       try {
-        const response = await fetch(`/api/attendance?branchId=${branchId}`, {
+        const response = await fetch(`/api/attendance?branchId=${branchId}&currentUserId=${currentUserId}`, {
           credentials: 'include',
         });
         if (response.ok) {
@@ -1375,7 +1375,7 @@ export function MobilePOS() {
 
       // For cashiers and branch managers, check if any staff is clocked in
       if (user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') {
-        const activeStaffCheck = await checkActiveStaff(branchId);
+        const activeStaffCheck = await checkActiveStaff(branchId, user.id);
         if (!activeStaffCheck.hasActiveStaff) {
           showErrorToast(
             'Staff Not Clocked In',

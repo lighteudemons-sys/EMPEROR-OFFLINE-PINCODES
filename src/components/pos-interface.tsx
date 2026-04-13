@@ -85,7 +85,7 @@ function getDateString(dateValue: Date | string | undefined | null): string {
   }
 }
 
-async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
+async function checkActiveStaff(branchId: string, currentUserId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
   console.log('[checkActiveStaff] Checking for active staff in branch:', branchId);
   try {
     const activeStaff: any[] = [];
@@ -96,7 +96,7 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
     if (navigator.onLine) {
       console.log('[checkActiveStaff] Checking online API...');
       try {
-        const response = await fetch(`/api/attendance?branchId=${branchId}`, {
+        const response = await fetch(`/api/attendance?branchId=${branchId}&currentUserId=${currentUserId}`, {
           credentials: 'include',
         });
         if (response.ok) {
@@ -2570,7 +2570,7 @@ export default function POSInterface() {
 
       // For cashiers and branch managers, check if any staff is clocked in
       if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && currentShift) {
-        const activeStaffCheck = await checkActiveStaff(branchId);
+        const activeStaffCheck = await checkActiveStaff(branchId, user.id);
         if (!activeStaffCheck.hasActiveStaff) {
           alert('⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab.');
           setProcessing(false);
@@ -2733,7 +2733,7 @@ export default function POSInterface() {
 
       // For cashiers and branch managers, check if any staff is clocked in
       if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && currentShift) {
-        const activeStaffCheck = await checkActiveStaff(branchId);
+        const activeStaffCheck = await checkActiveStaff(branchId, user.id);
         if (!activeStaffCheck.hasActiveStaff) {
           alert('⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab.');
           setProcessing(false);
@@ -4455,7 +4455,7 @@ export default function POSInterface() {
       const branchId = user?.branchId;
       console.log('[Checkout Staff Check] User role:', user?.role, 'Branch ID:', branchId, 'Current shift:', currentShift?.id);
       if (branchId) {
-        const activeStaffCheck = await checkActiveStaff(branchId);
+        const activeStaffCheck = await checkActiveStaff(branchId, user.id);
         console.log('[Checkout Staff Check] Active staff check result:', activeStaffCheck);
         if (!activeStaffCheck.hasActiveStaff) {
           console.log('[Checkout Staff Check] No active staff found, blocking checkout');
