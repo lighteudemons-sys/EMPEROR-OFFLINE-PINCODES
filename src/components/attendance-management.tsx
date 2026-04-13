@@ -196,8 +196,8 @@ export default function AttendanceManagement() {
         try {
           const params = new URLSearchParams({
             currentUserId: user.id,
-            startDate: startDate.split('T')[0],
-            endDate: new Date(endDate).toISOString().split('T')[0],
+            startDate: startDate,
+            endDate: endDate,
           });
 
           if (filterStaff !== 'all') {
@@ -210,9 +210,18 @@ export default function AttendanceManagement() {
             params.append('status', filterStatus);
           }
 
+          console.log('[Attendance Tab] Fetching with params:', {
+            startDate: startDate,
+            endDate: endDate,
+            filterStaff,
+            filterPayment,
+            filterStatus,
+          });
+
           const response = await fetch(`/api/attendance?${params.toString()}`);
           if (response.ok) {
             const data = await response.json();
+            console.log('[Attendance Tab] Received attendances:', data.attendances?.length);
             allAttendances = data.attendances || [];
           }
         } catch (error) {
