@@ -10,6 +10,7 @@ import { offlineManager } from '@/lib/offline/offline-manager';
 import { getIndexedDBStorage, OperationType } from '@/lib/storage/indexeddb-storage';
 import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
 import { Clock, UserCheck, UserX } from 'lucide-react';
+import StaffAttendanceDialog from './staff-attendance-dialog';
 
 interface TodayAttendance {
   id: string;
@@ -18,12 +19,13 @@ interface TodayAttendance {
   status: string;
 }
 
-export default function AttendanceClockInOut() {
+export default function AttendanceClockInOut({ branchId }: { branchId: string }) {
   const { user } = useAuth();
   const [todayAttendance, setTodayAttendance] = useState<TodayAttendance | null>(null);
   const [loading, setLoading] = useState(true);
   const [showClockInDialog, setShowClockInDialog] = useState(false);
   const [showClockOutDialog, setShowClockOutDialog] = useState(false);
+  const [showStaffAttendanceDialog, setShowStaffAttendanceDialog] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [clockOutNotes, setClockOutNotes] = useState('');
   const [staffList, setStaffList] = useState<Array<{ id: string; name: string; username: string }>>([]);
@@ -32,21 +34,21 @@ export default function AttendanceClockInOut() {
 
   // Fetch today's attendance for current user
   useEffect(() => {
-    if (!user?.id || !user?.branchId) return;
+    if (!user?.id || !branchId) return;
 
     const fetchTodayAttendance = async () => {
       try {
         setLoading(true);
         
         // Try to get from IndexedDB first (offline)
-        const offlineAttendance = await storage.getTodayAttendance(user.id, user.branchId);
+        const offlineAttendance = await storage.getTodayAttendance(user.id, branchId);
         if (offlineAttendance) {
           setTodayAttendance(offlineAttendance);
         }
 
         // If online, fetch from API
         if (offlineManager.isCurrentlyOnline()) {
-          const response = await fetch(`/api/attendance?userId=${user.id}&branchId=${user.branchId}&currentUserId=${user.id}`);
+          const response = await fetch(`/api/attendance?userId=${user.id}&branchId=${branchId}&currentUserId=${user.id}`);
           if (response.ok) {
             const data = await response.json();
             const attendances = data.attendances || [];
@@ -65,7 +67,7 @@ export default function AttendanceClockInOut() {
     };
 
     fetchTodayAttendance();
-  }, [user?.id, user?.branchId]);
+  }, [user?.id, branchId]);
 
   // Handle clock in
   const handleClockIn = async () => {
@@ -77,7 +79,7 @@ export default function AttendanceClockInOut() {
     try {
       const attendanceData = {
         userId: selectedStaffId,
-        branchId: user.branchId,
+        branchId,
         clockIn: new Date().toISOString(),
         status: 'PRESENT',
       };
@@ -86,7 +88,7 @@ export default function AttendanceClockInOut() {
       await storage.addOperation({
         type: OperationType.CLOCK_IN,
         data: attendanceData,
-        branchId: user.branchId,
+        branchId,
       });
 
       // Save to IndexedDB immediately
@@ -135,7 +137,7 @@ export default function AttendanceClockInOut() {
       await storage.addOperation({
         type: OperationType.CLOCK_OUT,
         data: clockOutData,
-        branchId: user.branchId,
+        branchId,
       });
 
       // Update local attendance
@@ -225,9 +227,10 @@ export default function AttendanceClockInOut() {
           variant="outline"
           size="sm"
           onClick={() => {
+            // For cashiers, open the staff attendance dialog
+            // For admins/managers, open the single staff selection dialog
             if (user.role === 'CASHIER') {
-              setSelectedStaffId(user.id);
-              handleClockIn();
+              setShowStaffAttendanceDialog(true);
             } else {
               setShowClockInDialog(true);
             }
@@ -238,6 +241,40 @@ export default function AttendanceClockInOut() {
           {todayAttendance ? 'Clocked Out' : 'Clock In'}
         </Button>
       )}
+
+      {/* Staff Attendance Dialog (for cashiers - mark multiple staff as present) */}
+      <StaffAttendanceDialog
+        open={showStaffAttendanceDialog}
+        onOpenChange={setShowStaffAttendanceDialog}
+        branchId={branchId}
+        onSuccess={() => {
+          // Refresh current user's attendance after marking staff
+          const fetchTodayAttendance = async () => {
+            try {
+              const offlineAttendance = await storage.getTodayAttendance(user.id, branchId);
+              if (offlineAttendance) {
+                setTodayAttendance(offlineAttendance);
+              }
+
+              if (offlineManager.isCurrentlyOnline()) {
+                const response = await fetch(`/api/attendance?userId=${user.id}&branchId=${branchId}&currentUserId=${user.id}`);
+                if (response.ok) {
+                  const data = await response.json();
+                  const attendances = data.attendances || [];
+                  if (attendances.length > 0) {
+                    setTodayAttendance(attendances[0]);
+                  } else {
+                    setTodayAttendance(null);
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Error refreshing attendance:', error);
+            }
+          };
+          fetchTodayAttendance();
+        }}
+      />
 
       {/* Clock In Dialog (for managers/admins) */}
       <Dialog open={showClockInDialog} onOpenChange={setShowClockInDialog}>
