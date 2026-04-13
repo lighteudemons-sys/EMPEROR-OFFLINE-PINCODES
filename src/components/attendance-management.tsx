@@ -38,6 +38,7 @@ import {
   MoreVertical,
   LogOut,
   LogIn,
+  Trash2,
 } from 'lucide-react';
 
 interface AttendanceRecord {
@@ -106,6 +107,8 @@ export default function AttendanceManagement() {
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<AttendanceRecord | null>(null);
   const [attendanceNotes, setAttendanceNotes] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [attendanceToDelete, setAttendanceToDelete] = useState<AttendanceRecord | null>(null);
 
   // Staff list for filter
   const [staffList, setStaffList] = useState<Array<{ id: string; name: string; username: string; role: string }>>([]);
@@ -459,6 +462,49 @@ export default function AttendanceManagement() {
     } catch (error) {
       console.error('Error saving notes:', error);
       showErrorToast('Error', 'Failed to save notes');
+    }
+  };
+
+  // Delete attendance record (admin only)
+  const handleDeleteAttendance = async () => {
+    if (!attendanceToDelete) return;
+
+    try {
+      // Try API first
+      if (offlineManager.isCurrentlyOnline()) {
+        try {
+          const response = await fetch(`/api/attendance/${attendanceToDelete.id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentUserId: user.id }),
+          });
+
+          if (response.ok) {
+            showSuccessToast('Success', 'Attendance record deleted');
+          } else {
+            const error = await response.json();
+            showErrorToast('Failed', error.error || 'Failed to delete attendance record');
+            return;
+          }
+        } catch (error) {
+          console.error('Error deleting attendance via API:', error);
+        }
+      }
+
+      // Delete from IndexedDB
+      try {
+        await storage.init();
+        await storage.deleteAttendance(attendanceToDelete.id);
+      } catch (error) {
+        console.error('Error deleting from IndexedDB:', error);
+      }
+
+      setShowDeleteDialog(false);
+      setAttendanceToDelete(null);
+      await fetchAttendances();
+    } catch (error) {
+      console.error('Error deleting attendance:', error);
+      showErrorToast('Error', 'Failed to delete attendance record');
     }
   };
 
@@ -962,6 +1008,20 @@ export default function AttendanceManagement() {
                       </div>
 
                       <div className="flex gap-2">
+                        {user.role === 'ADMIN' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setAttendanceToDelete(attendance);
+                              setShowDeleteDialog(true);
+                            }}
+                            className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        )}
                         {attendance.isPaid ? (
                           <Button
                             variant="outline"
@@ -1060,6 +1120,34 @@ export default function AttendanceManagement() {
             <Button onClick={handleSaveNotes} className="bg-emerald-600 hover:bg-emerald-700">
               <LogOut className="h-4 w-4 mr-2" />
               Clock Out
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Attendance Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Attendance Record</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the attendance record for{' '}
+              <strong>{attendanceToDelete?.user.name || attendanceToDelete?.user.username}</strong> on{' '}
+              <strong>{attendanceToDelete ? new Date(attendanceToDelete.clockIn).toLocaleDateString() : ''}</strong>?
+              <br /><br />
+              This action cannot be undone. The record will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteAttendance}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Record
             </Button>
           </DialogFooter>
         </DialogContent>
