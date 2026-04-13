@@ -63,37 +63,49 @@ function formatVariantDisplay(item: CartItem, basePrice?: number): string {
 
 // Helper function to check if any staff is clocked in (works in both online and offline modes)
 async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
+  console.log('[checkActiveStaff] Checking for active staff in branch:', branchId);
   try {
     const activeStaff: any[] = [];
 
     // Check API first if online
     if (navigator.onLine) {
+      console.log('[checkActiveStaff] Checking online API...');
       try {
         const response = await fetch(`/api/attendance?branchId=${branchId}`);
         if (response.ok) {
           const data = await response.json();
+          console.log('[checkActiveStaff] API response:', data);
           // Filter for today's active staff (clocked in but not clocked out)
           const today = new Date();
           today.setHours(0, 0, 0, 0);
+          console.log('[checkActiveStaff] Today start:', today);
 
           const todayActive = data.filter((a: any) => {
             const clockInDate = new Date(a.clockIn);
-            return clockInDate >= today && !a.clockOut;
+            const isToday = clockInDate >= today;
+            const isActive = !a.clockOut;
+            console.log(`[checkActiveStaff] Attendance ${a.id}: clockIn=${a.clockIn}, clockOut=${a.clockOut}, isToday=${isToday}, isActive=${isActive}`);
+            return isToday && isActive;
           });
 
+          console.log('[checkActiveStaff] Found active staff from API:', todayActive.length);
           activeStaff.push(...todayActive);
         }
       } catch (error) {
         console.error('[Active Staff Check] API error:', error);
       }
+    } else {
+      console.log('[checkActiveStaff] Offline, skipping API check');
     }
 
     // Check IndexedDB for offline records
     try {
+      console.log('[checkActiveStaff] Checking IndexedDB...');
       const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
       const indexedDBStorage = getIndexedDBStorage();
       await indexedDBStorage.init();
       const offlineAttendance = await indexedDBStorage.getAllAttendances();
+      console.log('[checkActiveStaff] Offline attendance records:', offlineAttendance?.length || 0);
 
       if (offlineAttendance && offlineAttendance.length > 0) {
         const today = new Date();
@@ -102,8 +114,14 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
         // Filter for today's active staff (clocked in but not clocked out)
         const todayOfflineActive = offlineAttendance.filter((a: any) => {
           const clockInDate = new Date(a.clockIn);
-          return a.branchId === branchId && clockInDate >= today && !a.clockOut;
+          const isToday = clockInDate >= today;
+          const isSameBranch = a.branchId === branchId;
+          const isActive = !a.clockOut;
+          console.log(`[checkActiveStaff] Offline ${a.id}: branch=${a.branchId}, clockIn=${a.clockIn}, clockOut=${a.clockOut}, isToday=${isToday}, isSameBranch=${isSameBranch}, isActive=${isActive}`);
+          return isSameBranch && isToday && isActive;
         });
+
+        console.log('[checkActiveStaff] Found active staff from IndexedDB:', todayOfflineActive.length);
 
         // Merge offline active staff (avoiding duplicates by attendance ID)
         todayOfflineActive.forEach((offlineStaff: any) => {
@@ -117,11 +135,13 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
     }
 
     const activeStaffNames = activeStaff.map((s: any) => s.userName || s.name || 'Unknown');
-    return {
+    const result = {
       hasActiveStaff: activeStaff.length > 0,
       activeStaffCount: activeStaff.length,
       activeStaffNames,
     };
+    console.log('[checkActiveStaff] Final result:', result);
+    return result;
   } catch (error) {
     console.error('[Active Staff Check] Failed:', error);
     return {
@@ -4414,14 +4434,21 @@ export default function POSInterface() {
     // For cashiers and branch managers, check if any staff is clocked in
     if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && currentShift) {
       const branchId = user?.branchId;
+      console.log('[Checkout Staff Check] User role:', user?.role, 'Branch ID:', branchId, 'Current shift:', currentShift?.id);
       if (branchId) {
         const activeStaffCheck = await checkActiveStaff(branchId);
+        console.log('[Checkout Staff Check] Active staff check result:', activeStaffCheck);
         if (!activeStaffCheck.hasActiveStaff) {
+          console.log('[Checkout Staff Check] No active staff found, blocking checkout');
           alert('⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab.');
           setProcessing(false);
           return;
+        } else {
+          console.log('[Checkout Staff Check] Active staff found, allowing checkout:', activeStaffCheck.activeStaffNames);
         }
       }
+    } else {
+      console.log('[Checkout Staff Check] Staff check skipped - Role:', user?.role, 'Has shift:', !!currentShift);
     }
 
     // Validate branch selection for admin
