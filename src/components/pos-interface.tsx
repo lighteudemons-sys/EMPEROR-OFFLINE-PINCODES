@@ -4453,8 +4453,9 @@ export default function POSInterface() {
       return;
     }
 
-    // For cashiers and branch managers, check if any staff is clocked in
-    if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && currentShift) {
+    // For cashiers only, check if any staff is clocked in
+    // Branch managers bypass this validation
+    if (user?.role === 'CASHIER' && currentShift) {
       const branchId = user?.branchId;
       console.log('[Checkout Staff Check] User role:', user?.role, 'Branch ID:', branchId, 'Current shift:', currentShift?.id);
       if (branchId) {
