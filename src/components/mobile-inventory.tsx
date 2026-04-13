@@ -681,12 +681,12 @@ export function MobileInventory() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Type</label>
-                    <Select value={filterTransactionType} onValueChange={setFilterTransactionType}>
+                    <Select value={filterTransactionType || "ALL"} onValueChange={(value) => setFilterTransactionType(value === "ALL" ? "" : value)}>
                       <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="All" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All</SelectItem>
+                        <SelectItem value="ALL">All</SelectItem>
                         <SelectItem value="SALE">Sale</SelectItem>
                         <SelectItem value="RESTOCK">Restock</SelectItem>
                         <SelectItem value="WASTE">Waste</SelectItem>
@@ -697,12 +697,12 @@ export function MobileInventory() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Ingredient</label>
-                    <Select value={filterIngredient} onValueChange={setFilterIngredient}>
+                    <Select value={filterIngredient || "ALL"} onValueChange={(value) => setFilterIngredient(value === "ALL" ? "" : value)}>
                       <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="All" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All</SelectItem>
+                        <SelectItem value="ALL">All</SelectItem>
                         {ingredients.slice(0, 20).map((ing) => (
                           <SelectItem key={ing.id} value={ing.id}>{ing.name}</SelectItem>
                         ))}

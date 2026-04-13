@@ -741,12 +741,12 @@ export default function IngredientManagement() {
                     {/* Transaction Type Filter */}
                     <div className="space-y-1">
                       <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Type</label>
-                      <Select value={filterTransactionType} onValueChange={setFilterTransactionType}>
+                      <Select value={filterTransactionType || "ALL"} onValueChange={(value) => setFilterTransactionType(value === "ALL" ? "" : value)}>
                         <SelectTrigger className="h-9">
                           <SelectValue placeholder="All Types" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All Types</SelectItem>
+                          <SelectItem value="ALL">All Types</SelectItem>
                           <SelectItem value="SALE">Sale</SelectItem>
                           <SelectItem value="RESTOCK">Restock</SelectItem>
                           <SelectItem value="WASTE">Waste</SelectItem>
@@ -759,12 +759,12 @@ export default function IngredientManagement() {
                     {/* Ingredient Filter */}
                     <div className="space-y-1">
                       <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Ingredient</label>
-                      <Select value={filterIngredient} onValueChange={setFilterIngredient}>
+                      <Select value={filterIngredient || "ALL"} onValueChange={(value) => setFilterIngredient(value === "ALL" ? "" : value)}>
                         <SelectTrigger className="h-9">
                           <SelectValue placeholder="All Ingredients" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All Ingredients</SelectItem>
+                          <SelectItem value="ALL">All Ingredients</SelectItem>
                           {ingredients.map((ing) => (
                             <SelectItem key={ing.id} value={ing.id}>{ing.name}</SelectItem>
                           ))}
