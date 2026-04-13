@@ -7,11 +7,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth-context';
 import { offlineManager } from '@/lib/offline/offline-manager';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import { showSuccessToast, showErrorToast, showWarningToast } from '@/hooks/use-toast';
-import { Users, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Users, Clock, CheckCircle2, AlertCircle, Loader2, LogOut, LogIn } from 'lucide-react';
 
 interface StaffMember {
   id: string;
@@ -36,6 +38,8 @@ interface TodayAttendance {
   status: string;
 }
 
+type AttendanceMode = 'clock-in' | 'clock-out';
+
 export default function StaffAttendanceDialog({
   open,
   onOpenChange,
@@ -43,14 +47,25 @@ export default function StaffAttendanceDialog({
   onSuccess,
 }: StaffAttendanceDialogProps) {
   const { user } = useAuth();
+  const [mode, setMode] = useState<AttendanceMode>('clock-in');
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [todayAttendance, setTodayAttendance] = useState<Record<string, TodayAttendance>>({});
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set());
+  const [clockOutNotes, setClockOutNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [processingStaff, setProcessingStaff] = useState<Set<string>>(new Set());
 
   const storage = getIndexedDBStorage();
+
+  // Reset mode when dialog opens
+  useEffect(() => {
+    if (open) {
+      setMode('clock-in');
+      setSelectedStaffIds(new Set());
+      setClockOutNotes('');
+    }
+  }, [open]);
 
   // Fetch staff list and today's attendance
   useEffect(() => {
@@ -60,7 +75,7 @@ export default function StaffAttendanceDialog({
       try {
         setLoading(true);
 
-        // Fetch staff list
+        // Fetch staff list - ONLY CASHIERS
         let staffMembers: StaffMember[] = [];
 
         // Try IndexedDB first
@@ -68,7 +83,7 @@ export default function StaffAttendanceDialog({
           const offlineUsers = await storage.getAllUsers();
           if (offlineUsers && offlineUsers.length > 0) {
             staffMembers = offlineUsers
-              .filter((u: any) => u.branchId === branchId && u.isActive)
+              .filter((u: any) => u.branchId === branchId && u.isActive && u.role === 'CASHIER')
               .map((u: any) => ({
                 id: u.id,
                 name: u.name,
@@ -91,7 +106,7 @@ export default function StaffAttendanceDialog({
               const data = await response.json();
               if (data.users && Array.isArray(data.users)) {
                 staffMembers = data.users
-                  .filter((u: any) => u.branchId === branchId && u.isActive)
+                  .filter((u: any) => u.branchId === branchId && u.isActive && u.role === 'CASHIER')
                   .map((u: any) => ({
                     id: u.id,
                     name: u.name,
@@ -151,11 +166,20 @@ export default function StaffAttendanceDialog({
 
         setTodayAttendance(attendanceMap);
 
-        // Pre-select staff who are already clocked in and not clocked out
-        const alreadyClockedIn = staffMembers
-          .filter((staff) => attendanceMap[staff.id] && !attendanceMap[staff.id].clockOut)
-          .map((staff) => staff.id);
-        setSelectedStaffIds(new Set(alreadyClockedIn));
+        // Auto-select based on mode
+        if (mode === 'clock-in') {
+          // Pre-select staff who are already clocked in and not clocked out
+          const alreadyClockedIn = staffMembers
+            .filter((staff) => attendanceMap[staff.id] && !attendanceMap[staff.id].clockOut)
+            .map((staff) => staff.id);
+          setSelectedStaffIds(new Set(alreadyClockedIn));
+        } else {
+          // In clock-out mode, select all currently clocked-in staff
+          const clockedInStaff = staffMembers
+            .filter((staff) => attendanceMap[staff.id] && !attendanceMap[staff.id].clockOut)
+            .map((staff) => staff.id);
+          setSelectedStaffIds(new Set(clockedInStaff));
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
         showErrorToast('Error', 'Failed to load staff data');
@@ -165,7 +189,7 @@ export default function StaffAttendanceDialog({
     };
 
     fetchData();
-  }, [open, branchId, user.id, user.role, user.branchId]);
+  }, [open, branchId, user.id, user.role, user.branchId, mode]);
 
   // Handle checkbox toggle
   const handleToggleStaff = (staffId: string) => {
@@ -295,6 +319,125 @@ export default function StaffAttendanceDialog({
     }
   };
 
+  // Handle clock out for selected staff
+  const handleClockOutSelected = async () => {
+    if (selectedStaffIds.size === 0) {
+      showWarningToast('Warning', 'Please select at least one staff member');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setProcessingStaff(new Set(selectedStaffIds));
+
+      const results = {
+        success: 0,
+        failed: 0,
+        skipped: 0,
+      };
+
+      // Clock out each selected staff member
+      for (const staffId of selectedStaffIds) {
+        try {
+          const existing = todayAttendance[staffId];
+          
+          // Check if already clocked out or not clocked in
+          if (!existing) {
+            // Not clocked in
+            results.skipped++;
+            setProcessingStaff((prev) => {
+              const newSet = new Set(prev);
+              newSet.delete(staffId);
+              return newSet;
+            });
+            continue;
+          }
+
+          if (existing.clockOut) {
+            // Already clocked out
+            results.skipped++;
+            setProcessingStaff((prev) => {
+              const newSet = new Set(prev);
+              newSet.delete(staffId);
+              return newSet;
+            });
+            continue;
+          }
+
+          const clockOutData = {
+            attendanceId: existing.id,
+            clockOut: new Date().toISOString(),
+            notes: clockOutNotes || null,
+          };
+
+          // Queue for offline sync
+          await storage.addOperation({
+            type: 'CLOCK_OUT',
+            data: clockOutData,
+            branchId,
+          });
+
+          // Update local attendance
+          const updatedAttendance = {
+            ...existing,
+            clockOut: new Date().toISOString(),
+            notes: clockOutNotes || existing.notes,
+          };
+          await storage.saveAttendance(updatedAttendance);
+
+          // Update local state
+          setTodayAttendance((prev) => ({
+            ...prev,
+            [staffId]: updatedAttendance,
+          }));
+
+          results.success++;
+          setProcessingStaff((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(staffId);
+            return newSet;
+          });
+        } catch (error) {
+          console.error(`Error clocking out staff ${staffId}:`, error);
+          results.failed++;
+          setProcessingStaff((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(staffId);
+            return newSet;
+          });
+        }
+      }
+
+      // Sync if online
+      if (offlineManager.isCurrentlyOnline()) {
+        await offlineManager.forceSync();
+      }
+
+      // Show results
+      if (results.success > 0) {
+        showSuccessToast('Success', `${results.success} staff member(s) clocked out`);
+      }
+      if (results.failed > 0) {
+        showErrorToast('Error', `${results.failed} staff member(s) failed to clock out`);
+      }
+      if (results.skipped > 0) {
+        showWarningToast('Skipped', `${results.skipped} staff member(s) skipped`);
+      }
+
+      if (results.success > 0) {
+        onSuccess?.();
+        onOpenChange(false);
+      }
+    } catch (error) {
+      console.error('Error clocking out staff:', error);
+      showErrorToast('Error', 'Failed to clock out staff');
+    } finally {
+      setSubmitting(false);
+      setProcessingStaff(new Set());
+      setClockOutNotes('');
+    }
+  };
+
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'ADMIN':
@@ -315,18 +458,53 @@ export default function StaffAttendanceDialog({
     return 'clocked-in';
   };
 
+  // Get filtered staff list based on mode
+  const getFilteredStaff = () => {
+    if (mode === 'clock-in') {
+      // In clock-in mode, show all cashiers
+      return staffList;
+    } else {
+      // In clock-out mode, only show currently clocked-in staff
+      return staffList.filter((staff) => getAttendanceStatus(staff) === 'clocked-in');
+    }
+  };
+
+  const filteredStaff = getFilteredStaff();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+      <DialogContent className="max-w-2xl max-h-[85vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Staff Attendance - Mark Present
+            Staff Attendance
           </DialogTitle>
           <DialogDescription>
-            Select all staff members who are present and working today. This will clock them in.
+            Manage cashier attendance - clock in and clock out staff members
           </DialogDescription>
         </DialogHeader>
+
+        {/* Mode Toggle */}
+        <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+          <Button
+            variant={mode === 'clock-in' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setMode('clock-in')}
+            className="flex-1 gap-2"
+          >
+            <LogIn className="h-4 w-4" />
+            Clock In
+          </Button>
+          <Button
+            variant={mode === 'clock-out' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setMode('clock-out')}
+            className="flex-1 gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Clock Out
+          </Button>
+        </div>
 
         <div className="flex flex-col gap-4 py-4">
           {loading ? (
@@ -334,37 +512,51 @@ export default function StaffAttendanceDialog({
               <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
               <span className="ml-2 text-slate-600">Loading staff...</span>
             </div>
-          ) : staffList.length === 0 ? (
+          ) : filteredStaff.length === 0 ? (
             <div className="text-center py-8">
               <AlertCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <p className="text-slate-600 dark:text-slate-400">No staff members found for this branch</p>
+              <p className="text-slate-600 dark:text-slate-400">
+                {mode === 'clock-out' 
+                  ? 'No cashiers currently clocked in' 
+                  : 'No cashiers found for this branch'}
+              </p>
             </div>
           ) : (
             <>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-600 dark:text-slate-400">
-                  {staffList.length} staff member(s)
+                  {mode === 'clock-in' 
+                    ? `${staffList.length} cashier(s) total`
+                    : `${filteredStaff.length} cashier(s) currently clocked in`}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    const clockedInStaff = staffList.filter(
-                      (s) => getAttendanceStatus(s) === 'clocked-in'
-                    );
-                    setSelectedStaffIds(new Set(clockedInStaff.map((s) => s.id)));
-                  }}
-                >
-                  Select Active
-                </Button>
+                {mode === 'clock-in' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const clockedInStaff = staffList.filter(
+                        (s) => getAttendanceStatus(s) === 'clocked-in'
+                      );
+                      setSelectedStaffIds(new Set(clockedInStaff.map((s) => s.id)));
+                    }}
+                  >
+                    Select Active
+                  </Button>
+                )}
               </div>
 
-              <ScrollArea className="h-[400px] pr-4">
+              <ScrollArea className="h-[320px] pr-4">
                 <div className="space-y-2">
-                  {staffList.map((staff) => {
+                  {filteredStaff.map((staff) => {
                     const status = getAttendanceStatus(staff);
                     const isProcessing = processingStaff.has(staff.id);
                     const isClockedIn = status === 'clocked-in';
+                    const attendance = todayAttendance[staff.id];
+
+                    // Calculate work duration if clocked in
+                    const workDuration = attendance && !attendance.clockOut 
+                      ? Math.floor((Date.now() - new Date(attendance.clockIn).getTime()) / (1000 * 60 * 60))
+                      : null;
 
                     return (
                       <div
@@ -396,12 +588,31 @@ export default function StaffAttendanceDialog({
                           </div>
                           <div className="flex items-center gap-2 mt-1 text-sm text-slate-600 dark:text-slate-400">
                             <span>@{staff.username}</span>
-                            {isClockedIn && todayAttendance[staff.id] && (
+                            {isClockedIn && attendance && (
                               <>
                                 <span>•</span>
                                 <span className="flex items-center gap-1 text-emerald-600">
                                   <Clock className="h-3 w-3" />
-                                  {new Date(todayAttendance[staff.id].clockIn).toLocaleTimeString([], {
+                                  {new Date(attendance.clockIn).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                                {workDuration !== null && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-slate-500">
+                                      {workDuration}h worked
+                                    </span>
+                                  </>
+                                )}
+                              </>
+                            )}
+                            {status === 'clocked-out' && attendance && (
+                              <>
+                                <span>•</span>
+                                <span className="text-slate-500">
+                                  {new Date(attendance.clockOut!).toLocaleTimeString([], {
                                     hour: '2-digit',
                                     minute: '2-digit',
                                   })}
@@ -433,6 +644,23 @@ export default function StaffAttendanceDialog({
                 </div>
               </ScrollArea>
 
+              {mode === 'clock-out' && (
+                <>
+                  <Separator />
+                  <div>
+                    <Label htmlFor="clockOutNotes">Notes (Optional)</Label>
+                    <Textarea
+                      id="clockOutNotes"
+                      placeholder="Add any notes about today's work..."
+                      value={clockOutNotes}
+                      onChange={(e) => setClockOutNotes(e.target.value)}
+                      rows={2}
+                      className="mt-2"
+                    />
+                  </div>
+                </>
+              )}
+
               <Separator />
 
               <div className="flex items-center justify-between text-sm">
@@ -453,12 +681,12 @@ export default function StaffAttendanceDialog({
             Cancel
           </Button>
           <Button
-            onClick={handleClockInSelected}
+            onClick={mode === 'clock-in' ? handleClockInSelected : handleClockOutSelected}
             disabled={submitting || selectedStaffIds.size === 0}
             className="bg-emerald-600 hover:bg-emerald-700"
           >
             {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Clock In Selected ({selectedStaffIds.size})
+            {mode === 'clock-in' ? 'Clock In' : 'Clock Out'} Selected ({selectedStaffIds.size})
           </Button>
         </DialogFooter>
       </DialogContent>

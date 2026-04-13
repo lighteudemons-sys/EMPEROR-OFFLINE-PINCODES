@@ -1076,6 +1076,14 @@ export default function ShiftManagement() {
       return;
     }
 
+    // Check for active staff before allowing day close
+    const activeStaff = await checkActiveStaff(selectedBranch);
+    if (activeStaff.length > 0) {
+      const staffNames = activeStaff.map(s => `• ${s.userName} (since ${new Date(s.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`).join('\n');
+      alert(`⚠️ Cannot close business day - The following cashier(s) are still clocked in:\n\n${staffNames}\n\nPlease clock them out from the POS tab before closing the day.`);
+      return;
+    }
+
     // Check if business day ID is temporary (created offline)
     const isTempBusinessDay = businessDayStatus.businessDayId.startsWith('temp-');
 
@@ -1702,6 +1710,76 @@ export default function ShiftManagement() {
     }
   };
 
+  // Helper function to check for active staff (clocked in but not clocked out)
+  const checkActiveStaff = async (branchId: string): Promise<any[]> => {
+    try {
+      const activeStaff: any[] = [];
+
+      // Check API first if online
+      if (navigator.onLine) {
+        try {
+          const response = await fetch(`/api/attendance?branchId=${branchId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.attendances) {
+              const apiActiveStaff = data.attendances
+                .filter((a: any) => !a.clockOut && a.user.role === 'CASHIER')
+                .map((a: any) => ({
+                  id: a.id,
+                  userId: a.userId,
+                  userName: a.user.name || a.user.username,
+                  clockIn: a.clockIn,
+                }));
+              activeStaff.push(...apiActiveStaff);
+            }
+          }
+        } catch (error) {
+          console.error('[Active Staff Check] API error:', error);
+        }
+      }
+
+      // Check IndexedDB for offline records
+      try {
+        const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+        const indexedDBStorage = getIndexedDBStorage();
+        await indexedDBStorage.init();
+        const offlineAttendance = await indexedDBStorage.getAllAttendance();
+        
+        if (offlineAttendance && offlineAttendance.length > 0) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const offlineActive = offlineAttendance
+            .filter((a: any) => {
+              const clockInDate = new Date(a.clockIn);
+              return clockInDate >= today && !a.clockOut;
+            })
+            .map((a: any) => ({
+              id: a.id,
+              userId: a.userId,
+              userName: a.userName || a.username,
+              clockIn: a.clockIn,
+            }));
+          
+          // Merge with API results (avoid duplicates)
+          const existingIds = new Set(activeStaff.map(s => s.userId));
+          offlineActive.forEach((staff: any) => {
+            if (!existingIds.has(staff.userId)) {
+              activeStaff.push(staff);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('[Active Staff Check] IndexedDB error:', error);
+      }
+
+      return activeStaff;
+    } catch (error) {
+      console.error('[Active Staff Check] Failed:', error);
+      return [];
+    }
+  };
+
   const handleCloseShift = async () => {
     if (!selectedShift) {
       alert(t('alert.select.shift.close'));
@@ -1710,6 +1788,14 @@ export default function ShiftManagement() {
 
     if (!selectedBranch) {
       alert(t('alert.select.branch.view'));
+      return;
+    }
+
+    // Check for active staff before allowing shift close
+    const activeStaff = await checkActiveStaff(selectedBranch);
+    if (activeStaff.length > 0) {
+      const staffNames = activeStaff.map(s => `• ${s.userName} (since ${new Date(s.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`).join('\n');
+      alert(`⚠️ Cannot close shift - The following cashier(s) are still clocked in:\n\n${staffNames}\n\nPlease clock them out from the POS tab before closing the shift.`);
       return;
     }
 
