@@ -55,10 +55,35 @@ function formatVariantDisplay(item: CartItem, basePrice?: number): string {
   return `${roundedMultiplier}x (${weightInGrams}g)`;
 }
 
+// Helper function to get today's date string in YYYY-MM-DD format
+function getTodayDateString(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Helper function to get date string from a date value
+function getDateString(dateValue: Date | string | undefined | null): string {
+  if (!dateValue) return '';
+  try {
+    const date = new Date(dateValue);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch {
+    return '';
+  }
+}
+
 // Helper function to check if any staff is clocked in (works in both online and offline modes)
 async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
   try {
     const activeStaff: any[] = [];
+    const todayStr = getTodayDateString();
+    console.log('[checkActiveStaff Mobile] Today date string:', todayStr);
 
     // Check API first if online
     if (navigator.onLine) {
@@ -66,19 +91,21 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
         const response = await fetch(`/api/attendance?branchId=${branchId}`);
         if (response.ok) {
           const data = await response.json();
-          // Filter for today's active staff (clocked in but not clocked out)
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
+          console.log('[checkActiveStaff Mobile] API response:', data);
 
           const todayActive = data.filter((a: any) => {
-            const clockInDate = new Date(a.clockIn);
-            return clockInDate >= today && !a.clockOut;
+            const clockInStr = getDateString(a.clockIn);
+            const isToday = clockInStr === todayStr;
+            const isActive = !a.clockOut;
+            console.log(`[checkActiveStaff Mobile] Attendance ${a.id}: clockIn=${a.clockIn}, clockInStr=${clockInStr}, clockOut=${a.clockOut}, isToday=${isToday}, isActive=${isActive}`);
+            return isToday && isActive;
           });
 
+          console.log('[checkActiveStaff Mobile] Found active staff from API:', todayActive.length);
           activeStaff.push(...todayActive);
         }
       } catch (error) {
-        console.error('[Active Staff Check] API error:', error);
+        console.error('[Active Staff Check Mobile] API error:', error);
       }
     }
 
@@ -87,16 +114,19 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
       const indexedDBStorage = getIndexedDBStorage();
       await indexedDBStorage.init();
       const offlineAttendance = await indexedDBStorage.getAllAttendances();
+      console.log('[checkActiveStaff Mobile] Offline attendance records:', offlineAttendance?.length || 0);
 
       if (offlineAttendance && offlineAttendance.length > 0) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        // Filter for today's active staff (clocked in but not clocked out)
         const todayOfflineActive = offlineAttendance.filter((a: any) => {
-          const clockInDate = new Date(a.clockIn);
-          return a.branchId === branchId && clockInDate >= today && !a.clockOut;
+          const clockInStr = getDateString(a.clockIn);
+          const isToday = clockInStr === todayStr;
+          const isSameBranch = a.branchId === branchId;
+          const isActive = !a.clockOut;
+          console.log(`[checkActiveStaff Mobile] Offline ${a.id}: branch=${a.branchId}, clockIn=${a.clockIn}, clockInStr=${clockInStr}, clockOut=${a.clockOut}, isToday=${isToday}, isSameBranch=${isSameBranch}, isActive=${isActive}`);
+          return isSameBranch && isToday && isActive;
         });
+
+        console.log('[checkActiveStaff Mobile] Found active staff from IndexedDB:', todayOfflineActive.length);
 
         // Merge offline active staff (avoiding duplicates by attendance ID)
         todayOfflineActive.forEach((offlineStaff: any) => {
@@ -106,15 +136,17 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
         });
       }
     } catch (error) {
-      console.error('[Active Staff Check] IndexedDB error:', error);
+      console.error('[Active Staff Check Mobile] IndexedDB error:', error);
     }
 
     const activeStaffNames = activeStaff.map((s: any) => s.userName || s.name || 'Unknown');
-    return {
+    const result = {
       hasActiveStaff: activeStaff.length > 0,
       activeStaffCount: activeStaff.length,
       activeStaffNames,
     };
+    console.log('[checkActiveStaff Mobile] Final result:', result);
+    return result;
   } catch (error) {
     console.error('[Active Staff Check] Failed:', error);
     return {

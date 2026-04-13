@@ -62,10 +62,35 @@ function formatVariantDisplay(item: CartItem, basePrice?: number): string {
 }
 
 // Helper function to check if any staff is clocked in (works in both online and offline modes)
+// Helper function to get today's date string in YYYY-MM-DD format
+function getTodayDateString(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Helper function to get date string from a date value
+function getDateString(dateValue: Date | string | undefined | null): string {
+  if (!dateValue) return '';
+  try {
+    const date = new Date(dateValue);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch {
+    return '';
+  }
+}
+
 async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
   console.log('[checkActiveStaff] Checking for active staff in branch:', branchId);
   try {
     const activeStaff: any[] = [];
+    const todayStr = getTodayDateString();
+    console.log('[checkActiveStaff] Today date string:', todayStr);
 
     // Check API first if online
     if (navigator.onLine) {
@@ -75,16 +100,12 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
         if (response.ok) {
           const data = await response.json();
           console.log('[checkActiveStaff] API response:', data);
-          // Filter for today's active staff (clocked in but not clocked out)
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          console.log('[checkActiveStaff] Today start:', today);
 
           const todayActive = data.filter((a: any) => {
-            const clockInDate = new Date(a.clockIn);
-            const isToday = clockInDate >= today;
+            const clockInStr = getDateString(a.clockIn);
+            const isToday = clockInStr === todayStr;
             const isActive = !a.clockOut;
-            console.log(`[checkActiveStaff] Attendance ${a.id}: clockIn=${a.clockIn}, clockOut=${a.clockOut}, isToday=${isToday}, isActive=${isActive}`);
+            console.log(`[checkActiveStaff] Attendance ${a.id}: clockIn=${a.clockIn}, clockInStr=${clockInStr}, clockOut=${a.clockOut}, isToday=${isToday}, isActive=${isActive}`);
             return isToday && isActive;
           });
 
@@ -108,16 +129,12 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
       console.log('[checkActiveStaff] Offline attendance records:', offlineAttendance?.length || 0);
 
       if (offlineAttendance && offlineAttendance.length > 0) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        // Filter for today's active staff (clocked in but not clocked out)
         const todayOfflineActive = offlineAttendance.filter((a: any) => {
-          const clockInDate = new Date(a.clockIn);
-          const isToday = clockInDate >= today;
+          const clockInStr = getDateString(a.clockIn);
+          const isToday = clockInStr === todayStr;
           const isSameBranch = a.branchId === branchId;
           const isActive = !a.clockOut;
-          console.log(`[checkActiveStaff] Offline ${a.id}: branch=${a.branchId}, clockIn=${a.clockIn}, clockOut=${a.clockOut}, isToday=${isToday}, isSameBranch=${isSameBranch}, isActive=${isActive}`);
+          console.log(`[checkActiveStaff] Offline ${a.id}: branch=${a.branchId}, clockIn=${a.clockIn}, clockInStr=${clockInStr}, clockOut=${a.clockOut}, isToday=${isToday}, isSameBranch=${isSameBranch}, isActive=${isActive}`);
           return isSameBranch && isToday && isActive;
         });
 
