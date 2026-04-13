@@ -5,10 +5,10 @@ import { UserRole } from '@prisma/client';
 // DELETE /api/attendance/[id] - Delete an attendance record (admin only)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const attendanceId = params.id;
+    const { id: attendanceId } = await params;
     const body = await request.json();
     const { currentUserId } = body;
 
