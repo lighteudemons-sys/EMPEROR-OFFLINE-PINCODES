@@ -15,7 +15,13 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate request
-    if (!branchId || !ingredientId || !quantity || !pricePerUnit || !userId) {
+    if (
+      branchId === undefined || branchId === null || branchId === '' ||
+      ingredientId === undefined || ingredientId === null || ingredientId === '' ||
+      quantity === undefined || quantity === null || isNaN(quantity) ||
+      pricePerUnit === undefined || pricePerUnit === null || isNaN(pricePerUnit) ||
+      userId === undefined || userId === null || userId === ''
+    ) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }

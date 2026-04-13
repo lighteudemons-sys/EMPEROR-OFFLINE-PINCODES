@@ -81,6 +81,7 @@ export function MobileInventory() {
   
   const [restockData, setRestockData] = useState({
     quantity: '',
+    pricePerUnit: '',
     reason: '',
   });
   
@@ -255,14 +256,20 @@ export function MobileInventory() {
     setLoading(true);
 
     try {
+      const quantity = parseFloat(restockData.quantity);
+      const pricePerUnit = parseFloat(restockData.pricePerUnit);
+      const totalCost = quantity * pricePerUnit;
+
       const response = await fetch('/api/inventory/restock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           branchId: selectedBranch,
           ingredientId: restockItem.id,
-          quantity: parseFloat(restockData.quantity),
-          reason: restockData.reason || 'Manual restock',
+          quantity,
+          pricePerUnit,
+          totalCost,
+          supplier: restockData.reason || 'Manual restock',
           userId: user.id,
         }),
       });
@@ -275,7 +282,7 @@ export function MobileInventory() {
       }
 
       setRestockDialogOpen(false);
-      setRestockData({ quantity: '', reason: '' });
+      setRestockData({ quantity: '', pricePerUnit: '', reason: '' });
       setRestockItem(null);
       await fetchIngredients();
       await fetchTransactions();
@@ -789,7 +796,7 @@ export function MobileInventory() {
                   id="restockQuantity"
                   type="number"
                   step="0.01"
-                  min="0"
+                  min="0.01"
                   value={restockData.quantity}
                   onChange={(e) => setRestockData({ ...restockData, quantity: e.target.value })}
                   placeholder="0.00"
@@ -798,7 +805,24 @@ export function MobileInventory() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="restockReason">Reason (Optional)</Label>
+                <Label htmlFor="restockPrice">Price per Unit ({currency}) *</Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="restockPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={restockData.pricePerUnit}
+                    onChange={(e) => setRestockData({ ...restockData, pricePerUnit: e.target.value })}
+                    placeholder="0.00"
+                    required
+                    className="pl-10 h-11"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="restockReason">Supplier/Reason (Optional)</Label>
                 <Input
                   id="restockReason"
                   value={restockData.reason}
