@@ -95,7 +95,8 @@ async function checkActiveStaff(branchId: string, currentUserId: string): Promis
           const data = await response.json();
           console.log('[checkActiveStaff Mobile] API response:', data);
 
-          const todayActive = data.filter((a: any) => {
+          const attendances = data.attendances || [];
+          const todayActive = attendances.filter((a: any) => {
             const clockInStr = getDateString(a.clockIn);
             const isToday = clockInStr === todayStr;
             const isActive = !a.clockOut;
