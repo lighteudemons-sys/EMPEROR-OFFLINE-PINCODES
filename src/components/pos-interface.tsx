@@ -96,7 +96,9 @@ async function checkActiveStaff(branchId: string): Promise<{ hasActiveStaff: boo
     if (navigator.onLine) {
       console.log('[checkActiveStaff] Checking online API...');
       try {
-        const response = await fetch(`/api/attendance?branchId=${branchId}`);
+        const response = await fetch(`/api/attendance?branchId=${branchId}`, {
+          credentials: 'include',
+        });
         if (response.ok) {
           const data = await response.json();
           console.log('[checkActiveStaff] API response:', data);
