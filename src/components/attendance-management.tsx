@@ -316,7 +316,7 @@ export default function AttendanceManagement() {
   const fetchSalarySummary = async () => {
     try {
       const { from: startDate, to: endDate } = getDateRange();
-      
+
       const params = new URLSearchParams({
         currentUserId: user.id,
         startDate: startDate.split('T')[0],
@@ -325,6 +325,9 @@ export default function AttendanceManagement() {
 
       if (filterStaff !== 'all') {
         params.append('userId', filterStaff);
+      }
+      if (filterBranch !== 'all') {
+        params.append('branchId', filterBranch);
       }
 
       const response = await fetch(`/api/attendance/salary-summary?${params.toString()}`);

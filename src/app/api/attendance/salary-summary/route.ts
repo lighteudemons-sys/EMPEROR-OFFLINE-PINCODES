@@ -46,12 +46,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (startDate || endDate) {
-      where.createdAt = {};
+      where.clockIn = {}; // Filter by clockIn date, not createdAt
       if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+        where.clockIn.gte = new Date(startDate);
       }
       if (endDate) {
-        where.createdAt.lte = new Date(endDate);
+        where.clockIn.lte = new Date(endDate);
       }
     }
 
