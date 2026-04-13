@@ -82,7 +82,17 @@ export default function IngredientManagement() {
   
   // Transaction History State
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
-  
+  const [totalTransactions, setTotalTransactions] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [transactionsPerPage] = useState(20);
+
+  // Transaction Filters
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterTransactionType, setFilterTransactionType] = useState('');
+  const [filterIngredient, setFilterIngredient] = useState('');
+  const [transactionSearch, setTransactionSearch] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
@@ -119,7 +129,15 @@ export default function IngredientManagement() {
       fetchIngredients();
       fetchTransactions();
     }
-  }, [selectedBranch]);
+  }, [selectedBranch, currentPage]);
+
+  // Refetch transactions when filters change
+  useEffect(() => {
+    if (selectedBranch) {
+      setCurrentPage(1);
+      fetchTransactions();
+    }
+  }, [filterStartDate, filterEndDate, filterTransactionType, filterIngredient, transactionSearch]);
 
   const fetchIngredients = async () => {
     if (!selectedBranch) return;
@@ -138,14 +156,42 @@ export default function IngredientManagement() {
 
   const fetchTransactions = async () => {
     if (!selectedBranch) return;
+    setLoading(true);
     try {
-      const response = await fetch(`/api/inventory/transactions?branchId=${selectedBranch}&limit=50`);
+      const offset = (currentPage - 1) * transactionsPerPage;
+      const params = new URLSearchParams({
+        branchId: selectedBranch,
+        limit: transactionsPerPage.toString(),
+        offset: offset.toString(),
+      });
+
+      // Add filters if they have values
+      if (filterStartDate) params.append('startDate', filterStartDate);
+      if (filterEndDate) params.append('endDate', filterEndDate);
+      if (filterTransactionType) params.append('transactionType', filterTransactionType);
+      if (filterIngredient) params.append('ingredientId', filterIngredient);
+      if (transactionSearch) params.append('search', transactionSearch);
+
+      const response = await fetch(`/api/inventory/transactions?${params.toString()}`);
       if (response.ok) {
-        setTransactions((await response.json()).transactions || []);
+        const data = await response.json();
+        setTransactions(data.transactions || []);
+        setTotalTransactions(data.total || 0);
       }
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const resetTransactionFilters = () => {
+    setFilterStartDate('');
+    setFilterEndDate('');
+    setFilterTransactionType('');
+    setFilterIngredient('');
+    setTransactionSearch('');
+    setCurrentPage(1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -667,6 +713,98 @@ export default function IngredientManagement() {
                   Refresh
                 </Button>
               </div>
+
+              {/* Filters */}
+              <Card className="bg-slate-50 dark:bg-slate-800">
+                <CardContent className="pt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                    {/* Date Range */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-400">From Date</label>
+                      <Input
+                        type="date"
+                        value={filterStartDate}
+                        onChange={(e) => setFilterStartDate(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-400">To Date</label>
+                      <Input
+                        type="date"
+                        value={filterEndDate}
+                        onChange={(e) => setFilterEndDate(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+
+                    {/* Transaction Type Filter */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Type</label>
+                      <Select value={filterTransactionType} onValueChange={setFilterTransactionType}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="All Types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All Types</SelectItem>
+                          <SelectItem value="SALE">Sale</SelectItem>
+                          <SelectItem value="RESTOCK">Restock</SelectItem>
+                          <SelectItem value="WASTE">Waste</SelectItem>
+                          <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
+                          <SelectItem value="REFUND">Refund</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Ingredient Filter */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Ingredient</label>
+                      <Select value={filterIngredient} onValueChange={setFilterIngredient}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="All Ingredients" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All Ingredients</SelectItem>
+                          {ingredients.map((ing) => (
+                            <SelectItem key={ing.id} value={ing.id}>{ing.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Search & Reset */}
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                          placeholder="Search..."
+                          value={transactionSearch}
+                          onChange={(e) => setTransactionSearch(e.target.value)}
+                          className="h-9 pl-8"
+                        />
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={resetTransactionFilters}
+                        className="h-9 px-2"
+                        title="Reset Filters"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Total Records Info */}
+              <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
+                <span>
+                  Showing {Math.min((currentPage - 1) * transactionsPerPage + 1, totalTransactions)} to {Math.min(currentPage * transactionsPerPage, totalTransactions)} of {totalTransactions} records
+                </span>
+              </div>
+
+              {/* Transactions Table */}
               <div className="border rounded-lg overflow-hidden overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
                 <div className="min-w-[800px] md:min-w-0">
                   <Table>
@@ -682,7 +820,11 @@ export default function IngredientManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.length === 0 ? (
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8">Loading...</TableCell>
+                      </TableRow>
+                    ) : transactions.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-slate-500">
                           No transactions found
@@ -716,6 +858,75 @@ export default function IngredientManagement() {
                 </Table>
                 </div>
               </div>
+
+              {/* Pagination */}
+              {totalTransactions > 0 && (
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-sm text-slate-600 dark:text-slate-400">
+                    Page {currentPage} of {Math.ceil(totalTransactions / transactionsPerPage)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      First
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, Math.ceil(totalTransactions / transactionsPerPage)) }, (_, i) => {
+                        const totalPages = Math.ceil(totalTransactions / transactionsPerPage);
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="w-9 h-9"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalTransactions / transactionsPerPage), prev + 1))}
+                      disabled={currentPage >= Math.ceil(totalTransactions / transactionsPerPage)}
+                    >
+                      Next
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.ceil(totalTransactions / transactionsPerPage))}
+                      disabled={currentPage >= Math.ceil(totalTransactions / transactionsPerPage)}
+                    >
+                      Last
+                    </Button>
+                  </div>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>

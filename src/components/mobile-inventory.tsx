@@ -87,7 +87,17 @@ export function MobileInventory() {
   
   // Transaction History State
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
-  
+  const [totalTransactions, setTotalTransactions] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [transactionsPerPage] = useState(20);
+
+  // Transaction Filters
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterTransactionType, setFilterTransactionType] = useState('');
+  const [filterIngredient, setFilterIngredient] = useState('');
+  const [transactionSearch, setTransactionSearch] = useState('');
+
   const [loading, setLoading] = useState(false);
 
   // Fetch branches on mount
@@ -129,7 +139,15 @@ export function MobileInventory() {
       fetchIngredients();
       fetchTransactions();
     }
-  }, [selectedBranch]);
+  }, [selectedBranch, currentPage]);
+
+  // Refetch transactions when filters change
+  useEffect(() => {
+    if (selectedBranch) {
+      setCurrentPage(1);
+      fetchTransactions();
+    }
+  }, [filterStartDate, filterEndDate, filterTransactionType, filterIngredient, transactionSearch]);
 
   const fetchIngredients = async () => {
     if (!selectedBranch) {
@@ -169,17 +187,41 @@ export function MobileInventory() {
     }
     try {
       console.log(`[MobileInventory] Fetching transactions for branch: ${selectedBranch}`);
-      const response = await fetch(`/api/inventory/transactions?branchId=${selectedBranch}&limit=50`);
+      const offset = (currentPage - 1) * transactionsPerPage;
+      const params = new URLSearchParams({
+        branchId: selectedBranch,
+        limit: transactionsPerPage.toString(),
+        offset: offset.toString(),
+      });
+
+      // Add filters if they have values
+      if (filterStartDate) params.append('startDate', filterStartDate);
+      if (filterEndDate) params.append('endDate', filterEndDate);
+      if (filterTransactionType) params.append('transactionType', filterTransactionType);
+      if (filterIngredient) params.append('ingredientId', filterIngredient);
+      if (transactionSearch) params.append('search', transactionSearch);
+
+      const response = await fetch(`/api/inventory/transactions?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         console.log('[MobileInventory] Transactions data:', data);
         setTransactions(data.transactions || []);
+        setTotalTransactions(data.total || 0);
       } else {
         console.error('[MobileInventory] Failed to fetch transactions:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('[MobileInventory] Failed to fetch transactions:', error);
     }
+  };
+
+  const resetTransactionFilters = () => {
+    setFilterStartDate('');
+    setFilterEndDate('');
+    setFilterTransactionType('');
+    setFilterIngredient('');
+    setTransactionSearch('');
+    setCurrentPage(1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -610,8 +652,103 @@ export function MobileInventory() {
               </Button>
             </div>
 
-            <ScrollArea className="h-[calc(100vh-300px)]">
-              {transactions.length === 0 ? (
+            {/* Filters - Compact for Mobile */}
+            <Card className="bg-slate-50 dark:bg-slate-800">
+              <CardContent className="pt-4 space-y-3">
+                {/* Date Range - Row */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">From</label>
+                    <Input
+                      type="date"
+                      value={filterStartDate}
+                      onChange={(e) => setFilterStartDate(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">To</label>
+                    <Input
+                      type="date"
+                      value={filterEndDate}
+                      onChange={(e) => setFilterEndDate(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Type and Ingredient - Row */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Type</label>
+                    <Select value={filterTransactionType} onValueChange={setFilterTransactionType}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All</SelectItem>
+                        <SelectItem value="SALE">Sale</SelectItem>
+                        <SelectItem value="RESTOCK">Restock</SelectItem>
+                        <SelectItem value="WASTE">Waste</SelectItem>
+                        <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
+                        <SelectItem value="REFUND">Refund</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Ingredient</label>
+                    <Select value={filterIngredient} onValueChange={setFilterIngredient}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All</SelectItem>
+                        {ingredients.slice(0, 20).map((ing) => (
+                          <SelectItem key={ing.id} value={ing.id}>{ing.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Search and Reset - Row */}
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="Search..."
+                      value={transactionSearch}
+                      onChange={(e) => setTransactionSearch(e.target.value)}
+                      className="h-9 pl-8 text-sm"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetTransactionFilters}
+                    className="h-9 px-2"
+                    title="Reset"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Total Records Info */}
+            {totalTransactions > 0 && (
+              <div className="text-xs text-slate-600 dark:text-slate-400 text-center">
+                Showing {Math.min((currentPage - 1) * transactionsPerPage + 1, totalTransactions)} to {Math.min(currentPage * transactionsPerPage, totalTransactions)} of {totalTransactions} records
+              </div>
+            )}
+
+            <ScrollArea className="h-[calc(100vh-450px)]">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+                  <div className="animate-spin h-10 w-10 border-4 border-emerald-600 border-t-transparent rounded-full mb-3" />
+                  <p>{t('inventory.mobile.loading')}</p>
+                </div>
+              ) : transactions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                   <RefreshCw className="w-16 h-16 mb-4 text-slate-300" />
                   <p className="font-medium">{t('inventory.mobile.history.no.transactions')}</p>
@@ -676,6 +813,79 @@ export function MobileInventory() {
                 </div>
               )}
             </ScrollArea>
+
+            {/* Pagination - Compact for Mobile */}
+            {totalTransactions > 0 && (
+              <div className="flex flex-col gap-2">
+                <div className="text-xs text-center text-slate-600 dark:text-slate-400">
+                  Page {currentPage} of {Math.ceil(totalTransactions / transactionsPerPage)}
+                </div>
+                <div className="flex justify-center items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="h-8 px-2 text-xs"
+                  >
+                    First
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="h-8 px-3 text-xs"
+                  >
+                    Prev
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(3, Math.ceil(totalTransactions / transactionsPerPage)) }, (_, i) => {
+                      const totalPages = Math.ceil(totalTransactions / transactionsPerPage);
+                      let pageNum;
+                      if (totalPages <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage === 1) {
+                        pageNum = i + 1;
+                      } else if (currentPage === totalPages) {
+                        pageNum = totalPages - 2 + i;
+                      } else {
+                        pageNum = currentPage - 1 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className="w-8 h-8 text-xs"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalTransactions / transactionsPerPage), prev + 1))}
+                    disabled={currentPage >= Math.ceil(totalTransactions / transactionsPerPage)}
+                    className="h-8 px-3 text-xs"
+                  >
+                    Next
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.ceil(totalTransactions / transactionsPerPage))}
+                    disabled={currentPage >= Math.ceil(totalTransactions / transactionsPerPage)}
+                    className="h-8 px-2 text-xs"
+                  >
+                    Last
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>
