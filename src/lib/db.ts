@@ -1,21 +1,18 @@
 // Prisma Client - Database Connection with Pooling and Graceful Shutdown
-// Supports both SQLite (local dev) and PostgreSQL with Prisma Data Proxy/Accelerate (production)
+// Direct connection to PostgreSQL (Neon)
 
 import { PrismaClient } from '@prisma/client'
-import { withAccelerate } from '@prisma/extension-accelerate'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
   databaseUrl: string | undefined
 }
 
-// Store the initial DATABASE_URL when module loads
+// Store initial DATABASE_URL when module loads
 const currentDatabaseUrl = process.env.DATABASE_URL
 
 // Detect database type
 const isPostgres = currentDatabaseUrl?.startsWith('postgresql://') || currentDatabaseUrl?.startsWith('postgres://')
-const isAccelerate = currentDatabaseUrl?.startsWith('prisma://')
-const isDataProxy = currentDatabaseUrl?.startsWith('prisma+postgres://')
 const isSQLite = currentDatabaseUrl?.startsWith('file:')
 
 // In development, reset client if DATABASE_URL changed
@@ -45,7 +42,7 @@ const metrics: ConnectionMetrics = {
 
 /**
  * Get or create Prisma client with optimized configuration
- * Supports SQLite (local) and PostgreSQL with Accelerate (production)
+ * Direct connection to PostgreSQL (Neon) or SQLite (local)
  */
 export const db = (() => {
   // Force reload Prisma Client by clearing the cache
@@ -59,14 +56,10 @@ export const db = (() => {
   }
 
   // Log database type for debugging
-  if (isAccelerate) {
-    console.log('[DB] 🔥 Connecting to PostgreSQL via Prisma Accelerate (Production)')
-  } else if (isDataProxy) {
-    console.log('[DB] ⚡ Connecting via Prisma Data Proxy with Accelerate extension (Production)')
-  } else if (isPostgres) {
-    console.log('[DB] 🐘 Connecting to PostgreSQL directly')
+  if (isPostgres) {
+    console.log('[DB] 🐘 Connecting to PostgreSQL (Neon)')
   } else if (isSQLite) {
-    console.log('[DB] 📁 Using SQLite database (Local Development)')
+    console.log('[DB] 📁 Using SQLite database (Local)')
   } else {
     console.log('[DB] ⚠️  Unknown database type:', process.env.DATABASE_URL?.substring(0, 30) + '...')
   }
@@ -81,18 +74,12 @@ export const db = (() => {
     },
   })
 
-  // Extend with Accelerate ONLY when using Data Proxy format (prisma+postgres://)
-  // Note: prisma:// URLs already have Accelerate built-in, no extension needed
-  const extendedClient = isDataProxy
-    ? prismaClient.$extends(withAccelerate())
-    : prismaClient
-
   // Store the DATABASE_URL used for this client
   globalForPrisma.databaseUrl = process.env.DATABASE_URL
-  globalForPrisma.prisma = extendedClient
+  globalForPrisma.prisma = prismaClient
 
   console.log('[DB] ✅ Prisma client initialized successfully')
-  return extendedClient
+  return prismaClient
 })()
 
 /**
