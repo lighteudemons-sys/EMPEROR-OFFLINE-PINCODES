@@ -62,23 +62,28 @@ export async function GET(
 
     shift.orders.forEach(order => {
       const method = order.paymentMethod.toLowerCase();
+      // Use totalAmount and subtract deliveryFee to get the amount cashier receives
+      // totalAmount already includes: subtotal - discounts + deliveryFee
+      // We want: subtotal - discounts = totalAmount - deliveryFee
+      const paymentAmount = (order.totalAmount || 0) - (order.deliveryFee || 0);
+
       if (method === 'cash') {
-        cashTotal += order.totalAmount;
+        cashTotal += paymentAmount;
       } else if (method === 'card') {
         // Break down card payments by detail
         const detail = order.paymentMethodDetail?.toUpperCase();
         if (detail === 'INSTAPAY') {
-          instapayTotal += order.totalAmount;
+          instapayTotal += paymentAmount;
         } else if (detail === 'MOBILE_WALLET') {
-          walletTotal += order.totalAmount;
+          walletTotal += paymentAmount;
         } else {
           // Default to CARD for regular card payments
-          cardTotal += order.totalAmount;
+          cardTotal += paymentAmount;
         }
       } else if (method.includes('visa') || method.includes('credit')) {
-        cardTotal += order.totalAmount;
+        cardTotal += paymentAmount;
       } else {
-        otherTotal += order.totalAmount;
+        otherTotal += paymentAmount;
       }
     });
 
@@ -489,7 +494,9 @@ export async function GET(
 
     const totalPromoDiscounts = promoUsages.reduce((sum, usage) => sum + usage.discountAmount, 0);
 
-    // Calculate cash balance (subtract daily expenses, voided items, and refunds)
+    // Calculate cash balance
+    // Expected Cash = Opening + Cash Payments - Expenses - Voids - Refunds
+    // Cash payments already exclude delivery fees and include all discounts
     const expectedCash = shift.openingCash + cashTotal - totalDailyExpenses - totalVoidedAmount - totalRefunds;
     const overShort = shift.closingCash ? shift.closingCash - expectedCash : null;
 

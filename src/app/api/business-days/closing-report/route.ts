@@ -118,21 +118,26 @@ export async function GET(request: NextRequest) {
 
     allOrders.forEach(order => {
       const method = order.paymentMethod.toLowerCase();
+      // Use totalAmount and subtract deliveryFee to get the amount cashier receives
+      // totalAmount already includes: subtotal - discounts + deliveryFee
+      // We want: subtotal - discounts = totalAmount - deliveryFee
+      const paymentAmount = (order.totalAmount || 0) - (order.deliveryFee || 0);
+
       if (method === 'cash') {
-        cashTotal += order.totalAmount;
+        cashTotal += paymentAmount;
       } else if (method === 'card') {
         // Break down card payments by detail
         const detail = order.paymentMethodDetail?.toUpperCase();
         if (detail === 'INSTAPAY') {
-          instapayTotal += order.totalAmount;
+          instapayTotal += paymentAmount;
         } else if (detail === 'MOBILE_WALLET') {
-          walletTotal += order.totalAmount;
+          walletTotal += paymentAmount;
         } else {
           // Default to CARD for regular card payments
-          cardTotal += order.totalAmount;
+          cardTotal += paymentAmount;
         }
       } else if (method.includes('visa') || method.includes('credit')) {
-        cardTotal += order.totalAmount;
+        cardTotal += paymentAmount;
       }
     });
 
@@ -348,20 +353,25 @@ export async function GET(request: NextRequest) {
         totalDeliveryFees += order.deliveryFee || 0;
 
         const method = order.paymentMethod.toLowerCase();
+        // Use totalAmount and subtract deliveryFee to get the amount cashier receives
+        // totalAmount already includes: subtotal - discounts + deliveryFee
+        // We want: subtotal - discounts = totalAmount - deliveryFee
+        const paymentAmount = (order.totalAmount || 0) - (order.deliveryFee || 0);
+
         if (method === 'cash') {
-          cashTotalShift += order.totalAmount;
+          cashTotalShift += paymentAmount;
         } else if (method === 'card') {
           // Break down card payments by detail
           const detail = order.paymentMethodDetail?.toUpperCase();
           if (detail === 'INSTAPAY') {
-            instapayTotalShift += order.totalAmount;
+            instapayTotalShift += paymentAmount;
           } else if (detail === 'MOBILE_WALLET') {
-            walletTotalShift += order.totalAmount;
+            walletTotalShift += paymentAmount;
           } else {
-            cardTotalShift += order.totalAmount;
+            cardTotalShift += paymentAmount;
           }
         } else if (method.includes('visa') || method.includes('credit')) {
-          cardTotalShift += order.totalAmount;
+          cardTotalShift += paymentAmount;
         }
       });
 
@@ -382,6 +392,8 @@ export async function GET(request: NextRequest) {
       });
 
       // Calculate cash difference (subtract daily expenses, refunds, and voided items)
+      // Expected Cash = Opening + Cash Payments - Expenses - Refunds - Voids
+      // Cash payments already exclude delivery fees and include all discounts
       const closingRevenue = shift.closingRevenue || 0;
       const expectedCash = shift.openingCash + cashTotalShift - shiftDailyExpenses - totalRefunds - totalVoidedItems;
       const overShort = shift.closingCash ? shift.closingCash - expectedCash : null;
