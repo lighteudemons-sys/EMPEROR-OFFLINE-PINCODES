@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Pencil, Trash2, DollarSign, TrendingDown, Building2, Zap, Wifi, Flame, Users, Wrench, Package, Megaphone, MoreHorizontal, Calendar, TrendingUp, Tag, PlusCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, TrendingDown, Building2, Zap, Wifi, Flame, Users, Wrench, Package, Megaphone, MoreHorizontal, Calendar, TrendingUp, Tag, PlusCircle, GitMerge, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import NetProfitReport from '@/components/reports-net-profit';
 
@@ -129,6 +129,11 @@ export default function CostManagement() {
     sortOrder: '',
     isActive: true,
   });
+  
+  // Duplicate categories merge state
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergeResult, setMergeResult] = useState<{ success: boolean; message: string; summary?: any } | null>(null);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
   // Get current period (YYYY-MM)
   const getCurrentPeriod = () => {
@@ -462,6 +467,51 @@ export default function CostManagement() {
     setMessage(null);
   };
 
+  const handleMergeDuplicateCategories = async () => {
+    setIsMerging(true);
+    setMergeResult(null);
+    
+    try {
+      const response = await fetch('/api/cleanup/merge-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setMessage({ type: 'error', text: data.error || 'Failed to merge duplicate categories' });
+        return;
+      }
+
+      setMergeResult({
+        success: data.success,
+        message: data.message,
+        summary: data.summary,
+      });
+
+      // Refresh categories to show merged state
+      await fetchCostCategories();
+      
+      // Refresh costs to reflect category changes
+      await fetchCosts();
+      await fetchSummary();
+
+      setMessage({ 
+        type: 'success', 
+        text: `Successfully merged duplicates! Deleted ${data.summary.duplicateCategoriesDeleted || 0} duplicates, reassigned ${data.summary.costsReassigned || 0} cost entries.` 
+      });
+      setTimeout(() => setMessage(null), 5000);
+      setTimeout(() => setMergeResult(null), 5000);
+    } catch (error) {
+      console.error('Failed to merge duplicate categories:', error);
+      setMessage({ type: 'error', text: 'Failed to merge duplicate categories' });
+      setTimeout(() => setMessage(null), 3000);
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -687,6 +737,96 @@ export default function CostManagement() {
                     Add Category
                   </Button>
                 </DialogTrigger>
+
+          {/* World-Class Merge Duplicate Categories Button */}
+          <Button
+            onClick={handleMergeDuplicateCategories}
+            disabled={isMerging}
+            className={`
+              relative overflow-hidden
+              bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600
+              hover:from-violet-700 hover:via-purple-700 hover:to-indigo-700
+              text-white
+              font-semibold
+              px-5 py-2.5
+              rounded-xl
+              shadow-lg
+              transition-all duration-200
+              hover:shadow-xl
+              hover:scale-105
+              active:scale-105
+              border-2 border-violet-300/30
+            `}
+          >
+            <div className="flex items-center gap-2">
+              {isMerging ? (
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-transparent rounded-full mr-2"></div>
+                  <span>Merging...</span>
+                </>
+              ) : (
+                <>
+                  <GitMerge className="h-4 w-4" />
+                  <span>Merge Duplicates</span>
+                </>
+              )}
+            </div>
+          </Button>
+            {mergeResult && (
+              <div className="absolute -top-1 left-0 right-0 mt-2">
+                <div className={`
+                  bg-white dark:bg-slate-900
+                  rounded-lg
+                  shadow-2xl
+                  border-2
+                  p-4
+                  min-w-[280px]
+                  animate-in fade-in-up
+                  ${mergeResult.success ? '"border-emerald-200'" : '"border-red-200'}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`
+                      mt-1
+                      flex-shrink-0
+                      h-10 w-10
+                      rounded-full
+                      flex items-center justify-center
+                      ${mergeResult.success ? '"bg-emerald-100'" : '"bg-red-100'`}
+                    `}>
+                      {mergeResult.success ? (
+                        <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="h-6 w-6 text-red-600" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-1">
+                        {mergeResult.success ? '"Merge Complete!'" : '"Merge Failed'"}
+                      </h4>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                        {mergeResult.message}
+                      </p>
+                      {mergeResult.summary && (
+                        <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-800 rounded text-xs space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">Categories Processed:</span>
+                            <span className="font-bold text-slate-900 dark:text-white">{mergeResult.summary.duplicateGroupsProcessed || 0}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">Costs Reassigned:</span>
+                            <span className="font-bold text-emerald-600">{mergeResult.summary.costsReassigned || 0}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">Duplicates Deleted:</span>
+                            <span className="font-bold text-red-600">{mergeResult.summary.duplicateCategoriesDeleted || 0}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+          </Button>
                 <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle>
