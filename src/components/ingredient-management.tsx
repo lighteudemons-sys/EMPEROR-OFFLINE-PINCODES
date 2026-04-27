@@ -51,6 +51,24 @@ interface InventoryTransaction {
 
 const units = ['kg', 'g', 'L', 'ml', 'units'];
 
+// Format stock value based on unit type
+function formatStockValue(value: number | null | undefined, unit: string): string {
+  if (value == null || value === undefined || isNaN(value)) return '-';
+  
+  // For discrete units (items), show no decimals
+  if (unit === 'units') {
+    return value.toFixed(0);
+  }
+  
+  // For larger measurements (kg, L), show 2 decimals
+  if (unit === 'kg' || unit === 'L') {
+    return value.toFixed(2);
+  }
+  
+  // For smaller measurements (ml, g), show up to 6 decimals for precision
+  return value.toFixed(6);
+}
+
 export default function IngredientManagement() {
   const { currency } = useI18n();
   const { user } = useAuth();
@@ -638,7 +656,7 @@ export default function IngredientManagement() {
                           <TableCell>{formatCurrency(item.costPerUnit, currency, 6)}</TableCell>
                           <TableCell>
                             <span className={item.isLowStock ? 'text-red-600 font-semibold' : ''}>
-                              {item.currentStock?.toFixed(6) || '-'} {item.unit}
+                              {formatStockValue(item.currentStock, item.unit)} {item.unit}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -651,9 +669,9 @@ export default function IngredientManagement() {
                               <Badge className="bg-emerald-600">In Stock</Badge>
                             )}
                           </TableCell>
-                          <TableCell>{item.reorderThreshold} {item.unit}</TableCell>
+                          <TableCell>{formatStockValue(item.reorderThreshold, item.unit)} {item.unit}</TableCell>
                           <TableCell className="font-medium">
-                            {formatCurrency((item.currentStock || 0) * item.costPerUnit, currency, 6)}
+                            {formatCurrency((item.currentStock || 0) * item.costPerUnit, currency, item.unit === 'units' ? 0 : 6)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
