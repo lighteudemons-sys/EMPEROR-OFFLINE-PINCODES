@@ -549,7 +549,7 @@ export default function IngredientManagement() {
                                 <Input
                                   id="costPerUnit"
                                   type="number"
-                                  step="0.01"
+                                  step="any"
                                   min="0"
                                   value={formData.costPerUnit}
                                   onChange={(e) => setFormData({ ...formData, costPerUnit: e.target.value })}
@@ -581,7 +581,7 @@ export default function IngredientManagement() {
                               <Input
                                 id="initialStock"
                                 type="number"
-                                step="0.01"
+                                step="any"
                                 min="0"
                                 value={formData.initialStock}
                                 onChange={(e) => setFormData({ ...formData, initialStock: e.target.value })}
@@ -945,8 +945,8 @@ export default function IngredientManagement() {
                 <Input
                   id="restockQuantity"
                   type="number"
-                  step="0.01"
-                  min="0.01"
+                  step="any"
+                  min="0"
                   value={restockData.quantity}
                   onChange={(e) => setRestockData({ ...restockData, quantity: e.target.value })}
                   placeholder="0.00"
@@ -960,7 +960,7 @@ export default function IngredientManagement() {
                   <Input
                     id="restockPrice"
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     value={restockData.pricePerUnit}
                     onChange={(e) => setRestockData({ ...restockData, pricePerUnit: e.target.value })}

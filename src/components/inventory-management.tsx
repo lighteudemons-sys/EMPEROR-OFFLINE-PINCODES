@@ -304,7 +304,7 @@ export default function InventoryManagement() {
               <label className="text-sm font-medium">{t('form.quantity')}</label>
               <Input
                 type="number"
-                step="0.01"
+                step="any"
                 value={wasteAmount}
                 onChange={(e) => setWasteAmount(e.target.value)}
                 placeholder="0.00"
@@ -381,7 +381,7 @@ export default function InventoryManagement() {
               <label className="text-sm font-medium">{t('form.quantity')}</label>
               <Input
                 type="number"
-                step="0.01"
+                step="any"
                 value={restockAmount}
                 onChange={(e) => setRestockAmount(e.target.value)}
                 placeholder="0.00"
@@ -392,7 +392,7 @@ export default function InventoryManagement() {
               <label className="text-sm font-medium">Price per Unit ({currency})</label>
               <Input
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 value={restockPrice}
                 onChange={(e) => setRestockPrice(e.target.value)}
