@@ -18,12 +18,15 @@ async function updateIngredient(id: string, body: any) {
   }
 
   // Build update data
+  // NOTE: We do NOT update global costPerUnit here to avoid affecting all branches.
+  // Each branch should have its own costPerUnit in BranchInventory.
   const updateData: any = {};
   if (name && name.trim() !== '') updateData.name = name.trim();
   if (unit && unit.trim() !== '') updateData.unit = unit.trim();
-  if (costPerUnit !== undefined && costPerUnit !== '' && !isNaN(parseFloat(costPerUnit))) {
-    updateData.costPerUnit = parseFloat(costPerUnit);
-  }
+  // DO NOT update global costPerUnit - each branch has its own price in BranchInventory
+  // if (costPerUnit !== undefined && costPerUnit !== '' && !isNaN(parseFloat(costPerUnit))) {
+  //   updateData.costPerUnit = parseFloat(costPerUnit);
+  // }
   if (reorderThreshold !== undefined && reorderThreshold !== '' && !isNaN(parseFloat(reorderThreshold))) {
     updateData.reorderThreshold = parseFloat(reorderThreshold);
   }
@@ -34,6 +37,55 @@ async function updateIngredient(id: string, body: any) {
     where: { id },
     data: updateData,
   });
+
+  // Handle branch-specific costPerUnit update
+  // When costPerUnit is provided with a branchId, update only that branch's price in BranchInventory
+  if (costPerUnit !== undefined && costPerUnit !== '' && !isNaN(parseFloat(costPerUnit)) && branchId) {
+    const priceValue = parseFloat(costPerUnit);
+
+    console.log('[updateIngredient] Updating branch-specific costPerUnit:', { ingredientId: id, branchId, priceValue });
+
+    // Check if branch inventory record exists
+    const existingInventory = await db.branchInventory.findUnique({
+      where: {
+        branchId_ingredientId: {
+          branchId,
+          ingredientId: id,
+        },
+      },
+    });
+
+    if (existingInventory) {
+      // Update existing inventory's costPerUnit (branch-specific)
+      await db.branchInventory.update({
+        where: {
+          branchId_ingredientId: {
+            branchId,
+            ingredientId: id,
+          },
+        },
+        data: {
+          costPerUnit: priceValue,
+          lastModifiedAt: new Date(),
+        },
+      });
+      console.log('[updateIngredient] Branch inventory costPerUnit updated');
+    } else {
+      // Create new inventory record with the price
+      await db.branchInventory.create({
+        data: {
+          branchId,
+          ingredientId: id,
+          currentStock: 0, // No stock provided, just setting price
+          costPerUnit: priceValue,
+          reservedStock: 0,
+          lastRestockAt: new Date(),
+          lastModifiedAt: new Date(),
+        },
+      });
+      console.log('[updateIngredient] Branch inventory created with costPerUnit');
+    }
+  }
 
   // Handle initial stock update for branch inventory
   if (initialStock !== undefined && initialStock !== '' && branchId) {

@@ -7,15 +7,16 @@ import { db } from '@/lib/db';
 async function getExpenseCostCategory(branchId: string, category: string) {
   console.log('[Daily Expenses] Looking for cost category:', category, 'for branch:', branchId);
 
+  // First, look for a GLOBAL category (branchId = null) shared across all branches
   let costCategory = await db.costCategory.findFirst({
     where: {
       name: category,
-      branchId, // Get branch-specific category
+      branchId: null, // Use global shared category
     },
   });
 
   if (!costCategory) {
-    console.log('[Daily Expenses] Category not found, creating new one:', category, 'for branch:', branchId);
+    console.log('[Daily Expenses] Category not found, creating new GLOBAL category:', category, '(shared across all branches)');
     // Map expense categories to appropriate icons
     const iconMap: Record<string, string> = {
       'EQUIPMENT': 'Wrench',
@@ -29,7 +30,7 @@ async function getExpenseCostCategory(branchId: string, category: string) {
     };
     const icon = iconMap[category] || 'DollarSign';
     
-    // Create the expense category for this branch
+    // Create GLOBAL category (branchId = null) shared across all branches
     costCategory = await db.costCategory.create({
       data: {
         name: category,
@@ -37,12 +38,12 @@ async function getExpenseCostCategory(branchId: string, category: string) {
         icon: icon,
         sortOrder: 998, // Show just above Daily Expenses
         isActive: true,
-        branchId, // Make it branch-specific
+        branchId: null, // Make it global (shared across all branches)
       },
     });
-    console.log('[Daily Expenses] Created cost category:', costCategory.id, costCategory.name);
+    console.log('[Daily Expenses] Created GLOBAL cost category:', costCategory.id, costCategory.name);
   } else {
-    console.log('[Daily Expenses] Found existing cost category:', costCategory.id, costCategory.name);
+    console.log('[Daily Expenses] Found existing GLOBAL cost category:', costCategory.id, costCategory.name);
   }
 
   return costCategory;
