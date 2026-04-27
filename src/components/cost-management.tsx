@@ -730,9 +730,30 @@ export default function CostManagement() {
               <CardDescription>Manage operational costs for each branch</CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+              <Dialog
+                open={categoryDialogOpen}
+                onOpenChange={(open) => {
+                  setCategoryDialogOpen(open);
+                  if (!open) {
+                    setEditingCategory(null);
+                  }
+                }}
+              >
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="border-emerald-600 text-emerald-600 hover:bg-emerald-50">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingCategory(null);
+                      setCategoryFormData({
+                        name: '',
+                        description: '',
+                        icon: '',
+                        sortOrder: '',
+                        isActive: true,
+                      });
+                    }}
+                    className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Category
                   </Button>
@@ -900,9 +921,29 @@ export default function CostManagement() {
             )}
           </div>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) {
+                setEditingCost(null);
+              }
+            }}
+          >
             <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-[#C7A35A] to-[#b88e3b] hover:from-[#b88e3b] hover:to-[#C7A35A] text-white">
+              <Button
+                onClick={() => {
+                  setEditingCost(null);
+                  setFormData({
+                    branchId: '',
+                    costCategoryId: '',
+                    amount: '',
+                    period: '',
+                    notes: '',
+                  });
+                }}
+                className="bg-gradient-to-r from-[#C7A35A] to-[#b88e3b] hover:from-[#b88e3b] hover:to-[#C7A35A] text-white"
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Cost
               </Button>
