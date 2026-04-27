@@ -737,102 +737,12 @@ export default function CostManagement() {
                     Add Category
                   </Button>
                 </DialogTrigger>
-
-          {/* World-Class Merge Duplicate Categories Button */}
-          <Button
-            onClick={handleMergeDuplicateCategories}
-            disabled={isMerging}
-            className={`
-              relative overflow-hidden
-              bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600
-              hover:from-violet-700 hover:via-purple-700 hover:to-indigo-700
-              text-white
-              font-semibold
-              px-5 py-2.5
-              rounded-xl
-              shadow-lg
-              transition-all duration-200
-              hover:shadow-xl
-              hover:scale-105
-              active:scale-105
-              border-2 border-violet-300/30
-            `}
-          >
-            <div className="flex items-center gap-2">
-              {isMerging ? (
-                <>
-                  <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-transparent rounded-full mr-2"></div>
-                  <span>Merging...</span>
-                </>
-              ) : (
-                <>
-                  <GitMerge className="h-4 w-4" />
-                  <span>Merge Duplicates</span>
-                </>
-              )}
-            </div>
-          </Button>
-            {mergeResult && (
-              <div className="absolute -top-1 left-0 right-0 mt-2">
-                <div className={`
-                  bg-white dark:bg-slate-900
-                  rounded-lg
-                  shadow-2xl
-                  border-2
-                  p-4
-                  min-w-[280px]
-                  animate-in fade-in-up
-                  ${mergeResult.success ? '"border-emerald-200'" : '"border-red-200'}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`
-                      mt-1
-                      flex-shrink-0
-                      h-10 w-10
-                      rounded-full
-                      flex items-center justify-center
-                      ${mergeResult.success ? '"bg-emerald-100'" : '"bg-red-100'`}
-                    `}>
-                      {mergeResult.success ? (
-                        <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                      ) : (
-                        <AlertTriangle className="h-6 w-6 text-red-600" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-1">
-                        {mergeResult.success ? '"Merge Complete!'" : '"Merge Failed'"}
-                      </h4>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                        {mergeResult.message}
-                      </p>
-                      {mergeResult.summary && (
-                        <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-800 rounded text-xs space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-slate-600 dark:text-slate-400">Categories Processed:</span>
-                            <span className="font-bold text-slate-900 dark:text-white">{mergeResult.summary.duplicateGroupsProcessed || 0}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-600 dark:text-slate-400">Costs Reassigned:</span>
-                            <span className="font-bold text-emerald-600">{mergeResult.summary.costsReassigned || 0}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-600 dark:text-slate-400">Duplicates Deleted:</span>
-                            <span className="font-bold text-red-600">{mergeResult.summary.duplicateCategoriesDeleted || 0}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-          </Button>
                 <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleCategorySubmit}>
-                <div className="space-y-4 py-4">
+                  <DialogHeader>
+                    <DialogTitle>{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleCategorySubmit}>
+                    <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="categoryName">Category Name *</Label>
                     <Input
@@ -897,6 +807,99 @@ export default function CostManagement() {
               </form>
             </DialogContent>
           </Dialog>
+
+          {/* World-Class Merge Duplicate Categories Button */}
+          <div className="relative">
+            <Button
+              onClick={handleMergeDuplicateCategories}
+              disabled={isMerging}
+              className={`
+                relative overflow-hidden
+                bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600
+                hover:from-violet-700 hover:via-purple-700 hover:to-indigo-700
+                text-white
+                font-semibold
+                px-5 py-2.5
+                rounded-xl
+                shadow-lg
+                transition-all duration-200
+                hover:shadow-xl
+                hover:scale-105
+                active:scale-105
+                border-2 border-violet-300/30
+              `}
+            >
+              <div className="flex items-center gap-2">
+                {isMerging ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-transparent rounded-full mr-2"></div>
+                    <span>Merging...</span>
+                  </>
+                ) : (
+                  <>
+                    <GitMerge className="h-4 w-4" />
+                    <span>Merge Duplicates</span>
+                  </>
+                )}
+              </div>
+            </Button>
+            {mergeResult && (
+              <div className="absolute -top-1 left-0 right-0 mt-2 z-50">
+                <div className={`
+                  bg-white dark:bg-slate-900
+                  rounded-lg
+                  shadow-2xl
+                  border-2
+                  p-4
+                  min-w-[280px]
+                  animate-in fade-in-up
+                  ${mergeResult.success ? 'border-emerald-200' : 'border-red-200'}
+                `}>
+                  <div className="flex items-start gap-3">
+                    <div className={`
+                      mt-1
+                      flex-shrink-0
+                      h-10 w-10
+                      rounded-full
+                      flex items-center justify-center
+                      ${mergeResult.success ? 'bg-emerald-100' : 'bg-red-100'}
+                    `}>
+                      {mergeResult.success ? (
+                        <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="h-6 w-6 text-red-600" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-1">
+                        {mergeResult.success ? 'Merge Complete!' : 'Merge Failed'}
+                      </h4>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                        {mergeResult.message}
+                      </p>
+                      {mergeResult.summary && (
+                        <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-800 rounded text-xs space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">Categories Processed:</span>
+                            <span className="font-bold text-slate-900 dark:text-white">{mergeResult.summary.duplicateGroupsProcessed || 0}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">Costs Reassigned:</span>
+                            <span className="font-bold text-emerald-600">{mergeResult.summary.costsReassigned || 0}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">Duplicates Deleted:</span>
+                            <span className="font-bold text-red-600">{mergeResult.summary.duplicateCategoriesDeleted || 0}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-[#C7A35A] to-[#b88e3b] hover:from-[#b88e3b] hover:to-[#C7A35A] text-white">
