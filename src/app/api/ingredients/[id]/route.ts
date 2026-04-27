@@ -156,6 +156,8 @@ async function updateIngredient(id: string, body: any) {
       ...updatedIngredient,
       currentStock: stock,
       isLowStock: stock < updatedIngredient.reorderThreshold,
+      // Use branch-specific costPerUnit if available, otherwise use global cost
+      costPerUnit: inventory?.costPerUnit || updatedIngredient.costPerUnit,
       lastRestockAt: inventory?.lastRestockAt || null,
       lastModifiedAt: inventory?.lastModifiedAt || null,
     };

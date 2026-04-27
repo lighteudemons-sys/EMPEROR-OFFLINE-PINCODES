@@ -33,6 +33,8 @@ export async function GET(request: NextRequest) {
           currentStock: stock,
           isLowStock: stock < ingredient.reorderThreshold,
           branchStock: stock,
+          // Use branch-specific costPerUnit if available, otherwise use global cost
+          costPerUnit: inventory?.costPerUnit || ingredient.costPerUnit,
           lastRestockAt: inventory?.lastRestockAt || null,
           lastModifiedAt: inventory?.lastModifiedAt || null,
         };
