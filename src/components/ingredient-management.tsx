@@ -635,10 +635,10 @@ export default function IngredientManagement() {
                         <TableRow key={item.id} className={item.isLowStock ? 'bg-red-50 dark:bg-red-950/10' : ''}>
                           <TableCell className="font-medium">{item.name}</TableCell>
                           <TableCell>{item.unit}</TableCell>
-                          <TableCell>{formatCurrency(item.costPerUnit, currency)}</TableCell>
+                          <TableCell>{formatCurrency(item.costPerUnit, currency, 10)}</TableCell>
                           <TableCell>
                             <span className={item.isLowStock ? 'text-red-600 font-semibold' : ''}>
-                              {item.currentStock?.toFixed(2) || '-'} {item.unit}
+                              {item.currentStock?.toFixed(10) || '-'} {item.unit}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -653,7 +653,7 @@ export default function IngredientManagement() {
                           </TableCell>
                           <TableCell>{item.reorderThreshold} {item.unit}</TableCell>
                           <TableCell className="font-medium">
-                            {formatCurrency((item.currentStock || 0) * item.costPerUnit, currency)}
+                            {formatCurrency((item.currentStock || 0) * item.costPerUnit, currency, 10)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
