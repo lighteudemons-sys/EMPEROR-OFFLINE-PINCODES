@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/attendance - Clock in (create attendance record)
+// POST /api/attendance - Clock in (create/update attendance record)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the user exists
+    // Verify user exists
     const user = await db.user.findUnique({
       where: { id: userId },
       include: { branch: true },
@@ -184,31 +184,32 @@ export async function POST(request: NextRequest) {
       console.log('[Attendance API] No existing attendance, creating new record');
 
       attendance = await db.attendance.create({
-      data: {
-        userId,
-        branchId,
-        clockIn: new Date(),
-        status: AttendanceStatus.PRESENT,
-        notes: notes || null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-            role: true,
-            dailyRate: true,
+        data: {
+          userId,
+          branchId,
+          clockIn: new Date(),
+          status: AttendanceStatus.PRESENT,
+          notes: notes || null,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              role: true,
+              dailyRate: true,
+            },
+          },
+          branch: {
+            select: {
+              id: true,
+              branchName: true,
+            },
           },
         },
-        branch: {
-          select: {
-            id: true,
-            branchName: true,
-          },
-        },
-      },
-    });
+      });
+    }
 
     return NextResponse.json({ success: true, attendance }, { status: 201 });
   } catch (error) {
