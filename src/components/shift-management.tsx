@@ -378,6 +378,7 @@ export default function ShiftManagement() {
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [openingCash, setOpeningCash] = useState('0');
+  const [isOpeningShift, setIsOpeningShift] = useState(false);
   const [closingCash, setClosingCash] = useState('');
   const [shiftNotes, setShiftNotes] = useState('');
   const [paymentBreakdown, setPaymentBreakdown] = useState<PaymentBreakdown>({
@@ -1400,6 +1401,14 @@ export default function ShiftManagement() {
   const handleOpenShift = async () => {
     console.log('[Shift Management] handleOpenShift called');
     console.log('[Shift Management] Current business day status:', businessDayStatus);
+    console.log('[Shift Management] Is opening shift:', isOpeningShift);
+    console.log('[Shift Management] Selected shift:', selectedShift);
+
+    // Prevent multiple simultaneous shift openings
+    if (isOpeningShift) {
+      console.log('[Shift Management] Shift opening already in progress, ignoring request');
+      return;
+    }
 
     // Check if there's already an open shift for this cashier
     if (selectedShift) {
@@ -1417,6 +1426,7 @@ export default function ShiftManagement() {
 
     console.log('[Shift Management] Business day is open, proceeding to open shift');
     console.log('[Shift Management] user:', user);
+    setIsOpeningShift(true); // Set loading state to prevent multiple clicks
 
     if (user?.role === 'CASHIER') {
       if (!user?.branchId) {
@@ -1476,6 +1486,7 @@ export default function ShiftManagement() {
             setShiftNotes('');
             refetchShifts();
             fetchCurrentShift();
+            setIsOpeningShift(false);
             // Notify parent component to refresh shift status (for POS tab visibility)
             // Small delay to ensure state is updated
             setTimeout(() => {
@@ -1507,6 +1518,7 @@ export default function ShiftManagement() {
                 fetchCurrentShift();
                 // Notify parent component to refresh shift status (for POS tab visibility)
                 // Small delay to ensure localStorage is updated
+            setIsOpeningShift(false);
                 setTimeout(() => {
                   window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
                 }, 100);
@@ -1592,6 +1604,7 @@ export default function ShiftManagement() {
           } catch (offlineError) {
             console.error('[Shift] Offline shift creation also failed:', offlineError);
             alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+            setIsOpeningShift(false);
           }
         }
         
@@ -3054,7 +3067,7 @@ export default function ShiftManagement() {
             </Button>
             <Button
               onClick={handleOpenShift}
-              disabled={openingCash === '' || openingCash === undefined || !!selectedShift}
+              disabled={openingCash === '' || openingCash === undefined || !!selectedShift || isOpeningShift}
               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 h-11 min-h-[44px]"
             >
               <Play className="h-4 w-4 mr-2" />
