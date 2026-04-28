@@ -1401,6 +1401,13 @@ export default function ShiftManagement() {
     console.log('[Shift Management] handleOpenShift called');
     console.log('[Shift Management] Current business day status:', businessDayStatus);
 
+    // Check if there's already an open shift for this cashier
+    if (selectedShift) {
+      console.log('[Shift Management] Cashier already has an open shift, preventing new shift');
+      alert(t('alert.shift.already.open') || 'You already have an open shift. Please close it first before opening a new one.');
+      return;
+    }
+
     // Check if business day is open
     if (!businessDayStatus.isOpen) {
       console.log('[Shift Management] Business day is not open, preventing shift opening');
@@ -1508,12 +1515,23 @@ export default function ShiftManagement() {
                 alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
               }
             } else {
+              // API error response - show error and return
+              console.error('[Shift] API returned error:', data.error);
               alert(data.error || 'Failed to open shift');
+              return;
             }
           }
         } else {
-          // Offline mode - create shift locally
-          console.log('[Shift] Offline mode detected, creating shift locally');
+          // Offline mode - check for existing shift first
+          console.log('[Shift] Offline mode detected, checking for existing shift...');
+
+          if (selectedShift) {
+            console.log('[Shift] Cashier already has an open shift in offline mode, preventing new shift');
+            alert(t('alert.shift.already.open') || 'You already have an open shift. Please close it first before opening a new one.');
+            return;
+          }
+
+          console.log('[Shift] No open shift found, proceeding to create shift locally');
           try {
             await createShiftOffline(shiftData, user);
             alert(t('alert.shift.opened.offline'));
@@ -3036,7 +3054,7 @@ export default function ShiftManagement() {
             </Button>
             <Button
               onClick={handleOpenShift}
-              disabled={openingCash === '' || openingCash === undefined}
+              disabled={openingCash === '' || openingCash === undefined || !!selectedShift}
               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 h-11 min-h-[44px]"
             >
               <Play className="h-4 w-4 mr-2" />

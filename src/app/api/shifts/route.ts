@@ -237,6 +237,7 @@ export async function POST(request: NextRequest) {
     console.log('[Shift API] Cashier verified:', { id: cashier.id, username: cashier.username, role: cashier.role });
 
     // Check if there's an open shift for this cashier
+    console.log('[Shift API] Checking for existing open shifts for cashier:', cashierId);
     const existingOpenShift = await db.shift.findFirst({
       where: {
         cashierId,
@@ -244,9 +245,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log('[Shift API] Existing open shift check result:', existingOpenShift ? {
+      id: existingOpenShift.id,
+      cashierId: existingOpenShift.cashierId,
+      startTime: existingOpenShift.startTime,
+      isClosed: existingOpenShift.isClosed
+    } : 'No open shift found');
+
     if (existingOpenShift) {
+      console.error('[Shift API] Cashier already has an open shift:', existingOpenShift);
       return NextResponse.json(
-        { error: 'Cashier already has an open shift' },
+        { error: 'Cashier already has an open shift. Please close it first before opening a new one.' },
         { status: 400 }
       );
     }
