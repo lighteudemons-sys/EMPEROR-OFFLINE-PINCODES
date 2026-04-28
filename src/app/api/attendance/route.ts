@@ -143,11 +143,12 @@ export async function POST(request: NextRequest) {
         userId,
         branchId,
         status: {
-          in: [AttendanceStatus.PRESENT, AttendanceStatus.COMPLETE], // Check for active or completed records
+          in: [AttendanceStatus.PRESENT, AttendanceStatus.LATE], // Check for active status records
         },
         clockIn: {
           gte: today, // Today or later
         },
+        clockOut: null, // Only active (not clocked out) attendance
       },
       orderBy: {
         clockIn: 'desc', // Get the most recent one
