@@ -132,33 +132,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if already clocked in today (only active, not clocked out)
+    // Get user's date (YYYY-MM-DD) for checking same-day attendance
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayDate = today.toISOString().split('T')[0];
 
-    const existingAttendance = await db.attendance.findFirst({
+    // Check if user already has any attendance for today (excluding ABSENT records)
+    const existingTodayAttendance = await db.attendance.findFirst({
       where: {
         userId,
         branchId,
-        clockIn: {
-          gte: today,
-          lt: tomorrow,
+        status: {
+          in: [AttendanceStatus.PRESENT, AttendanceStatus.COMPLETE], // Check for active or completed records
         },
-        clockOut: null, // Only check for active (not clocked out) attendance
+        clockIn: {
+          gte: today, // Today or later
+        },
+      },
+      orderBy: {
+        clockIn: 'desc', // Get the most recent one
       },
     });
 
-    if (existingAttendance) {
-      return NextResponse.json(
-        { error: 'Already clocked in today', attendance: existingAttendance },
-        { status: 400 }
-      );
-    }
+    let attendance;
 
-    // Create attendance record
-    const attendance = await db.attendance.create({
+    if (existingTodayAttendance) {
+      // User has an active/completed attendance for today, update it instead of creating new
+      console.log('[Attendance API] Found existing attendance for today:', existingTodayAttendance);
+
+      attendance = await db.attendance.update({
+        where: { id: existingTodayAttendance.id },
+        data: {
+          clockIn: new Date(), // Update clock in time
+          status: AttendanceStatus.PRESENT,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              role: true,
+              dailyRate: true,
+            },
+          },
+        },
+      });
+      console.log('[Attendance API] Updated existing attendance:', attendance);
+    } else {
+      // No attendance for today, create new record
+      console.log('[Attendance API] No existing attendance, creating new record');
+
+      attendance = await db.attendance.create({
       data: {
         userId,
         branchId,

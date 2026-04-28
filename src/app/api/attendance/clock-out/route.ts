@@ -6,23 +6,42 @@ import { AttendanceStatus } from '@prisma/client';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { attendanceId, notes } = body;
+    const { attendanceId, userId, branchId, notes } = body;
 
-    if (!attendanceId) {
-      return NextResponse.json(
-        { error: 'Missing required field: attendanceId' },
-        { status: 400 }
-      );
+    // Support both old (attendanceId) and new (userId + branchId) approaches
+    let attendance;
+
+    if (attendanceId) {
+      // Old approach: Find by ID
+      attendance = await db.attendance.findUnique({
+        where: { id: attendanceId },
+      });
+    } else if (userId && branchId) {
+      // New approach: Find today's most recent active attendance
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      attendance = await db.attendance.findFirst({
+        where: {
+          userId,
+          branchId,
+          clockIn: {
+            gte: today,
+            lt: tomorrow,
+          },
+          clockOut: null, // Only active (not clocked out) attendance
+        },
+        orderBy: {
+          clockIn: 'desc', // Get most recent one
+        },
+      });
     }
-
-    // Check if attendance exists and is not already clocked out
-    const attendance = await db.attendance.findUnique({
-      where: { id: attendanceId },
-    });
 
     if (!attendance) {
       return NextResponse.json(
-        { error: 'Attendance record not found' },
+        { error: 'No active attendance found to clock out. Please clock in first.' },
         { status: 404 }
       );
     }
@@ -36,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Update attendance with clock out time
     const updatedAttendance = await db.attendance.update({
-      where: { id: attendanceId },
+      where: { id: attendance.id },
       data: {
         clockOut: new Date(),
         notes: notes || attendance.notes,
