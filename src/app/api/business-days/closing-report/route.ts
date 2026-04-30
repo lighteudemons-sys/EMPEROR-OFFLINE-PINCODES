@@ -177,17 +177,13 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      // For custom input items, extract base name without weight
+      // For custom input items, use ONLY the menuItemId for aggregation
+      // This merges all weights of the same item together (like shift closing does)
       const baseName = orderItem.menuItem?.name || orderItem.itemName;
-      const variant = orderItem.variantName || '';
-      // Remove weight pattern to get the base variant name
-      // Matches both: "- وزن: 0.125x (125g)" and "- وزن: 0.125x"
-      const baseVariant = variant.replace(/\s*-\s*وزن:\s*[\d.]+x(\s*\(\d+g\))?/g, '').trim();
-      const displayName = baseVariant ? `${baseName} - ${baseVariant}`.trim() : baseName;
 
       return {
-        key: `custom_${orderItem.menuItemId}_${displayName.replace(/\s+/g, '_')}`,
-        baseName: displayName,
+        key: `custom_${orderItem.menuItemId}`, // Use menuItemId only, don't include weight
+        baseName: baseName, // Display name without weight for consistency
         isCustomInput: true
       };
     };
@@ -245,8 +241,16 @@ export async function GET(request: NextRequest) {
 
         // For custom input items, accumulate weight
         if (aggKey.isCustomInput && itemData.totalWeight !== undefined) {
-          const weight = extractWeight(orderItem.variantName || '');
-          itemData.totalWeight += weight * orderItem.quantity;
+          // PRIORITY 1: Use customVariantValue if available (stored accurate weight multiplier)
+          let weight = 0;
+          if (orderItem.customVariantValue !== null && orderItem.customVariantValue !== undefined) {
+            weight = orderItem.customVariantValue;
+          } else {
+            // PRIORITY 2: Fall back to extracting from variantName
+            weight = extractWeight(orderItem.variantName || '');
+          }
+          // For weight-based items, weight multiplier already represents total weight, don't multiply by quantity
+          itemData.totalWeight += weight;
         }
       });
     });
