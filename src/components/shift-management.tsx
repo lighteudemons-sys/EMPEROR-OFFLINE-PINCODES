@@ -1749,19 +1749,12 @@ export default function ShiftManagement() {
       // Check API first if online
       if (navigator.onLine) {
         try {
-          const response = await fetch(`/api/attendance?branchId=${branchId}&currentUserId=${user.id}`);
+          const response = await fetch(`/api/attendance/active-staff?branchId=${branchId}&currentUserId=${user.id}`);
           if (response.ok) {
             const data = await response.json();
-            if (data.attendances) {
-              const apiActiveStaff = data.attendances
-                .filter((a: any) => !a.clockOut && a.user.role === 'CASHIER')
-                .map((a: any) => ({
-                  id: a.id,
-                  userId: a.userId,
-                  userName: a.user.name || a.user.username,
-                  clockIn: a.clockIn,
-                }));
-              activeStaff.push(...apiActiveStaff);
+            if (data.activeStaff) {
+              activeStaff.push(...data.activeStaff);
+              console.log('[Active Staff Check] Found', data.activeStaff.length, 'active staff from API');
             }
           }
         } catch (error) {
@@ -1775,11 +1768,11 @@ export default function ShiftManagement() {
         const indexedDBStorage = getIndexedDBStorage();
         await indexedDBStorage.init();
         const offlineAttendance = await indexedDBStorage.getAllAttendances();
-        
+
         if (offlineAttendance && offlineAttendance.length > 0) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          
+
           const offlineActive = offlineAttendance
             .filter((a: any) => {
               const clockInDate = new Date(a.clockIn);
@@ -1791,7 +1784,7 @@ export default function ShiftManagement() {
               userName: a.userName || a.username,
               clockIn: a.clockIn,
             }));
-          
+
           // Merge with API results (avoid duplicates)
           const existingIds = new Set(activeStaff.map(s => s.userId));
           offlineActive.forEach((staff: any) => {
@@ -1804,6 +1797,7 @@ export default function ShiftManagement() {
         console.error('[Active Staff Check] IndexedDB error:', error);
       }
 
+      console.log('[Active Staff Check] Total active staff:', activeStaff.length);
       return activeStaff;
     } catch (error) {
       console.error('[Active Staff Check] Failed:', error);
