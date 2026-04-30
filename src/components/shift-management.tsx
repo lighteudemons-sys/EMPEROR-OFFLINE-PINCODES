@@ -1746,7 +1746,7 @@ export default function ShiftManagement() {
     try {
       const activeStaff: any[] = [];
 
-      // Check API first if online
+      // Check API first if online - ONLY trust API when online, ignore IndexedDB
       if (navigator.onLine) {
         try {
           const response = await fetch(`/api/attendance/active-staff?branchId=${branchId}&currentUserId=${user.id}`);
@@ -1754,47 +1754,45 @@ export default function ShiftManagement() {
             const data = await response.json();
             if (data.activeStaff) {
               activeStaff.push(...data.activeStaff);
-              console.log('[Active Staff Check] Found', data.activeStaff.length, 'active staff from API');
+              console.log('[Active Staff Check] Found', data.activeStaff.length, 'active staff from API (online mode - ignoring IndexedDB)');
             }
+            return activeStaff; // Return API results directly when online
           }
         } catch (error) {
           console.error('[Active Staff Check] API error:', error);
         }
       }
 
-      // Check IndexedDB for offline records
-      try {
-        const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
-        const indexedDBStorage = getIndexedDBStorage();
-        await indexedDBStorage.init();
-        const offlineAttendance = await indexedDBStorage.getAllAttendances();
+      // Only check IndexedDB when OFFLINE
+      if (!navigator.onLine) {
+        try {
+          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+          const indexedDBStorage = getIndexedDBStorage();
+          await indexedDBStorage.init();
+          const offlineAttendance = await indexedDBStorage.getAllAttendances();
 
-        if (offlineAttendance && offlineAttendance.length > 0) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
+          if (offlineAttendance && offlineAttendance.length > 0) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
 
-          const offlineActive = offlineAttendance
-            .filter((a: any) => {
-              const clockInDate = new Date(a.clockIn);
-              return clockInDate >= today && !a.clockOut;
-            })
-            .map((a: any) => ({
-              id: a.id,
-              userId: a.userId,
-              userName: a.userName || a.username,
-              clockIn: a.clockIn,
-            }));
+            const offlineActive = offlineAttendance
+              .filter((a: any) => {
+                const clockInDate = new Date(a.clockIn);
+                return clockInDate >= today && !a.clockOut;
+              })
+              .map((a: any) => ({
+                id: a.id,
+                userId: a.userId,
+                userName: a.userName || a.username,
+                clockIn: a.clockIn,
+              }));
 
-          // Merge with API results (avoid duplicates)
-          const existingIds = new Set(activeStaff.map(s => s.userId));
-          offlineActive.forEach((staff: any) => {
-            if (!existingIds.has(staff.userId)) {
-              activeStaff.push(staff);
-            }
-          });
+            activeStaff.push(...offlineActive);
+            console.log('[Active Staff Check] Found', offlineActive.length, 'active staff from IndexedDB (offline mode)');
+          }
+        } catch (error) {
+          console.error('[Active Staff Check] IndexedDB error:', error);
         }
-      } catch (error) {
-        console.error('[Active Staff Check] IndexedDB error:', error);
       }
 
       console.log('[Active Staff Check] Total active staff:', activeStaff.length);
