@@ -137,16 +137,14 @@ export async function POST(request: NextRequest) {
     today.setHours(0, 0, 0, 0);
     const todayDate = today.toISOString().split('T')[0];
 
-    // Check if user already has any attendance for today (excluding ABSENT records)
-    const existingTodayAttendance = await db.attendance.findFirst({
+    // Check if user already has an ACTIVE attendance (not clocked out)
+    // This handles merging multiple clock-in attempts within the same shift
+    const existingActiveAttendance = await db.attendance.findFirst({
       where: {
         userId,
         branchId,
         status: {
           in: [AttendanceStatus.PRESENT, AttendanceStatus.LATE], // Check for active status records
-        },
-        clockIn: {
-          gte: today, // Today or later
         },
         clockOut: null, // Only active (not clocked out) attendance
       },
@@ -157,14 +155,15 @@ export async function POST(request: NextRequest) {
 
     let attendance;
 
-    if (existingTodayAttendance) {
-      // User has an active/completed attendance for today, update it instead of creating new
-      console.log('[Attendance API] Found existing attendance for today:', existingTodayAttendance);
+    if (existingActiveAttendance) {
+      // User has an active attendance, update it instead of creating new
+      // This handles cases where cashier accidentally clicks clock in twice in the same shift
+      console.log('[Attendance API] Found existing active attendance:', existingActiveAttendance);
 
       attendance = await db.attendance.update({
-        where: { id: existingTodayAttendance.id },
+        where: { id: existingActiveAttendance.id },
         data: {
-          clockIn: new Date(), // Update clock in time
+          clockIn: new Date(), // Update clock in time to current time
           status: AttendanceStatus.PRESENT,
         },
         include: {
@@ -181,8 +180,9 @@ export async function POST(request: NextRequest) {
       });
       console.log('[Attendance API] Updated existing attendance:', attendance);
     } else {
-      // No attendance for today, create new record
-      console.log('[Attendance API] No existing attendance, creating new record');
+      // No active attendance, create new record
+      // This handles multiple shifts in a day (after clocking out from previous shift)
+      console.log('[Attendance API] No active attendance, creating new record');
 
       attendance = await db.attendance.create({
         data: {

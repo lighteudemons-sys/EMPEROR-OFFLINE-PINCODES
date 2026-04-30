@@ -17,19 +17,16 @@ export async function POST(request: NextRequest) {
         where: { id: attendanceId },
       });
     } else if (userId && branchId) {
-      // New approach: Find today's most recent active attendance
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      // New approach: Find the most recent active attendance within last 24 hours
+      // This supports overnight shifts (clocked in yesterday, clocking out today)
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
       attendance = await db.attendance.findFirst({
         where: {
           userId,
           branchId,
           clockIn: {
-            gte: today,
-            lt: tomorrow,
+            gte: twentyFourHoursAgo, // Within last 24 hours
           },
           clockOut: null, // Only active (not clocked out) attendance
         },
