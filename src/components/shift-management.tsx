@@ -1772,13 +1772,13 @@ export default function ShiftManagement() {
           const offlineAttendance = await indexedDBStorage.getAllAttendances();
 
           if (offlineAttendance && offlineAttendance.length > 0) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            // For branches that operate past midnight, check last 24 hours
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
             const offlineActive = offlineAttendance
               .filter((a: any) => {
                 const clockInDate = new Date(a.clockIn);
-                return clockInDate >= today && !a.clockOut;
+                return clockInDate >= twentyFourHoursAgo && !a.clockOut;
               })
               .map((a: any) => ({
                 id: a.id,

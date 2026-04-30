@@ -82,8 +82,10 @@ function getDateString(dateValue: Date | string | undefined | null): string {
 async function checkActiveStaff(branchId: string, currentUserId: string): Promise<{ hasActiveStaff: boolean; activeStaffCount: number; activeStaffNames: string[] }> {
   try {
     const activeStaff: any[] = [];
-    const todayStr = getTodayDateString();
-    console.log('[checkActiveStaff Mobile] Today date string:', todayStr);
+
+    // For branches that operate past midnight, check last 24 hours
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    console.log('[checkActiveStaff Mobile] Checking for staff clocked in after:', twentyFourHoursAgo.toISOString());
 
     // Check API first if online
     if (navigator.onLine) {
@@ -96,16 +98,17 @@ async function checkActiveStaff(branchId: string, currentUserId: string): Promis
           console.log('[checkActiveStaff Mobile] API response:', data);
 
           const attendances = data.attendances || [];
-          const todayActive = attendances.filter((a: any) => {
-            const clockInStr = getDateString(a.clockIn);
-            const isToday = clockInStr === todayStr;
+          // Filter for active staff (clocked in within last 24 hours, not clocked out)
+          const activeAttendances = attendances.filter((a: any) => {
+            const clockInTime = new Date(a.clockIn);
+            const isWithin24Hours = clockInTime >= twentyFourHoursAgo;
             const isActive = !a.clockOut;
-            console.log(`[checkActiveStaff Mobile] Attendance ${a.id}: clockIn=${a.clockIn}, clockInStr=${clockInStr}, clockOut=${a.clockOut}, isToday=${isToday}, isActive=${isActive}`);
-            return isToday && isActive;
+            console.log(`[checkActiveStaff Mobile] Attendance ${a.id}: clockIn=${a.clockIn}, isWithin24Hours=${isWithin24Hours}, isActive=${isActive}`);
+            return isWithin24Hours && isActive;
           });
 
-          console.log('[checkActiveStaff Mobile] Found active staff from API:', todayActive.length);
-          activeStaff.push(...todayActive);
+          console.log('[checkActiveStaff Mobile] Found active staff from API:', activeAttendances.length);
+          activeStaff.push(...activeAttendances);
         }
       } catch (error) {
         console.error('[Active Staff Check Mobile] API error:', error);
@@ -120,19 +123,19 @@ async function checkActiveStaff(branchId: string, currentUserId: string): Promis
       console.log('[checkActiveStaff Mobile] Offline attendance records:', offlineAttendance?.length || 0);
 
       if (offlineAttendance && offlineAttendance.length > 0) {
-        const todayOfflineActive = offlineAttendance.filter((a: any) => {
-          const clockInStr = getDateString(a.clockIn);
-          const isToday = clockInStr === todayStr;
+        const offlineActive = offlineAttendance.filter((a: any) => {
+          const clockInTime = new Date(a.clockIn);
+          const isWithin24Hours = clockInTime >= twentyFourHoursAgo;
           const isSameBranch = a.branchId === branchId;
           const isActive = !a.clockOut;
-          console.log(`[checkActiveStaff Mobile] Offline ${a.id}: branch=${a.branchId}, clockIn=${a.clockIn}, clockInStr=${clockInStr}, clockOut=${a.clockOut}, isToday=${isToday}, isSameBranch=${isSameBranch}, isActive=${isActive}`);
-          return isSameBranch && isToday && isActive;
+          console.log(`[checkActiveStaff Mobile] Offline ${a.id}: branch=${a.branchId}, clockIn=${a.clockIn}, isWithin24Hours=${isWithin24Hours}, isSameBranch=${isSameBranch}, isActive=${isActive}`);
+          return isSameBranch && isWithin24Hours && isActive;
         });
 
-        console.log('[checkActiveStaff Mobile] Found active staff from IndexedDB:', todayOfflineActive.length);
+        console.log('[checkActiveStaff Mobile] Found active staff from IndexedDB:', offlineActive.length);
 
         // Merge offline active staff (avoiding duplicates by attendance ID)
-        todayOfflineActive.forEach((offlineStaff: any) => {
+        offlineActive.forEach((offlineStaff: any) => {
           if (!activeStaff.find((s: any) => s.id === offlineStaff.id)) {
             activeStaff.push(offlineStaff);
           }
