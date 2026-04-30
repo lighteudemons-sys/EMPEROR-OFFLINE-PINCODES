@@ -46,7 +46,7 @@ export function DayClosingReceipt({ businessDayId, open, onClose }: DayClosingRe
         },
         () => {
           console.log('[Day Closing] Printing Paper 2 (Item Summary)...');
-          printItemSummary();
+          printDayItemSummary();
         },
         () => {
           console.log('[Day Closing] Printing Paper 3 (Void & Refunds)...');
@@ -117,7 +117,7 @@ export function DayClosingReceipt({ businessDayId, open, onClose }: DayClosingRe
 
   const handlePrintItemSummary = () => {
     if (!data) return;
-    printItemSummary();
+    printDayItemSummary();
   };
 
   // Paper 1: Day Payment Summary (sum all shifts)
@@ -517,6 +517,180 @@ export function DayClosingReceipt({ businessDayId, open, onClose }: DayClosingRe
     <div class="notes-content">${data.notes}</div>
   </div>
   ` : ''}
+
+  <div class="footer">
+    <div>Emperor Coffee Franchise</div>
+  </div>
+</body>
+</html>`;
+
+    printWindow.document.write(content);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 250);
+  };
+
+  // Paper 2: Day Item Breakdown (sum all shifts)
+  const printDayItemSummary = () => {
+    if (!data || !data.shifts || !data.categoryBreakdown) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const dateStr = new Date(data.date).toLocaleDateString();
+    const categoryBreakdown = data.categoryBreakdown;
+
+    // Calculate day totals for each category
+    const categoryTotals = categoryBreakdown.map(category => {
+      const categoryTotal = category.items?.reduce((sum, item) => sum + (item.totalPrice || 0), 0) || 0;
+      const categoryQty = category.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+      return {
+        categoryName: category.categoryName,
+        totalSales: category.totalSales || 0,
+        totalQty: categoryQty,
+        items: category.items || [],
+      };
+    });
+
+    // Generate HTML for each category
+    const categoriesHtml = categoryTotals.map(category => {
+      const itemsHtml = category.items.map(item => `
+        <div style="border-bottom: 1px dashed #ccc; padding: 3px 0;">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="font-size: 11px;">${item.isCustomInput && item.totalWeight !== undefined
+              ? `وزن: ${item.totalWeight.toFixed(2)} KG ${item.itemName}`
+              : item.itemName
+            }</span>
+            <span style="font-size: 11px;">${item.isCustomInput && item.totalWeight !== undefined
+              ? ''
+              : item.quantity
+            }</span>
+          </div>
+          <div style="text-align: right; font-weight: bold;">${formatCurrency(item.totalPrice)}</div>
+        </div>
+      `).join('');
+
+      return `
+        <div style="margin-bottom: 8px; page-break-inside: avoid;">
+          <div style="border: 1px solid #000; padding: 5px; margin-bottom: 5px;">
+            <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px;">
+              <span>${category.categoryName}</span>
+              <span>${formatCurrency(category.totalSales)}</span>
+            </div>
+            <div style="font-size: 10px; color: #666;">Total Items: ${category.totalQty}</div>
+          </div>
+          ${itemsHtml}
+        </div>
+      `;
+    }).join('');
+
+    const content = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Day Closing - Item Breakdown</title>
+  <style>
+    @page {
+      size: 80mm auto;
+      margin: 0;
+      padding: 0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      color: #000 !important;
+    }
+
+    @media print {
+      @page {
+        margin: 0;
+        padding: 0;
+        size: 80mm auto;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      html, body {
+        height: auto;
+        overflow: visible;
+      }
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: auto;
+      width: 80mm;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      max-width: 80mm;
+      margin: 0 auto;
+      padding: 0;
+      font-size: 12px;
+      line-height: 1.4;
+      background: white;
+      color: #000;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 2px dashed #000;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: bold;
+      padding: 0;
+      color: #000;
+    }
+
+    .header div {
+      margin: 2px 0;
+      padding: 0;
+      color: #000;
+    }
+
+    .section-title {
+      font-weight: bold;
+      margin: 10px 0 5px 0;
+      padding: 0;
+      text-decoration: underline;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 2px dashed #000;
+      font-size: 10px;
+      padding-bottom: 0;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Emperor Coffee</h1>
+    <div>${data?.branchName || 'Emperor Coffee'}</div>
+    <div>Day Closing - Item Breakdown</div>
+  </div>
+
+  <div style="font-size: 11px; margin-bottom: 5px;">Date: ${dateStr}</div>
+
+  <div class="section-title">Categories</div>
+
+  ${categoriesHtml}
 
   <div class="footer">
     <div>Emperor Coffee Franchise</div>
