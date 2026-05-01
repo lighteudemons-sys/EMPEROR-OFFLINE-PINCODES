@@ -15,7 +15,6 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx prisma/seed.ts",
     "db:check": "tsx scripts/check-and-restore.ts",
-    "postinstall": "if [ \"$VERCEL\" = \"1\" ]; then echo 'Skipping prisma generate on Vercel'; else prisma generate; fi",
     "electron:dev": "concurrently \"bun run dev\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "bun run build && electron-builder",
     "electron:build:win": "bun run build && electron-builder --win",
