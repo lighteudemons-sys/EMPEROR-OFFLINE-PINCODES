@@ -6856,3 +6856,39 @@ Files Modified:
    - Copies .next/static to .next/standalone/.next/static
    - Copies public to .next/standalone/public
 
+
+---
+Task ID: fix-cost-form-initialization
+Agent: zai-web-dev
+Task: Fix critical issue with adding costs as branch manager
+
+Work Log:
+- Diagnosed issue: When clicking "Add Cost", form was initialized with empty values instead of user's branchId and current period
+- Root cause: DialogTrigger onClick was manually setting formData with empty strings instead of calling resetForm()
+- Fixed Add Cost dialog in cost-management.tsx to use resetForm()
+- Fixed Add Category dialog in cost-management.tsx to use resetCategoryForm()
+- Updated mobile-costs.tsx to properly reset forms when dialog opens
+- resetForm() correctly sets:
+  - branchId: currentUser.branchId (for branch managers)
+  - period: getCurrentPeriod() (current month in YYYY-MM format)
+  - All other fields to appropriate defaults
+- Fixed lint errors in copy-build-files.js by adding eslint-disable comment
+
+Stage Summary:
+- Branch managers can now successfully add costs
+- Form auto-fills with their branch when dialog opens
+- Period auto-fills with current month
+- All form fields properly initialized before submission
+- Both desktop and mobile cost management fixed
+
+Files Modified:
+1. src/components/cost-management.tsx
+   - Updated Add Cost dialog onClick to call resetForm()
+   - Updated Add Category dialog onClick to call resetCategoryForm()
+
+2. src/components/mobile-costs.tsx
+   - Updated category dialog onOpenChange to reset form
+   - Updated cost dialog onOpenChange to call resetForm()
+
+3. scripts/copy-build-files.js
+   - Added eslint-disable comment for require imports
