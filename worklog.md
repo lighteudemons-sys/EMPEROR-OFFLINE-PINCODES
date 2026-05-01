@@ -6825,3 +6825,34 @@ Implemented a validation to ensure that cashiers and branch managers must have a
 - Validation works on both desktop and mobile interfaces
 - Existing shift/day closing validation already prevents closing with active staff
 
+
+
+---
+Task ID: fix-windows-build-scripts
+Agent: zai-web-dev
+Task: Fix package.json scripts for Windows compatibility (VPS deployment)
+
+Work Log:
+- Fixed build script that used Unix cp command (not available on Windows)
+- Created scripts/copy-build-files.js with cross-platform Node.js file copying
+- Added start:pm2 script for PM2 deployment (was missing)
+- Fixed NODE_ENV environment variable setting on Windows using cross-env
+- Updated both start and start:pm2 scripts to use cross-env
+
+Stage Summary:
+- Build script now works on Windows, Linux, and macOS
+- PM2 deployment script added for production VPS
+- Environment variables work cross-platform using cross-env
+- All changes committed and pushed to GitHub
+
+Files Modified:
+1. package.json
+   - Updated build script to use node scripts/copy-build-files.js
+   - Added start:pm2 script
+   - Updated start and start:pm2 to use cross-env
+
+2. scripts/copy-build-files.js (new file)
+   - Cross-platform file copying using Node.js
+   - Copies .next/static to .next/standalone/.next/static
+   - Copies public to .next/standalone/public
+
