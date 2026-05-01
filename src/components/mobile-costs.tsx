@@ -819,7 +819,23 @@ export function MobileCosts() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base">Categories</CardTitle>
-                    <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+                    <Dialog
+                      open={categoryDialogOpen}
+                      onOpenChange={(open) => {
+                        setCategoryDialogOpen(open);
+                        if (!open) {
+                          setEditingCategory(null);
+                        } else if (open && !editingCategory) {
+                          setCategoryFormData({
+                            name: '',
+                            description: '',
+                            icon: '',
+                            sortOrder: '',
+                            isActive: true,
+                          });
+                        }
+                      }}
+                    >
                       <DialogTrigger asChild>
                         <Button size="sm" variant="outline" className="h-8">
                           <Plus className="h-3 w-3 mr-1" />
@@ -907,7 +923,17 @@ export function MobileCosts() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base">Costs</CardTitle>
-                    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                    <Dialog
+                      open={dialogOpen}
+                      onOpenChange={(open) => {
+                        setDialogOpen(open);
+                        if (!open) {
+                          setEditingCost(null);
+                        } else if (open && !editingCost) {
+                          resetForm();
+                        }
+                      }}
+                    >
                       <DialogTrigger asChild>
                         <Button size="sm" className="h-8">
                           <Plus className="h-3 w-3 mr-1" />

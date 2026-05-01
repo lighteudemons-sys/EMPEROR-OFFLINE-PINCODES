@@ -743,14 +743,7 @@ export default function CostManagement() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      setEditingCategory(null);
-                      setCategoryFormData({
-                        name: '',
-                        description: '',
-                        icon: '',
-                        sortOrder: '',
-                        isActive: true,
-                      });
+                      resetCategoryForm();
                     }}
                     className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
                   >
@@ -933,14 +926,7 @@ export default function CostManagement() {
             <DialogTrigger asChild>
               <Button
                 onClick={() => {
-                  setEditingCost(null);
-                  setFormData({
-                    branchId: '',
-                    costCategoryId: '',
-                    amount: '',
-                    period: '',
-                    notes: '',
-                  });
+                  resetForm();
                 }}
                 className="bg-gradient-to-r from-[#C7A35A] to-[#b88e3b] hover:from-[#b88e3b] hover:to-[#C7A35A] text-white"
               >
