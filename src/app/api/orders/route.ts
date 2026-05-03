@@ -248,7 +248,52 @@ export async function POST(request: NextRequest) {
       orderNumber,
       cardReferenceNumber,
       paymentMethodDetail,
+      idempotencyKey,
     } = validationResult.data;
+
+    // Check for duplicate order using idempotency key
+    if (idempotencyKey) {
+      console.log('[Order] Checking idempotency key:', idempotencyKey);
+
+      const existingKey = await db.idempotencyKey.findUnique({
+        where: { key: idempotencyKey },
+      });
+
+      if (existingKey) {
+        console.log('[Order] Duplicate order detected via idempotency key:', idempotencyKey);
+
+        // Return the existing order instead of creating a duplicate
+        const existingOrder = await db.order.findUnique({
+          where: { id: existingKey.key }, // Try to find by id (the key might be the order ID)
+        });
+
+        if (existingOrder) {
+          return NextResponse.json({
+            success: true,
+            order: {
+              id: existingOrder.id,
+              branchId: existingOrder.branchId,
+              orderNumber: existingOrder.orderNumber,
+              orderTimestamp: existingOrder.orderTimestamp.toISOString(),
+              totalAmount: existingOrder.totalAmount,
+              paymentMethod: existingOrder.paymentMethod,
+              message: 'Order already processed (idempotency)',
+            },
+            duplicate: true,
+          });
+        }
+
+        // If we have the key but can't find the order, still reject to prevent duplicates
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Duplicate order request',
+            message: 'This order was already processed',
+          },
+          { status: 409 } // 409 Conflict
+        );
+      }
+    }
 
     // Get next order number if not provided
     let finalOrderNumber = orderNumber;
@@ -587,6 +632,23 @@ export async function POST(request: NextRequest) {
     // Log order creation to audit logs
     const orderDetails = `Order #${order.order.orderNumber}, Total: ${totalAmount}, Payment: ${paymentMethod}`;
     await logOrderCreated(cashierId, order.order.id, orderDetails);
+
+    // Store idempotency key if provided to prevent duplicate orders
+    if (idempotencyKey) {
+      try {
+        await db.idempotencyKey.create({
+          data: {
+            key: idempotencyKey,
+            branchId,
+            processedAt: new Date(),
+          },
+        });
+        console.log('[Order] Idempotency key stored:', idempotencyKey);
+      } catch (idempotencyError) {
+        // Log error but don't fail the order
+        console.error('[Order] Failed to store idempotency key:', idempotencyError);
+      }
+    }
 
     // Update table status to OCCUPIED when a dine-in order is created with a tableId
     if (tableId && orderType === 'dine-in') {

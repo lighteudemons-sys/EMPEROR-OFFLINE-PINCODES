@@ -61,6 +61,15 @@ function formatVariantDisplay(item: CartItem, basePrice?: number): string {
   return `${roundedMultiplier}x (${weightInGrams}g)`;
 }
 
+// Helper function to generate UUID v4 for idempotency
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 // Helper function to check if any staff is clocked in (works in both online and offline modes)
 // Helper function to get today's date string in YYYY-MM-DD format
 function getTodayDateString(): string {
@@ -2596,6 +2605,9 @@ export default function POSInterface() {
         specialInstructions: item.note || null,
       }));
 
+      // Generate idempotency key to prevent duplicate orders
+      const idempotencyKey = generateUUID();
+
       const orderData: any = {
         branchId,
         orderType: 'dine-in',
@@ -2607,6 +2619,7 @@ export default function POSInterface() {
         cashierId: user?.id,
         tableId: selectedTable.id,
         shiftId: currentShift?.id,
+        idempotencyKey,
       };
 
       // Check actual network connectivity before trying API
@@ -2760,6 +2773,9 @@ export default function POSInterface() {
         specialInstructions: item.note || null,
       }));
 
+      // Generate idempotency key to prevent duplicate orders
+      const idempotencyKey = generateUUID();
+
       const orderData: any = {
         branchId,
         orderType: 'dine-in',
@@ -2773,6 +2789,7 @@ export default function POSInterface() {
         cashierId: user?.id,
         tableId: selectedTable.id,
         shiftId: currentShift?.id,
+        idempotencyKey,
       };
 
       // Check actual network connectivity before trying API
@@ -4515,6 +4532,9 @@ export default function POSInterface() {
         }
       }
 
+      // Generate idempotency key to prevent duplicate orders
+      const idempotencyKey = generateUUID();
+
       const orderData: any = {
         branchId,
         orderType,
@@ -4524,6 +4544,7 @@ export default function POSInterface() {
         total,
         paymentMethod,
         cashierId: user?.id,
+        idempotencyKey,
       };
 
       // Add card reference number if provided

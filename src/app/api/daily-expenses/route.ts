@@ -224,7 +224,16 @@ async function handleInventoryExpense(
   // Calculate weighted average price: (old_total + new_total) / (old_quantity + new_quantity)
   const oldTotalValue = oldStock * oldPrice;
   const newTotalValue = quantity * unitPrice;
-  const weightedAveragePrice = (oldTotalValue + newTotalValue) / newStock;
+
+  // Handle division by zero when newStock is 0
+  // Use the new unit price directly when we're starting from zero
+  let weightedAveragePrice;
+  if (newStock === 0) {
+    console.log('[Daily Expenses] New stock is 0, using new unit price directly');
+    weightedAveragePrice = unitPrice;
+  } else {
+    weightedAveragePrice = (oldTotalValue + newTotalValue) / newStock;
+  }
 
   console.log('[Daily Expenses] Price calculation:', {
     oldStock,
