@@ -146,11 +146,18 @@ export async function POST(request: NextRequest) {
         status: {
           in: [AttendanceStatus.PRESENT, AttendanceStatus.LATE], // Check for active status records
         },
-        clockOut: null, // Only active (not clocked out) attendance
-      },
+        clockIn: {
+          gte: new Date(todayDate), // Only check records from today onwards
+        },
       orderBy: {
         clockIn: 'desc', // Get the most recent one
       },
+    });
+
+    console.log('[Attendance] Clock-in check:', {
+      hasActive: !!existingActiveAttendance,
+      hasPreviousToday: !!previousTodayAttendance,
+      date: todayDate,
     });
 
     let attendance;
@@ -179,6 +186,41 @@ export async function POST(request: NextRequest) {
         },
       });
       console.log('[Attendance API] Updated existing attendance:', attendance);
+    } else if (previousTodayAttendance) {
+      // User has a completed attendance from today and is clocking in again
+      // MERGE: Update the previous attendance instead of creating a new one
+      // Reset clockOut to null and update clockIn to resume the day
+      console.log('[Attendance API] Found previous today attendance, merging:', previousTodayAttendance);
+
+      attendance = await db.attendance.update({
+        where: { id: previousTodayAttendance.id },
+        data: {
+          clockIn: new Date(), // Update clock in time to current time (new session)
+          clockOut: null, // Reset clock out - employee is working again
+          status: AttendanceStatus.PRESENT, // Reset to active status
+          notes: notes
+            ? `${notes}\n---\nResumed at: ${new Date().toLocaleTimeString()} (after previous clock-out at ${previousTodayAttendance.clockOut?.toLocaleTimeString()})`
+            : `Resumed at: ${new Date().toLocaleTimeString()} (after previous clock-out)`,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              role: true,
+              dailyRate: true,
+            },
+          },
+          branch: {
+            select: {
+              id: true,
+              branchName: true,
+            },
+          },
+        },
+      });
+      console.log('[Attendance API] Merged with previous attendance:', attendance);
     } else {
       // No active attendance, create new record
       // This handles multiple shifts in a day (after clocking out from previous shift)
