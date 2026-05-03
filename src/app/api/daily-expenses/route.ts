@@ -225,13 +225,25 @@ async function handleInventoryExpense(
   const oldTotalValue = oldStock * oldPrice;
   const newTotalValue = quantity * unitPrice;
 
-  // Handle division by zero when newStock is 0
-  // Use the new unit price directly when we're starting from zero
+  // Handle edge cases for price calculation:
+  // 1. If newStock is 0 or very close to 0 (epsilon for floating point), use the new unit price directly
+  // 2. If oldStock is negative (meaning we've sold more than we had), reset cost basis to new price
+  // 3. Handle floating point precision issues
+  const EPSILON = 0.0001; // Small value to handle floating point precision
+
   let weightedAveragePrice;
-  if (newStock === 0) {
-    console.log('[Daily Expenses] New stock is 0, using new unit price directly');
+  if (Math.abs(newStock) < EPSILON) {
+    // New stock is effectively zero (or negative but very close to zero)
+    // Use the new unit price directly as there's no existing stock to average with
+    console.log('[Daily Expenses] New stock is effectively 0, using new unit price directly');
+    weightedAveragePrice = unitPrice;
+  } else if (oldStock < 0) {
+    // Old stock was negative (we sold more than we had)
+    // Reset cost basis to the new purchase price
+    console.log('[Daily Expenses] Old stock was negative, resetting cost basis to new price');
     weightedAveragePrice = unitPrice;
   } else {
+    // Normal case: calculate weighted average
     weightedAveragePrice = (oldTotalValue + newTotalValue) / newStock;
   }
 
@@ -245,6 +257,21 @@ async function handleInventoryExpense(
     newStock,
     weightedAveragePrice,
   });
+
+  // Validate the calculated price - ensure it's a valid number
+  if (!isFinite(weightedAveragePrice) || isNaN(weightedAveragePrice) || weightedAveragePrice < 0) {
+    console.error('[Daily Expenses] Invalid weighted average price calculated:', {
+      weightedAveragePrice,
+      oldStock,
+      oldPrice,
+      quantity,
+      unitPrice,
+    });
+    // Fall back to the new unit price if calculation fails
+    weightedAveragePrice = unitPrice;
+  }
+
+  console.log('[Daily Expenses] Final validated price:', weightedAveragePrice);
 
   // Update branch inventory with branch-specific price
   branchInventory = await db.branchInventory.update({

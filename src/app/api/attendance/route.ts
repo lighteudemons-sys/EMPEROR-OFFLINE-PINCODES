@@ -149,6 +149,24 @@ export async function POST(request: NextRequest) {
         clockIn: {
           gte: new Date(todayDate), // Only check records from today onwards
         },
+      },
+      orderBy: {
+        clockIn: 'desc', // Get the most recent one
+      },
+    });
+
+    // Check for previous completed attendance today (ABSENT or clocked out)
+    const previousTodayAttendance = await db.attendance.findFirst({
+      where: {
+        userId,
+        branchId,
+        clockIn: {
+          gte: new Date(todayDate), // Only check records from today onwards
+        },
+        status: {
+          in: [AttendanceStatus.ABSENT],
+        },
+      },
       orderBy: {
         clockIn: 'desc', // Get the most recent one
       },

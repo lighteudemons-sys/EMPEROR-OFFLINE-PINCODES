@@ -4317,11 +4317,11 @@ export function MobilePOS() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCardPaymentDialog(false)}>
+            <Button variant="outline" onClick={() => setShowCardPaymentDialog(false)} disabled={processing}>
               Cancel
             </Button>
-            <Button onClick={handleCardPaymentSubmit} disabled={!cardReferenceNumber.trim()}>
-              Confirm Payment
+            <Button onClick={handleCardPaymentSubmit} disabled={!cardReferenceNumber.trim() || processing}>
+              {processing ? 'Processing...' : 'Confirm Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>
