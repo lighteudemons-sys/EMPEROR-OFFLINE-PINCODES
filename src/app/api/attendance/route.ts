@@ -135,7 +135,11 @@ export async function POST(request: NextRequest) {
     // Get user's date (YYYY-MM-DD) for checking same-day attendance
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayDate = today.toISOString().split('T')[0];
+    const todayDate = today.toISOString();
+
+    // Define a reasonable time window for "recent" active attendance (12 hours)
+    // This prevents treating old/stale orphaned records as "active"
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
 
     // Check if user already has an ACTIVE attendance (not clocked out)
     // This handles merging multiple clock-in attempts within the same shift
@@ -148,14 +152,18 @@ export async function POST(request: NextRequest) {
         },
         clockIn: {
           gte: new Date(todayDate), // Only check records from today onwards
+          gte: twelveHoursAgo, // AND must be recent (within last 12 hours)
         },
+        clockOut: null, // Must not have clocked out
       },
       orderBy: {
         clockIn: 'desc', // Get the most recent one
       },
     });
 
-    // Check for previous completed attendance today (ABSENT or clocked out)
+    // Check for previous completed attendance today (clocked out or ABSENT)
+    // We need to find attendance that was clocked out, not just ABSENT
+    // This prevents duplicate entries when clocking in after closing the shop at 3 AM
     const previousTodayAttendance = await db.attendance.findFirst({
       where: {
         userId,
@@ -163,8 +171,8 @@ export async function POST(request: NextRequest) {
         clockIn: {
           gte: new Date(todayDate), // Only check records from today onwards
         },
-        status: {
-          in: [AttendanceStatus.ABSENT],
+        clockOut: {
+          not: null, // Must have been clocked out
         },
       },
       orderBy: {

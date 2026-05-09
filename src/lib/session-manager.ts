@@ -19,7 +19,7 @@ export interface SessionData {
 }
 
 const SESSION_COOKIE_NAME = 'pos_session'
-const SESSION_DURATION = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
+const SESSION_DURATION = 24 * 60 * 60 * 1000 // 24 hours in milliseconds - supports long shifts
 
 /**
  * Generate a secure session token
