@@ -976,10 +976,10 @@ export function MobilePOS() {
   // Auto-sync when connection is restored
   useAutoSync(currentBranchId);
 
-  // Fetch current shift for cashiers and branch managers
+  // Fetch current shift for cashiers, branch managers, and admins
   useEffect(() => {
     const fetchCurrentShift = async () => {
-      if (!user || (user.role !== 'CASHIER' && user.role !== 'BRANCH_MANAGER')) {
+      if (!user || (user.role !== 'CASHIER' && user.role !== 'BRANCH_MANAGER' && user.role !== 'ADMIN')) {
         setCurrentShift(null);
         return;
       }

@@ -1191,10 +1191,10 @@ export default function POSInterface() {
   // Refresh shift when window/tab becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && user?.role === 'CASHIER') {
+      if (document.visibilityState === 'visible' && (user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER' || user?.role === 'ADMIN')) {
         const fetchCurrentShift = async () => {
           try {
-            const branchId = user.branchId;
+            const branchId = user.role === 'CASHIER' ? user.branchId : selectedBranch;
             if (!branchId) {
               setCurrentShift(null);
               return;
@@ -1269,7 +1269,7 @@ export default function POSInterface() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, user?.branchId]);
+  }, [user, user?.branchId, user?.role, selectedBranch]);
 
   // Set default branch for admin and branch manager
   useEffect(() => {
@@ -1287,10 +1287,10 @@ export default function POSInterface() {
   const currentBranchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
   useAutoSync(currentBranchId);
 
-  // Fetch current shift for cashiers and branch managers
+  // Fetch current shift for cashiers, branch managers, and admins
   useEffect(() => {
     const fetchCurrentShift = async () => {
-      if (!user || (user.role !== 'CASHIER' && user.role !== 'BRANCH_MANAGER')) {
+      if (!user || (user.role !== 'CASHIER' && user.role !== 'BRANCH_MANAGER' && user.role !== 'ADMIN')) {
         setCurrentShift(null);
         return;
       }
