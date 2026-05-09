@@ -997,7 +997,12 @@ export function MobilePOS() {
         const response = await fetch(`/api/shifts?${params.toString()}`);
         const data = await response.json();
         if (response.ok && data.shifts && data.shifts.length > 0) {
-          setCurrentShift(data.shifts[0]);
+          // For Branch Managers and Admins: Sort by createdAt (most recent first) to get the current active shift
+          // This prevents showing old shifts instead of the current one
+          const sortedShifts = data.shifts.sort((a: any, b: any) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          setCurrentShift(sortedShifts[0]);
         } else {
           const indexedDBStorage = getIndexedDBStorage();
           await indexedDBStorage.init();
