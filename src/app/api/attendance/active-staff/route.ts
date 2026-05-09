@@ -44,17 +44,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // For branches that operate past midnight, we need to check for active staff
-    // who may have clocked in yesterday (before midnight) but are still working today
-    // Check records from the last 24 hours to support overnight shifts
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Get TODAY's date (start of day in UTC to be consistent)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStart = today.toISOString();
 
-    // Find active staff (clocked in within last 24 hours, not clocked out)
+    // Find active staff - clocked in TODAY and not clocked out
+    // Using todayStart instead of 24 hours to avoid counting orphaned records from yesterday
     const activeStaff = await db.attendance.findMany({
       where: {
         branchId,
         clockIn: {
-          gte: twentyFourHoursAgo, // Within last 24 hours
+          gte: new Date(todayStart), // Only check records from TODAY onwards
         },
         clockOut: null, // Must not have clocked out
         user: {

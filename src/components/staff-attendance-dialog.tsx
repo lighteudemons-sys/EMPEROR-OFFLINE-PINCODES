@@ -168,11 +168,9 @@ export default function StaffAttendanceDialog({
 
         // Auto-select based on mode
         if (mode === 'clock-in') {
-          // Pre-select staff who are already clocked in and not clocked out
-          const alreadyClockedIn = staffMembers
-            .filter((staff) => attendanceMap[staff.id] && !attendanceMap[staff.id].clockOut)
-            .map((staff) => staff.id);
-          setSelectedStaffIds(new Set(alreadyClockedIn));
+          // In clock-in mode, do NOT auto-select anyone
+          // Staff must be manually selected for clock-in
+          setSelectedStaffIds(new Set());
         } else {
           // In clock-out mode, select all currently clocked-in staff
           const clockedInStaff = staffMembers
