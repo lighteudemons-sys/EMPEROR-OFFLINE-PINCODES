@@ -1201,9 +1201,12 @@ export default function POSInterface() {
             }
             const params = new URLSearchParams({
               branchId,
-              cashierId: user.id,
               status: 'open',
             });
+            // Only filter by cashierId for CASHIER role
+            if (user.role === 'CASHIER') {
+              params.append('cashierId', user.id);
+            }
             const response = await fetch(`/api/shifts?${params.toString()}`);
             const data = await response.json();
             if (response.ok && data.shifts && data.shifts.length > 0) {
@@ -1299,9 +1302,13 @@ export default function POSInterface() {
       try {
         const params = new URLSearchParams({
           branchId,
-          cashierId: user.id,
           status: 'open',
         });
+        // Only filter by cashierId for CASHIER role
+        // Branch Managers and Admins should see all shifts in their branch
+        if (user.role === 'CASHIER') {
+          params.append('cashierId', user.id);
+        }
         const response = await fetch(`/api/shifts?${params.toString()}`);
         const data = await response.json();
         if (response.ok && data.shifts && data.shifts.length > 0) {
@@ -1317,14 +1324,20 @@ export default function POSInterface() {
           const indexedDBStorage = getIndexedDBStorage();
           await indexedDBStorage.init();
           const allShifts = await indexedDBStorage.getAllShifts();
-          
-          // Find shifts for this cashier and branch, sorted by createdAt (most recent first)
+
+          // Find shifts for this branch, sorted by createdAt (most recent first)
+          // For CASHIER role: only show their own shifts
+          // For BRANCH_MANAGER and ADMIN: show all shifts in the branch
           const userShifts = allShifts
-            .filter((s: any) => s.cashierId === user.id && s.branchId === branchId)
+            .filter((s: any) => {
+              const matchesBranch = s.branchId === branchId;
+              const matchesCashier = user.role === 'CASHIER' ? s.cashierId === user.id : true;
+              return matchesBranch && matchesCashier;
+            })
             .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          
+
           console.log('[POS] Found shifts for current user:', userShifts.length);
-          
+
           if (userShifts.length > 0) {
             // Use the most recently created shift (whether open or closed)
             const mostRecentShift = userShifts[0];
@@ -1343,14 +1356,20 @@ export default function POSInterface() {
           const indexedDBStorage = getIndexedDBStorage();
           await indexedDBStorage.init();
           const allShifts = await indexedDBStorage.getAllShifts();
-          
-          // Find shifts for this cashier and branch, sorted by createdAt (most recent first)
+
+          // Find shifts for this branch, sorted by createdAt (most recent first)
+          // For CASHIER role: only show their own shifts
+          // For BRANCH_MANAGER and ADMIN: show all shifts in the branch
           const userShifts = allShifts
-            .filter((s: any) => s.cashierId === user.id && s.branchId === branchId)
+            .filter((s: any) => {
+              const matchesBranch = s.branchId === branchId;
+              const matchesCashier = user.role === 'CASHIER' ? s.cashierId === user.id : true;
+              return matchesBranch && matchesCashier;
+            })
             .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          
+
           console.log('[POS] Found shifts for current user (error path):', userShifts.length);
-          
+
           if (userShifts.length > 0) {
             // Use the most recently created shift (whether open or closed)
             const mostRecentShift = userShifts[0];

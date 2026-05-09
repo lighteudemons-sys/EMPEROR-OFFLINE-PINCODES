@@ -991,15 +991,19 @@ export function MobilePOS() {
       try {
         const params = new URLSearchParams({
           branchId,
-          cashierId: user.id,
           status: 'open',
         });
+        // Only filter by cashierId for CASHIER role
+        // Branch Managers and Admins should see all shifts in their branch
+        if (user.role === 'CASHIER') {
+          params.append('cashierId', user.id);
+        }
         const response = await fetch(`/api/shifts?${params.toString()}`);
         const data = await response.json();
         if (response.ok && data.shifts && data.shifts.length > 0) {
           // For Branch Managers and Admins: Sort by createdAt (most recent first) to get the current active shift
           // This prevents showing old shifts instead of the current one
-          const sortedShifts = data.shifts.sort((a: any, b: any) => 
+          const sortedShifts = data.shifts.sort((a: any, b: any) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
           setCurrentShift(sortedShifts[0]);
@@ -1007,8 +1011,16 @@ export function MobilePOS() {
           const indexedDBStorage = getIndexedDBStorage();
           await indexedDBStorage.init();
           const allShifts = await indexedDBStorage.getAllShifts();
+
+          // Find shifts for this branch, sorted by createdAt (most recent first)
+          // For CASHIER role: only show their own shifts
+          // For BRANCH_MANAGER and ADMIN: show all shifts in the branch
           const userShifts = allShifts
-            .filter((s: any) => s.cashierId === user.id && s.branchId === branchId)
+            .filter((s: any) => {
+              const matchesBranch = s.branchId === branchId;
+              const matchesCashier = user.role === 'CASHIER' ? s.cashierId === user.id : true;
+              return matchesBranch && matchesCashier;
+            })
             .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
           if (userShifts.length > 0) {
