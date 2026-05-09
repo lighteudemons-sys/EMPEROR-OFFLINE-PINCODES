@@ -1605,11 +1605,13 @@ export function MobilePOS() {
 
     setLoadingShiftOrders(true);
     try {
-      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+      // Use currentShift.branchId for filtering to ensure we get orders from the correct branch
+      // This is important for Branch Managers viewing cashiers' shifts
+      const branchId = currentShift.branchId;
       let orders: any[] = [];
 
       try {
-        const response = await fetch(`/api/orders?shiftId=${currentShift.id}`);
+        const response = await fetch(`/api/orders?shiftId=${currentShift.id}&branchId=${branchId}`);
         if (response.ok) {
           const data = await response.json();
           orders = data.orders || [];
@@ -1782,8 +1784,10 @@ export function MobilePOS() {
     try {
       console.log('[Shift Expenses] Loading expenses for shift:', currentShift.id);
 
+      // Use currentShift.branchId for filtering to ensure we get expenses from the correct branch
+      // This is important for Branch Managers viewing cashiers' shifts
       let expenses: any[] = [];
-      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+      const branchId = currentShift.branchId;
 
       try {
         const response = await fetch(`/api/daily-expenses?shiftId=${currentShift.id}&branchId=${branchId}`);

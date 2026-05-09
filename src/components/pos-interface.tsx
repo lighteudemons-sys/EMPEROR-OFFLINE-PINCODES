@@ -3482,7 +3482,9 @@ export default function POSInterface() {
     try {
       // Try to fetch from API first
       let orders: any[] = [];
-      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+      // Use currentShift.branchId for filtering to ensure we get orders from the correct branch
+      // This is important for Branch Managers viewing cashiers' shifts
+      const branchId = currentShift.branchId;
 
       try {
         const response = await fetch(`/api/orders?shiftId=${currentShift.id}&branchId=${branchId}`);
@@ -3533,7 +3535,9 @@ export default function POSInterface() {
 
       // Try to fetch from API first (online mode)
       let expenses: any[] = [];
-      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+      // Use currentShift.branchId for filtering to ensure we get expenses from the correct branch
+      // This is important for Branch Managers viewing cashiers' shifts
+      const branchId = currentShift.branchId;
 
       try {
         const response = await fetch(`/api/daily-expenses?shiftId=${currentShift.id}&branchId=${branchId}`);
