@@ -123,13 +123,14 @@ export default function StaffAttendanceDialog({
 
         setStaffList(staffMembers);
 
-        // Fetch today's attendance
+        // Fetch active attendance (handles overnight shifts)
         const attendanceMap: Record<string, TodayAttendance> = {};
 
         // Try to get from IndexedDB first
         for (const staff of staffMembers) {
           try {
-            const offlineAttendance = await storage.getTodayAttendance(staff.id, branchId);
+            // Use getActiveAttendance to handle overnight shifts (past 12 AM)
+            const offlineAttendance = await storage.getActiveAttendance(staff.id, branchId);
             if (offlineAttendance) {
               attendanceMap[staff.id] = offlineAttendance;
             }

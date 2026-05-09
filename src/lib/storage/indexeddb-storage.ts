@@ -682,6 +682,32 @@ class IndexedDBStorage {
     }
   }
 
+  async getActiveAttendance(userId: string, branchId: string): Promise<any | null> {
+    try {
+      const allAttendances = await this.getAllAttendances();
+
+      // Define a 24-hour window for active attendance
+      // This handles overnight shifts (e.g., clocked in at 11 PM, now 2 AM next day)
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      // Find the most recent attendance that:
+      // 1. Is within the last 24 hours
+      // 2. Has not clocked out yet
+      // 3. Matches the user and branch
+      return allAttendances
+        .filter((a: any) =>
+          a.userId === userId &&
+          a.branchId === branchId &&
+          !a.clockOut && // Not clocked out
+          new Date(a.clockIn) >= twentyFourHoursAgo // Within last 24 hours
+        )
+        .sort((a: any, b: any) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime())[0] || null;
+    } catch (error) {
+      console.error('[IndexedDBStorage] Error getting active attendance:', error);
+      return null;
+    }
+  }
+
   async deleteAttendance(id: string): Promise<void> {
     try {
       await this.delete('attendances', id);

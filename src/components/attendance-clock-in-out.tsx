@@ -32,9 +32,10 @@ export default function AttendanceClockInOut({ branchId }: { branchId: string })
     const fetchTodayAttendance = async () => {
       try {
         setLoading(true);
-        
+
         // Try to get from IndexedDB first (offline)
-        const offlineAttendance = await storage.getTodayAttendance(user.id, branchId);
+        // Use getActiveAttendance to handle overnight shifts (past 12 AM)
+        const offlineAttendance = await storage.getActiveAttendance(user.id, branchId);
         if (offlineAttendance) {
           setTodayAttendance(offlineAttendance);
         }
@@ -115,7 +116,8 @@ export default function AttendanceClockInOut({ branchId }: { branchId: string })
             // Refresh current user's attendance after marking staff (for cashiers)
             const fetchTodayAttendance = async () => {
               try {
-                const offlineAttendance = await storage.getTodayAttendance(user.id, branchId);
+                // Use getActiveAttendance to handle overnight shifts (past 12 AM)
+                const offlineAttendance = await storage.getActiveAttendance(user.id, branchId);
                 if (offlineAttendance) {
                   setTodayAttendance(offlineAttendance);
                 }
@@ -193,7 +195,8 @@ export default function AttendanceClockInOut({ branchId }: { branchId: string })
           // Refresh current user's attendance after marking staff (for cashiers)
           const fetchTodayAttendance = async () => {
             try {
-              const offlineAttendance = await storage.getTodayAttendance(user.id, branchId);
+              // Use getActiveAttendance to handle overnight shifts (past 12 AM)
+              const offlineAttendance = await storage.getActiveAttendance(user.id, branchId);
               if (offlineAttendance) {
                 setTodayAttendance(offlineAttendance);
               }
