@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's date (YYYY-MM-DD) for checking same-day attendance
+    const now = new Date();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayDate = today.toISOString();
@@ -161,24 +162,42 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Check for previous completed attendance today (clocked out or ABSENT)
-    // We need to find attendance that was clocked out, not just ABSENT
-    // This prevents duplicate entries when clocking in after closing the shop at 3 AM
-    const previousTodayAttendance = await db.attendance.findFirst({
+    // Check for the MOST RECENT clocked-out attendance
+    // This helps distinguish between resuming a shift vs starting a new one
+    const mostRecentClockedOut = await db.attendance.findFirst({
       where: {
         userId,
         branchId,
-        clockIn: {
-          gte: new Date(todayDate), // Only check records from today onwards
-        },
         clockOut: {
           not: null, // Must have been clocked out
         },
       },
       orderBy: {
-        clockIn: 'desc', // Get the most recent one
+        clockIn: 'desc', // Get the most recent clocked-out
       },
     });
+
+    // Check for previous completed attendance today (clocked out or ABSENT)
+    // Check for previous completed attendance (clocked out)
+    // This prevents duplicate entries when clocking in after closing at 3 AM
+    // Only consider resuming if most recent clocked-out is RECENT (within 12 hours)
+    let previousTodayAttendance = null;
+
+    if (mostRecentClockedOut) {
+      // Check if most recent clocked-out was recent (within 12 hours)
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      const isRecent = mostRecentClockedOut.clockIn && new Date(mostRecentClockedOut.clockIn) >= twelveHoursAgo;
+
+      if (isRecent) {
+        // Recent clocked-out - user is resuming the same shift/day
+        console.log('[Attendance API] Found recent clocked-out, will resume:', mostRecentClockedOut);
+        previousTodayAttendance = mostRecentClockedOut;
+      } else {
+        // Old clocked-out (from previous day/shift) - ignore, start fresh
+        console.log('[Attendance API] Old clocked-out found, will create new record');
+        previousTodayAttendance = null;
+      }
+    }
 
     console.log('[Attendance] Clock-in check:', {
       hasActive: !!existingActiveAttendance,
