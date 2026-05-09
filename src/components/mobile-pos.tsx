@@ -2053,6 +2053,45 @@ export function MobilePOS() {
     }
   };
 
+  // Delete daily expense
+  const handleDeleteExpense = async (expenseId: string, expenseRecordedBy: string) => {
+    // Check permissions: BRANCH_MANAGER, ADMIN, or own expense
+    const canDelete = user?.role === 'BRANCH_MANAGER' || user?.role === 'ADMIN' || user?.id === expenseRecordedBy;
+
+    if (!canDelete) {
+      alert('You do not have permission to delete this expense. Only Branch Managers, Admins, or the user who created the expense can delete it.');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to delete this expense? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/daily-expenses/${expenseId}?currentUserId=${user.id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Remove expense from local state
+        setShiftExpenses(prev => prev.filter(exp => exp.id !== expenseId));
+        // Update daily expenses total
+        const deletedExpense = shiftExpenses.find(exp => exp.id === expenseId);
+        if (deletedExpense && deletedExpense.category !== 'INVENTORY') {
+          setCurrentDailyExpenses(prev => Math.max(0, prev - (deletedExpense.amount || 0)));
+        }
+        alert('Expense deleted successfully');
+      } else {
+        alert(data.error || 'Failed to delete expense');
+      }
+    } catch (error) {
+      console.error('Failed to delete expense:', error);
+      alert('Failed to delete expense');
+    }
+  };
+
   // Load held orders on component mount
   useEffect(() => {
     loadHeldOrders();
@@ -4709,13 +4748,26 @@ export function MobilePOS() {
                             </div>
                           )}
                           <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                            <div className="text-xs text-slate-500 dark:text-slate-500">
-                              {new Date(expense.createdAt).toLocaleString()}
+                            <div className="flex items-center gap-3">
+                              <div className="text-xs text-slate-500 dark:text-slate-500">
+                                {new Date(expense.createdAt).toLocaleString()}
+                              </div>
+                              {expense.recorder?.name && (
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  By: {expense.recorder.name}
+                                </span>
+                              )}
                             </div>
-                            {expense.recorder?.name && (
-                              <span className="text-xs text-slate-600 dark:text-slate-400">
-                                By: {expense.recorder.name}
-                              </span>
+                            {/* Delete button - only for BRANCH_MANAGER, ADMIN, or own expense */}
+                            {(user?.role === 'BRANCH_MANAGER' || user?.role === 'ADMIN' || user?.id === expense.recordedBy) && (
+                              <Button
+                                onClick={() => handleDeleteExpense(expense.id, expense.recordedBy)}
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             )}
                           </div>
                         </CardContent>
