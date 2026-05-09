@@ -10,10 +10,19 @@ import { UserRole } from '@prisma/client';
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const expenseId = params.id;
+    const { id: expenseId } = await params;
+
+    // Validate expense ID
+    if (!expenseId) {
+      return NextResponse.json(
+        { error: 'Expense ID is required' },
+        { status: 400 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const currentUserId = searchParams.get('currentUserId');
 
