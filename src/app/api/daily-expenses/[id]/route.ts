@@ -56,6 +56,16 @@ export async function DELETE(
     // 1. BRANCH_MANAGER and ADMIN can delete any expense in their branch
     // 2. Users can only delete their own expenses
     // 3. Shift must be open (not closed)
+
+    console.log('[Daily Expense Delete] Permission check:', {
+      currentUserRole: currentUser.role,
+      currentUserId: currentUser.id,
+      currentUserBranchId: currentUser.branchId || currentUser.branch?.id,
+      expenseBranchId: expense.branchId,
+      expenseRecordedBy: expense.recordedBy,
+      expenseShiftId: expense.shiftId,
+    });
+
     const canDelete =
       currentUser.role === UserRole.ADMIN ||
       (currentUser.role === UserRole.BRANCH_MANAGER &&
@@ -74,6 +84,7 @@ export async function DELETE(
 
     // Check if shift is still open
     if (expense.shift && expense.shift.isClosed) {
+      console.log('[Daily Expense Delete] Shift is closed:', expense.shiftId);
       return NextResponse.json(
         {
           error: 'Cannot delete expense from a closed shift',
@@ -95,8 +106,13 @@ export async function DELETE(
           where: { id: expense.costId },
         });
         console.log('[Daily Expense Delete] Deleted associated BranchCost:', expense.costId);
-      } catch (costError) {
+      } catch (costError: any) {
         console.error('[Daily Expense Delete] Failed to delete BranchCost:', costError);
+        console.error('[Daily Expense Delete] BranchCost error details:', {
+          costId: expense.costId,
+          errorMessage: costError.message,
+          errorCode: costError.code,
+        });
         // Don't fail the deletion if cost deletion fails
       }
     }

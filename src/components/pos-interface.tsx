@@ -33,6 +33,7 @@ import { useAutoSync } from '@/hooks/use-auto-sync';
 import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import TableGridView from '@/components/table-grid-view';
 import ClockInOutButton from '@/components/attendance-clock-in-out';
+import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
 
 // Create IndexedDB storage instance for table cart persistence
 const storage = getIndexedDBStorage();
