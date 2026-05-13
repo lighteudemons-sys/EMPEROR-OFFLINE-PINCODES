@@ -254,7 +254,7 @@ export default function CreditManagement({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] max-h-[98vh] overflow-hidden p-0 bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <DialogContent className="!w-[95vw] !max-w-[95vw] !h-[98vh] !max-h-[98vh] !p-0 !m-0 !rounded-xl bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 overflow-hidden">
         {/* Header with Gradient Background */}
         <div className="relative bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNSAzNUwzNSA2M0wwIDYzTDIwIDM1TDIwIDBMMzUgMzV6IiBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L2c+PC9zdmc+')] opacity-10"></div>
@@ -296,7 +296,7 @@ export default function CreditManagement({
             </div>
           </div>
         ) : (
-          <ScrollArea className="h-[calc(98vh-250px)]">
+          <ScrollArea className="!h-[calc(98vh-200px)]">
             <div className="p-8 space-y-8">
               {/* Credit Summary Cards - Premium Design */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -603,7 +603,7 @@ export default function CreditManagement({
 
         {/* Payment Dialog - Premium Design */}
         <Dialog open={showAddPayment} onOpenChange={setShowAddPayment}>
-          <DialogContent className="max-w-2xl border-0 shadow-2xl">
+          <DialogContent className="!w-[70vw] !max-w-[70vw] border-0 shadow-2xl">
             <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-8 -m-8 mb-8 rounded-t-xl">
               <DialogHeader>
                 <div className="flex items-center gap-4">
@@ -687,7 +687,7 @@ export default function CreditManagement({
 
         {/* Adjustment Dialog - Premium Design */}
         <Dialog open={showAddAdjustment} onOpenChange={setShowAddAdjustment}>
-          <DialogContent className="max-w-2xl border-0 shadow-2xl">
+          <DialogContent className="!w-[70vw] !max-w-[70vw] border-0 shadow-2xl">
             <div className="bg-gradient-to-r from-violet-500 to-purple-600 text-white p-8 -m-8 mb-8 rounded-t-xl">
               <DialogHeader>
                 <div className="flex items-center gap-4">
