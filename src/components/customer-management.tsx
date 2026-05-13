@@ -459,7 +459,14 @@ export default function CustomerManagement() {
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto h-11">
+                <Button 
+                  className="w-full sm:w-auto h-11"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setSelectedCustomer(null);
+                    resetForms();
+                  }}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Customer
                 </Button>
@@ -511,7 +518,8 @@ export default function CustomerManagement() {
                     </div>
 
                     {/* B2B Settings Section for ETA E-Invoice */}
-                    <Separator />\n                    <div className="space-y-3">
+                    <Separator />
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <Label className="text-base font-semibold flex items-center gap-2">
                           <Store className="h-4 w-4" />
