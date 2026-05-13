@@ -16,10 +16,11 @@ import {
   Users, Plus, Search, Edit, Trash2, Phone, Mail, MapPin, Package,
   Store, X, AlertCircle, CheckCircle, Clock, TrendingUp, Calendar,
   MoreHorizontal, ChevronDown, ChevronUp, UserPlus, Home, User, Star, Trophy,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Wallet
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
+import CreditManagement from '@/components/credit-management';
 
 interface Customer {
   id: string;
@@ -43,6 +44,7 @@ interface Customer {
   billingAddress?: string | null;
   paymentTerms?: string | null;
   creditLimit?: number | null;
+  creditBalance?: number;
 }
 
 interface CustomerAddress {
@@ -79,6 +81,8 @@ export default function CustomerManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
+  const [creditManagementOpen, setCreditManagementOpen] = useState(false);
+  const [selectedCreditCustomer, setSelectedCreditCustomer] = useState<{ id: string; name: string } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -924,6 +928,20 @@ export default function CustomerManagement() {
                         </div>
 
                         <div className="flex gap-2 sm:flex-col">
+                          {(customer.customerType === 'B2B' || customer.customerType === 'BOTH') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedCreditCustomer({ id: customer.id, name: customer.name });
+                                setCreditManagementOpen(true);
+                              }}
+                              className="h-11 w-11 sm:w-auto sm:h-9 px-3 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                              title="Manage Credit"
+                            >
+                              <Wallet className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
@@ -1165,6 +1183,20 @@ export default function CustomerManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Credit Management Dialog */}
+      {selectedCreditCustomer && (
+        <CreditManagement
+          customerId={selectedCreditCustomer.id}
+          customerName={selectedCreditCustomer.name}
+          isOpen={creditManagementOpen}
+          onClose={() => {
+            setCreditManagementOpen(false);
+            setSelectedCreditCustomer(null);
+          }}
+          userId={user?.id}
+        />
+      )}
     </div>
   );
 }

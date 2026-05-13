@@ -849,10 +849,12 @@ model Customer {
   billingAddress         String?              // Separate billing address for B2B
   paymentTerms           String?              // e.g., "NET 30", "COD"
   creditLimit            Float?               // Credit limit for B2B customers
+  creditBalance          Float                @default(0) // Current outstanding credit balance
   
   branch                 Branch?              @relation(fields: [branchId], references: [id])
   addresses              CustomerAddress[]
   loyaltyTransactions    LoyaltyTransaction[]
+  creditTransactions     CreditTransaction[]  // Credit transaction history
   orders                 Order[]
   tables                 Table[]
 
@@ -1033,6 +1035,33 @@ model LoyaltyTransaction {
   customer   Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
+  @@index([createdAt])
+}
+
+enum CreditTransactionType {
+  CREDIT_PURCHASE      // Purchase made on credit (adds to balance)
+  CREDIT_PAYMENT       // Payment received against credit (reduces balance)
+  CREDIT_ADJUSTMENT    // Manual adjustment to credit balance
+  CREDIT_REFUND        // Refund issued that affects credit balance
+}
+
+model CreditTransaction {
+  id              String                @id @default(cuid())
+  customerId      String
+  amount          Float                 // Transaction amount (positive for adding to balance, negative for reducing)
+  type            CreditTransactionType
+  orderId         String?               // Related order if applicable
+  referenceNumber String?               // Payment reference or invoice number
+  notes           String?               // Transaction notes
+  previousBalance Float                 // Balance before this transaction
+  newBalance      Float                 // Balance after this transaction
+  createdBy       String                // User who recorded this transaction
+  createdAt       DateTime              @default(now())
+  customer        Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([orderId])
+  @@index([type])
   @@index([createdAt])
 }
 

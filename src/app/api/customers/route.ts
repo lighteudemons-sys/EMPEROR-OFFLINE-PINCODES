@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
       billingAddress: customer.billingAddress || null,
       paymentTerms: customer.paymentTerms || null,
       creditLimit: customer.creditLimit || null,
+      creditBalance: customer.creditBalance || 0,
       addresses: customer.addresses.map((addr) => ({
         id: addr.id,
         customerId: customer.id,
