@@ -9,8 +9,23 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Package, Utensils, Search, AlertCircle, Layers, X, ChevronRight } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  Plus,
+  Trash2,
+  Package,
+  Utensils,
+  Search,
+  AlertCircle,
+  Layers,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Edit,
+  Sparkles,
+  MoreVertical,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface MenuItem {
   id: string;
@@ -56,7 +71,7 @@ interface Recipe {
 interface RecipeIngredient {
   ingredientId: string;
   quantityRequired: string;
-  inputUnit: string; // The unit user is entering in
+  inputUnit: string;
 }
 
 interface RecipeFormData {
@@ -65,16 +80,12 @@ interface RecipeFormData {
   ingredients: RecipeIngredient[];
 }
 
-// Unit conversion system with proper base units and conversion factors
-// Base units: weight = 'g', volume = 'ml'
+// Unit conversion system
 const UNIT_CONVERSIONS: Record<string, { unitType: string; toBase: number; displayUnits: string[] }> = {
-  // Weight units (base: grams)
   'kg': { unitType: 'weight', toBase: 1000, displayUnits: ['kg', 'g'] },
   'g': { unitType: 'weight', toBase: 1, displayUnits: ['g', 'kg'] },
   'gram': { unitType: 'weight', toBase: 1, displayUnits: ['g', 'kg'] },
   'kilogram': { unitType: 'weight', toBase: 1000, displayUnits: ['kg', 'g'] },
-
-  // Volume units (base: milliliters)
   'l': { unitType: 'volume', toBase: 1000, displayUnits: ['l', 'ml'] },
   'L': { unitType: 'volume', toBase: 1000, displayUnits: ['l', 'ml'] },
   'liter': { unitType: 'volume', toBase: 1000, displayUnits: ['l', 'ml'] },
@@ -82,22 +93,12 @@ const UNIT_CONVERSIONS: Record<string, { unitType: string; toBase: number; displ
   'ml': { unitType: 'volume', toBase: 1, displayUnits: ['ml', 'l'] },
   'milliliter': { unitType: 'volume', toBase: 1, displayUnits: ['ml', 'l'] },
   'millilitre': { unitType: 'volume', toBase: 1, displayUnits: ['ml', 'l'] },
-
-  // Count units (base: unit)
   'piece': { unitType: 'count', toBase: 1, displayUnits: ['piece'] },
   'pieces': { unitType: 'count', toBase: 1, displayUnits: ['piece'] },
   'unit': { unitType: 'count', toBase: 1, displayUnits: ['unit'] },
   'units': { unitType: 'count', toBase: 1, displayUnits: ['unit'] },
 };
 
-// Base unit names for display
-const BASE_UNIT_NAMES: Record<string, string> = {
-  weight: 'g',
-  volume: 'ml',
-  count: 'unit',
-};
-
-// Get unit conversion info
 function getUnitConversion(unit: string) {
   const unitKey = unit.toLowerCase().trim();
   return UNIT_CONVERSIONS[unitKey] || {
@@ -107,29 +108,24 @@ function getUnitConversion(unit: string) {
   };
 }
 
-// Convert quantity from input unit to ingredient's unit
 function convertToIngredientUnit(quantity: number, inputUnit: string, ingredientUnit: string): number {
   const inputConversion = getUnitConversion(inputUnit);
   const ingredientConversion = getUnitConversion(ingredientUnit);
 
-  // If same unit, no conversion needed
   if (inputUnit.toLowerCase() === ingredientUnit.toLowerCase()) {
     return quantity;
   }
 
-  // If different unit types, no conversion possible
   if (inputConversion.unitType !== ingredientConversion.unitType) {
     return quantity;
   }
 
-  // Convert: input → base unit → ingredient unit
   const quantityInBase = quantity * inputConversion.toBase;
   const quantityInTarget = quantityInBase / ingredientConversion.toBase;
-  
+
   return quantityInTarget;
 }
 
-// Get display units for an ingredient
 function getDisplayUnits(ingredientUnit: string): string[] {
   const conversion = getUnitConversion(ingredientUnit);
   return conversion.displayUnits;
@@ -140,9 +136,9 @@ export default function RecipeManagement() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMenuItemId, setSelectedMenuItemId] = useState<string>('all');
-  const [selectedVariantId, setSelectedVariantId] = useState<string>('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState<RecipeFormData>({
     menuItemId: '',
     menuItemVariantId: '',
@@ -194,7 +190,6 @@ export default function RecipeManagement() {
     return ingredients.find((i) => i.id === ingredientId);
   };
 
-  // Add a new ingredient line to the form
   const addIngredientLine = () => {
     setFormData({
       ...formData,
@@ -209,7 +204,6 @@ export default function RecipeManagement() {
     });
   };
 
-  // Remove an ingredient line from the form
   const removeIngredientLine = (index: number) => {
     const newIngredients = formData.ingredients.filter((_, i) => i !== index);
     setFormData({
@@ -218,12 +212,10 @@ export default function RecipeManagement() {
     });
   };
 
-  // Update an ingredient line
   const updateIngredientLine = (index: number, field: keyof RecipeIngredient, value: string) => {
     const newIngredients = [...formData.ingredients];
 
     if (field === 'ingredientId') {
-      // When ingredient changes, reset quantity and set default input unit
       const ingredient = getIngredientInfo(value);
       const displayUnits = ingredient ? getDisplayUnits(ingredient.unit) : [ingredient?.unit || ''];
       newIngredients[index] = {
@@ -245,7 +237,6 @@ export default function RecipeManagement() {
     });
   };
 
-  // Validate form
   const validateForm = () => {
     if (!formData.menuItemId) {
       return 'Please select a menu item';
@@ -268,10 +259,9 @@ export default function RecipeManagement() {
       }
     }
 
-    return null; // No errors
+    return null;
   };
 
-  // Submit the recipe with multiple ingredients
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -287,12 +277,10 @@ export default function RecipeManagement() {
       const menuItem = menuItems.find((i) => i.id === formData.menuItemId);
       const shouldIncludeVariantId = menuItem?.hasVariants && formData.menuItemVariantId && formData.menuItemVariantId !== 'base';
 
-      // Create all recipe lines in parallel
       const recipePromises = formData.ingredients.map(async (ing) => {
         const ingredient = getIngredientInfo(ing.ingredientId);
         if (!ingredient) return null;
 
-        // Convert quantity from input unit to ingredient's unit
         const quantityInIngredientUnit = convertToIngredientUnit(
           parseFloat(ing.quantityRequired),
           ing.inputUnit,
@@ -366,15 +354,9 @@ export default function RecipeManagement() {
     setFormData({
       ...formData,
       menuItemId,
-      menuItemVariantId: '', // Reset variant when menu item changes
-      ingredients: [], // Clear ingredients when menu item changes
+      menuItemVariantId: '',
+      ingredients: [],
     });
-  };
-
-  const getMenuItemName = (menuItemId: string) => {
-    const item = menuItems.find((i) => i.id === menuItemId);
-    if (!item) return 'Unknown';
-    return item.category ? `${item.name} (${item.category})` : item.name;
   };
 
   const getMenuItemNameWithCategory = (item: MenuItem) => {
@@ -386,45 +368,21 @@ export default function RecipeManagement() {
     return ingredient?.name || 'Unknown';
   };
 
-  const getIngredientUnit = (ingredientId: string) => {
-    const ingredient = ingredients.find((i) => i.id === ingredientId);
-    return ingredient?.unit || 'units';
-  };
-
   const getVariantName = (recipe: Recipe) => {
     if (!recipe.variant) return 'Base Item';
     return `${recipe.variant.variantType.name}: ${recipe.variant.variantOption.name}`;
   };
 
-  const filteredRecipes = recipes.filter((recipe) => {
-    const menuItem = menuItems.find((i) => i.id === recipe.menuItemId);
-    const matchesSearch = menuItem?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         getIngredientName(recipe.ingredientId).toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesMenuItem = selectedMenuItemId === 'all' || recipe.menuItemId === selectedMenuItemId;
-    const matchesVariant = selectedVariantId === 'all' ||
-                          (selectedVariantId === 'base' && recipe.menuItemVariantId === null) ||
-                          recipe.menuItemVariantId === selectedVariantId;
-    return matchesSearch && matchesMenuItem && matchesVariant;
-  });
-
-  const availableVariants = selectedMenuItemId !== 'all'
-    ? (menuItems.find((i) => i.id === selectedMenuItemId)?.variants || [])
-    : [];
-
-  // Get converted quantity display
   const getConvertedQuantityDisplay = (ing: RecipeIngredient, index: number) => {
     const ingredient = getIngredientInfo(ing.ingredientId);
     if (!ingredient || !ing.quantityRequired || !ing.inputUnit) return null;
 
-    // Check if input unit matches the ingredient's unit (case-insensitive)
     const unitsMatch = ing.inputUnit.toLowerCase() === ingredient.unit.toLowerCase();
 
-    // If units match, don't show conversion
     if (unitsMatch) {
       return null;
     }
 
-    // Convert and show the result in ingredient's unit
     const quantity = parseFloat(ing.quantityRequired);
     const quantityInIngredientUnit = convertToIngredientUnit(quantity, ing.inputUnit, ingredient.unit);
 
@@ -435,270 +393,270 @@ export default function RecipeManagement() {
     );
   };
 
+  const toggleCardExpansion = (menuItemId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(menuItemId)) {
+        newSet.delete(menuItemId);
+      } else {
+        newSet.add(menuItemId);
+      }
+      return newSet;
+    });
+  };
+
+  // Group recipes by menu item
+  const groupedRecipes = menuItems.reduce((acc, menuItem) => {
+    acc[menuItem.id] = {
+      menuItem,
+      recipes: recipes.filter(r => r.menuItemId === menuItem.id),
+    };
+    return acc;
+  }, {} as Record<string, { menuItem: MenuItem; recipes: Recipe[] }>);
+
+  // Filter based on search
+  const filteredGroups = Object.entries(groupedRecipes)
+    .filter(([_, { menuItem, recipes }]) => {
+      const matchesSearch = menuItem.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           recipes.some(r => getIngredientName(r.ingredientId).toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCategory = selectedCategoryId === 'all' || menuItem.category === selectedCategoryId;
+      return matchesSearch && matchesCategory;
+    });
+
+  const categories = Array.from(new Set(menuItems.map(item => item.category).filter(Boolean)));
+
   return (
     <div className="space-y-6">
-      <Card>
+      {/* Header Card */}
+      <Card className="bg-gradient-to-br from-violet-50 via-white to-indigo-50 dark:from-violet-950/20 dark:via-slate-950 dark:to-indigo-950/20 border-2 border-violet-200 dark:border-violet-900">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Utensils className="h-6 w-6" />
-            Recipe Management
-          </CardTitle>
-          <CardDescription className="flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-            <span>
-              Add multiple ingredients to menu items at once. Quantities can be entered in convenient units (g, ml) and will auto-convert to the ingredient's base unit.
-            </span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search recipes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                <Utensils className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-3xl font-bold text-slate-900 dark:text-white">
+                  Recipe Management
+                </CardTitle>
+                <CardDescription className="flex items-start gap-2 mt-2 text-base">
+                  <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Link ingredients to menu items. Auto-converts units and supports variants.
+                  </span>
+                </CardDescription>
+              </div>
             </div>
-
-            <Select value={selectedMenuItemId} onValueChange={(value) => {
-              setSelectedMenuItemId(value);
-              setSelectedVariantId('all');
-            }}>
-              <SelectTrigger className="md:w-[250px]">
-                <SelectValue placeholder="All Menu Items" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Menu Items</SelectItem>
-                {menuItems.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {getMenuItemNameWithCategory(item)} {item.hasVariants && <Badge variant="outline" className="ml-2 text-xs">Has Variants</Badge>}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {availableVariants.length > 0 && (
-              <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
-                <SelectTrigger className="md:w-[200px]">
-                  <SelectValue placeholder="All Variants" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Variants</SelectItem>
-                  <SelectItem value="base">Base Item (No Variant)</SelectItem>
-                  {availableVariants.map((variant) => (
-                    <SelectItem key={variant.id} value={variant.id}>
-                      {variant.variantType.name}: {variant.variantOption.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={resetForm}>
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button onClick={resetForm} className="h-12 px-6 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white font-semibold shadow-lg shadow-violet-500/30 border-0">
+                  <Plus className="h-5 w-5 mr-2" />
                   Add Recipe
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="!w-[90vw] !max-w-[900px] !max-h-[90vh] overflow-hidden">
                 <form onSubmit={handleSubmit}>
-                  <DialogHeader>
-                    <DialogTitle>Add Recipe (Multiple Ingredients)</DialogTitle>
+                  <DialogHeader className="pb-4">
+                    <DialogTitle className="text-2xl font-bold">Add Recipe (Multiple Ingredients)</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    {/* Menu Item Selection */}
-                    <div className="space-y-2">
-                      <Label htmlFor="menuItemId">Menu Item *</Label>
-                      <Select
-                        value={formData.menuItemId}
-                        onValueChange={handleMenuItemChange}
-                        required
-                      >
-                        <SelectTrigger id="menuItemId">
-                          <SelectValue placeholder="Select menu item" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {menuItems.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {getMenuItemNameWithCategory(item)} {item.hasVariants && <Badge variant="outline" className="ml-2 text-xs">Variants</Badge>}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
 
-                    {/* Variant Selection */}
-                    {getSelectedMenuItemVariants().length > 0 && (
+                  <ScrollArea className="!max-h-[calc(90vh-180px)] pr-4">
+                    <div className="space-y-5 py-2">
+                      {/* Menu Item Selection */}
                       <div className="space-y-2">
-                        <Label htmlFor="menuItemVariantId">Variant</Label>
+                        <Label htmlFor="menuItemId" className="text-base font-semibold">Menu Item *</Label>
                         <Select
-                          value={formData.menuItemVariantId}
-                          onValueChange={(value) => setFormData({ ...formData, menuItemVariantId: value })}
+                          value={formData.menuItemId}
+                          onValueChange={handleMenuItemChange}
+                          required
                         >
-                          <SelectTrigger id="menuItemVariantId">
-                            <SelectValue placeholder="Select variant or leave empty for base item" />
+                          <SelectTrigger id="menuItemId" className="h-12">
+                            <SelectValue placeholder="Select menu item" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="base">Base Item (No Variant)</SelectItem>
-                            {getSelectedMenuItemVariants().map((variant) => (
-                              <SelectItem key={variant.id} value={variant.id}>
-                                {variant.variantType.name}: {variant.variantOption.name}
+                            {menuItems.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {getMenuItemNameWithCategory(item)} {item.hasVariants && <Badge variant="outline" className="ml-2 text-xs">Variants</Badge>}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
-                          Leave empty to create a recipe for the base menu item, or select a variant for that specific variant's recipe.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Ingredients Section */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label>Ingredients *</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={addIngredientLine}
-                          disabled={!formData.menuItemId}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add Ingredient Line
-                        </Button>
                       </div>
 
-                      {formData.ingredients.length === 0 ? (
-                        <div className="p-4 border border-dashed border-slate-300 rounded-md text-center text-slate-500">
-                          {formData.menuItemId ? (
-                            <p>Click "Add Ingredient Line" to start adding ingredients</p>
-                          ) : (
-                            <p>Please select a menu item first</p>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {formData.ingredients.map((ing, index) => {
-                            const ingredient = getIngredientInfo(ing.ingredientId);
-                            const displayUnits = ingredient ? getDisplayUnits(ingredient.unit) : [];
-
-                            return (
-                              <div key={index} className="p-4 bg-slate-50 dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800">
-                                <div className="flex items-center justify-between mb-3">
-                                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                    Ingredient {index + 1}
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => removeIngredientLine(index)}
-                                    className="h-8 w-8 text-red-600 hover:text-red-700"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                  {/* Ingredient Selection */}
-                                  <div className="space-y-1">
-                                    <Label htmlFor={`ingredient-${index}`} className="text-xs">Ingredient *</Label>
-                                    <Select
-                                      value={ing.ingredientId}
-                                      onValueChange={(value) => updateIngredientLine(index, 'ingredientId', value)}
-                                      required
-                                    >
-                                      <SelectTrigger id={`ingredient-${index}`}>
-                                        <SelectValue placeholder="Select ingredient" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {ingredients.map((ingredient) => (
-                                          <SelectItem key={ingredient.id} value={ingredient.id}>
-                                            {ingredient.name} ({ingredient.unit})
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  {/* Quantity Input */}
-                                  <div className="space-y-1">
-                                    <Label htmlFor={`quantity-${index}`} className="text-xs">Quantity *</Label>
-                                    <Input
-                                      id={`quantity-${index}`}
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      value={ing.quantityRequired}
-                                      onChange={(e) => updateIngredientLine(index, 'quantityRequired', e.target.value)}
-                                      placeholder="0.00"
-                                      required
-                                      disabled={!ing.ingredientId}
-                                    />
-                                    {getConvertedQuantityDisplay(ing, index)}
-                                  </div>
-
-                                  {/* Unit Selection */}
-                                  <div className="space-y-1">
-                                    <Label htmlFor={`unit-${index}`} className="text-xs">Unit *</Label>
-                                    <Select
-                                      value={ing.inputUnit}
-                                      onValueChange={(value) => updateIngredientLine(index, 'inputUnit', value)}
-                                      required
-                                      disabled={!ing.ingredientId}
-                                    >
-                                      <SelectTrigger id={`unit-${index}`}>
-                                        <SelectValue placeholder="Unit" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {displayUnits.map((unit) => (
-                                          <SelectItem key={unit} value={unit}>
-                                            {unit}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    {ingredient && (
-                                      <p className="text-xs text-slate-600 dark:text-slate-400">
-                                        Base unit: {ingredient.unit}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                      {/* Variant Selection */}
+                      {getSelectedMenuItemVariants().length > 0 && (
+                        <div className="space-y-2">
+                          <Label htmlFor="menuItemVariantId" className="text-base font-semibold">Variant</Label>
+                          <Select
+                            value={formData.menuItemVariantId}
+                            onValueChange={(value) => setFormData({ ...formData, menuItemVariantId: value })}
+                          >
+                            <SelectTrigger id="menuItemVariantId" className="h-12">
+                              <SelectValue placeholder="Select variant or leave empty for base item" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="base">Base Item (No Variant)</SelectItem>
+                              {getSelectedMenuItemVariants().map((variant) => (
+                                <SelectItem key={variant.id} value={variant.id}>
+                                  {variant.variantType.name}: {variant.variantOption.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">
+                            Leave empty to create a recipe for the base menu item, or select a variant for that specific variant's recipe.
+                          </p>
                         </div>
                       )}
+
+                      {/* Ingredients Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base font-semibold">Ingredients *</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={addIngredientLine}
+                            disabled={!formData.menuItemId}
+                            className="h-10"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Ingredient Line
+                          </Button>
+                        </div>
+
+                        {formData.ingredients.length === 0 ? (
+                          <div className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-center text-slate-500 bg-slate-50 dark:bg-slate-900/50">
+                            {formData.menuItemId ? (
+                              <p className="text-lg">Click "Add Ingredient Line" to start adding ingredients</p>
+                            ) : (
+                              <p className="text-lg">Please select a menu item first</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {formData.ingredients.map((ing, index) => {
+                              const ingredient = getIngredientInfo(ing.ingredientId);
+                              const displayUnits = ingredient ? getDisplayUnits(ingredient.unit) : [];
+
+                              return (
+                                <div key={index} className="p-5 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 rounded-xl border-2 border-slate-200 dark:border-slate-800">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <span className="text-base font-semibold text-slate-700 dark:text-slate-300">
+                                      Ingredient {index + 1}
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => removeIngredientLine(index)}
+                                      className="h-9 w-9 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                    >
+                                      <X className="h-5 w-5" />
+                                    </Button>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* Ingredient Selection */}
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`ingredient-${index}`} className="text-sm font-semibold">Ingredient *</Label>
+                                      <Select
+                                        value={ing.ingredientId}
+                                        onValueChange={(value) => updateIngredientLine(index, 'ingredientId', value)}
+                                        required
+                                      >
+                                        <SelectTrigger id={`ingredient-${index}`} className="h-11">
+                                          <SelectValue placeholder="Select ingredient" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {ingredients.map((ingredient) => (
+                                            <SelectItem key={ingredient.id} value={ingredient.id}>
+                                              {ingredient.name} ({ingredient.unit})
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    {/* Quantity Input */}
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`quantity-${index}`} className="text-sm font-semibold">Quantity *</Label>
+                                      <Input
+                                        id={`quantity-${index}`}
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={ing.quantityRequired}
+                                        onChange={(e) => updateIngredientLine(index, 'quantityRequired', e.target.value)}
+                                        placeholder="0.00"
+                                        required
+                                        disabled={!ing.ingredientId}
+                                        className="h-11"
+                                      />
+                                      {getConvertedQuantityDisplay(ing, index)}
+                                    </div>
+
+                                    {/* Unit Selection */}
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`unit-${index}`} className="text-sm font-semibold">Unit *</Label>
+                                      <Select
+                                        value={ing.inputUnit}
+                                        onValueChange={(value) => updateIngredientLine(index, 'inputUnit', value)}
+                                        required
+                                        disabled={!ing.ingredientId}
+                                      >
+                                        <SelectTrigger id={`unit-${index}`} className="h-11">
+                                          <SelectValue placeholder="Unit" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {displayUnits.map((unit) => (
+                                            <SelectItem key={unit} value={unit}>
+                                              {unit}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      {ingredient && (
+                                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                                          Base unit: {ingredient.unit}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+                  </ScrollArea>
+
+                  <DialogFooter className="flex-col-reverse gap-3 sm:flex-row pt-4 border-t">
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => setDialogOpen(false)}
                       disabled={saving}
-                      className="w-full sm:w-auto h-11 min-h-[44px]"
+                      className="w-full sm:w-auto h-12 px-6 font-semibold border-2"
                     >
                       Cancel
                     </Button>
                     <Button
                       type="submit"
                       disabled={saving || formData.ingredients.length === 0}
-                      className="w-full sm:w-auto h-11 min-h-[44px]"
+                      className="w-full sm:w-auto h-12 px-8 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 font-semibold shadow-lg shadow-violet-500/30 border-0"
                     >
                       {saving ? (
                         <span className="flex items-center gap-2">
-                          <div className="h-4 w-4 border-2 border-white/30 border-t-transparent animate-spin rounded-full"></div>
+                          <div className="h-5 w-5 border-2 border-white/30 border-t-transparent animate-spin rounded-full"></div>
                           Saving...
                         </span>
                       ) : (
                         <span className="flex items-center gap-2">
-                          <Plus className="h-4 w-4" />
+                          <Plus className="h-5 w-5" />
                           Save Recipe ({formData.ingredients.length} ingredient{formData.ingredients.length !== 1 ? 's' : ''})
                         </span>
                       )}
@@ -708,79 +666,167 @@ export default function RecipeManagement() {
               </DialogContent>
             </Dialog>
           </div>
+        </CardHeader>
+      </Card>
+
+      {/* Filters */}
+      <Card className="border-2">
+        <CardContent className="pt-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <Input
+                placeholder="Search menu items or ingredients..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 h-12 text-base border-2"
+              />
+            </div>
+
+            <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+              <SelectTrigger className="lg:w-[250px] h-12 border-2">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Recipes ({filteredRecipes.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8 text-slate-600">Loading...</div>
-          ) : (
-            <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-              <div className="min-w-[800px] md:min-w-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Menu Item</TableHead>
-                    <TableHead>Variant</TableHead>
-                    <TableHead>Ingredient</TableHead>
-                    <TableHead>Quantity Required</TableHead>
-                    <TableHead>Unit</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRecipes.map((recipe) => (
-                    <TableRow key={recipe.id}>
-                      <TableCell className="font-medium">{getMenuItemName(recipe.menuItemId)}</TableCell>
-                      <TableCell>
-                        {recipe.menuItemVariantId ? (
-                          <Badge variant="secondary" className="gap-1">
-                            <Layers className="h-3 w-3" />
-                            {getVariantName(recipe)}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">Base Item</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>{getIngredientName(recipe.ingredientId)}</TableCell>
-                      <TableCell>{recipe.quantityRequired}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{recipe.unit}</Badge>
-                      </TableCell>
-                      <TableCell>v{recipe.version}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(recipe.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredRecipes.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-slate-600">
-                        No recipes found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              </div>
+      {/* Recipe Cards */}
+      {loading ? (
+        <div className="text-center py-16">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-slate-200 border-t-violet-500 animate-spin"></div>
+          <p className="text-slate-600 dark:text-slate-400 text-lg">Loading recipes...</p>
+        </div>
+      ) : filteredGroups.length === 0 ? (
+        <Card className="border-2 border-dashed">
+          <CardContent className="py-16 text-center">
+            <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
+              <Utensils className="h-10 w-10 text-slate-400" />
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No recipes found</h3>
+            <p className="text-slate-600 dark:text-slate-400">
+              {searchTerm ? 'Try a different search term' : 'Start by adding a recipe to a menu item'}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {filteredGroups.map(([menuItemId, { menuItem, recipes }]) => (
+            <Card key={menuItemId} className="border-2 shadow-lg hover:shadow-xl transition-all overflow-hidden">
+              <Collapsible
+                open={expandedCards.has(menuItemId)}
+                onOpenChange={() => toggleCardExpansion(menuItemId)}
+              >
+                <CollapsibleTrigger className="w-full">
+                  <div className="flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 flex-shrink-0">
+                        <Sparkles className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                            {menuItem.name}
+                          </h3>
+                          {menuItem.category && (
+                            <Badge variant="secondary" className="bg-violet-100 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800">
+                              {menuItem.category}
+                            </Badge>
+                          )}
+                          {menuItem.hasVariants && (
+                            <Badge variant="outline" className="border-2 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300">
+                              <Layers className="h-3 w-3 mr-1" />
+                              Has Variants
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          {recipes.length} ingredient{recipes.length !== 1 ? 's' : ''} in recipe
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="flex-shrink-0 h-10 w-10"
+                    >
+                      {expandedCards.has(menuItemId) ? (
+                        <ChevronDown className="h-6 w-6" />
+                      ) : (
+                        <ChevronRight className="h-6 w-6" />
+                      )}
+                    </Button>
+                  </div>
+                </CollapsibleTrigger>
+
+                <CollapsibleContent>
+                  <div className="border-t-2 border-slate-100 dark:border-slate-800">
+                    {recipes.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <p className="text-slate-600 dark:text-slate-400">
+                          No recipe ingredients yet. Click "Add Recipe" to add ingredients.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y-2 divide-slate-100 dark:divide-slate-800">
+                        {recipes.map((recipe) => (
+                          <div key={recipe.id} className="p-5 hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-4 flex-1 min-w-0">
+                                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-md flex-shrink-0">
+                                  <Package className="h-5 w-5 text-white" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="font-semibold text-slate-900 dark:text-white text-lg">
+                                      {getIngredientName(recipe.ingredientId)}
+                                    </h4>
+                                    {recipe.menuItemVariantId && (
+                                      <Badge variant="outline" className="border-2 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300">
+                                        <Layers className="h-3 w-3 mr-1" />
+                                        {getVariantName(recipe)}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1 text-sm text-slate-600 dark:text-slate-400">
+                                    <span className="font-bold text-base text-slate-900 dark:text-white">
+                                      {parseFloat(recipe.quantityRequired).toFixed(2)} {recipe.unit}
+                                    </span>
+                                    <span>•</span>
+                                    <span>Version {recipe.version}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(recipe.id)}
+                                className="flex-shrink-0 h-10 w-10 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
