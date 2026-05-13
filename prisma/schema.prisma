@@ -244,6 +244,7 @@ model MenuItem {
   version           Int               @default(1)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+  productCode       String?           @unique // Product code/barcode for B2B E-Invoice compliance
   categoryRel       Category?         @relation(fields: [categoryId], references: [id])
   branchAssignments MenuItemBranch[]
   variants          MenuItemVariant[]
@@ -255,6 +256,7 @@ model MenuItem {
   @@index([isActive])
   @@index([version])
   @@index([hasVariants])
+  @@index([productCode])
 }
 
 model MenuItemBranch {
@@ -819,29 +821,48 @@ model BusinessDay {
   @@index([openedAt])
 }
 
+enum CustomerType {
+  B2C
+  B2B
+  BOTH
+}
+
 model Customer {
-  id                  String               @id @default(cuid())
-  name                String
-  phone               String               @unique
-  email               String?
-  notes               String?
-  branchId            String?
-  loyaltyPoints       Float                @default(0)
-  tier                String               @default("BRONZE")
-  totalSpent          Float                @default(0)
-  orderCount          Int                  @default(0)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  branch              Branch?              @relation(fields: [branchId], references: [id])
-  addresses           CustomerAddress[]
-  loyaltyTransactions LoyaltyTransaction[]
-  orders              Order[]
-  tables              Table[]
+  id                     String               @id @default(cuid())
+  name                   String
+  phone                  String               @unique
+  email                  String?
+  notes                  String?
+  branchId               String?
+  loyaltyPoints          Float                @default(0)
+  tier                   String               @default("BRONZE")
+  totalSpent             Float                @default(0)
+  orderCount             Int                  @default(0)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  
+  // B2B E-Invoice fields
+  customerType           CustomerType         @default(B2C)
+  taxRegistrationNumber  String?              @unique // TRN for VAT-registered customers (B2B)
+  isVatRegistered        Boolean              @default(false)
+  commercialRegister     String?              // Commercial registration number for B2B
+  billingAddress         String?              // Separate billing address for B2B
+  paymentTerms           String?              // e.g., "NET 30", "COD"
+  creditLimit            Float?               // Credit limit for B2B customers
+  
+  branch                 Branch?              @relation(fields: [branchId], references: [id])
+  addresses              CustomerAddress[]
+  loyaltyTransactions    LoyaltyTransaction[]
+  orders                 Order[]
+  tables                 Table[]
 
   @@index([phone])
   @@index([branchId])
   @@index([createdAt])
   @@index([loyaltyPoints])
+  @@index([taxRegistrationNumber])
+  @@index([customerType])
+  @@index([isVatRegistered])
 }
 
 model CustomerAddress {

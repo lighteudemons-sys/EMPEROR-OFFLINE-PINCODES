@@ -11,6 +11,98 @@ const submitRequestSchema = z.object({
   branchId: z.string().cuid(),
 });
 
+/**
+ * Determine the appropriate ETA document type based on order and customer
+ * 
+ * Document Types:
+ * - 381: E-Invoice (B2B) - For VAT-registered business customers with TRN
+ * - 388: Simplified Invoice (B2C) - For large B2C transactions (≥50,000 EGP)
+ * - 389: Receipt (B2C) - Standard B2C transactions
+ * 
+ * @param order - The order object
+ * @param customer - The customer object (optional)
+ * @returns The appropriate document type code
+ */
+function determineDocumentType(order: any, customer?: any): '381' | '388' | '389' {
+  // 381 = B2B Invoice (for VAT-registered B2B customers)
+  if (customer?.isVatRegistered && customer.taxRegistrationNumber) {
+    console.log('[ETA Submit] Using document type 381 (B2B Invoice) for VAT-registered customer');
+    return '381';
+  }
+  
+  // 388 = Simplified Invoice (for B2C with required details, large transactions)
+  if (customer && order.totalAmount >= 50000) {
+    console.log('[ETA Submit] Using document type 388 (Simplified Invoice) for large B2C transaction');
+    return '388';
+  }
+  
+  // 389 = Receipt (standard B2C)
+  console.log('[ETA Submit] Using document type 389 (Receipt) for standard B2C transaction');
+  return '389';
+}
+
+/**
+ * Validate B2B E-Invoice requirements
+ * 
+ * B2B invoices (document type 381) require:
+ * - Customer Tax Registration Number (TRN) - MANDATORY
+ * - Customer Name - MANDATORY
+ * - Customer Address - MANDATORY
+ * - Product codes for line items - MANDATORY
+ * - Valid TRN format (9 digits)
+ * 
+ * @param documentType - The document type being submitted
+ * @param customer - The customer object
+ * @param lineItems - The line items
+ * @returns Validation result with errors if any
+ */
+function validateB2BRequirements(
+  documentType: string,
+  customer?: any,
+  lineItems?: any[]
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  // Only validate B2B invoices (381)
+  if (documentType !== '381') {
+    return { valid: true, errors: [] };
+  }
+  
+  // Customer TRN is MANDATORY for B2B
+  if (!customer?.taxRegistrationNumber) {
+    errors.push('Customer Tax Registration Number (TRN) is required for B2B invoices');
+  } else {
+    // Validate TRN format (Egyptian TRN is 9 digits)
+    const trnRegex = /^[0-9]{9}$/;
+    if (!trnRegex.test(customer.taxRegistrationNumber)) {
+      errors.push('Invalid Egyptian Tax Registration Number format (must be 9 digits)');
+    }
+  }
+  
+  // Customer name is MANDATORY for B2B
+  if (!customer?.name) {
+    errors.push('Customer name is required for B2B invoices');
+  }
+  
+  // Customer address is MANDATORY for B2B
+  if (!customer?.billingAddress && !customer?.address) {
+    errors.push('Customer billing address is required for B2B invoices');
+  }
+  
+  // Line items require product codes for B2B
+  if (lineItems) {
+    const itemsWithoutCode = lineItems.filter(item => !item.code && !item.productCode);
+    if (itemsWithoutCode.length > 0) {
+      errors.push(`${itemsWithoutCode.length} line items missing product codes (required for B2B invoices)`);
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
 // POST /api/eta/submit
 // Submit a document to Egyptian Tax Authority ETA system
 export async function POST(request: NextRequest) {
@@ -63,22 +155,24 @@ export async function POST(request: NextRequest) {
     // Generate document UUID if not already set
     const documentUuid = order.etaUUID || generateDocumentUUID();
 
-    // Build customer info
+    // Build customer info with B2B support
     const customer = order.customer ? {
       name: order.customer.name,
-      taxRegistrationNumber: undefined, // Will need to add to customer schema
-      address: order.customerAddress?.streetAddress,
+      taxRegistrationNumber: order.customer.taxRegistrationNumber || undefined, // B2B TRN
+      address: order.customer.billingAddress || order.customerAddress?.streetAddress || undefined, // Prefer billing address for B2B
       phone: order.customer.phone,
+      email: order.customer.email || undefined,
+      isVatRegistered: order.customer.isVatRegistered || false,
     } : undefined;
 
-    // Build line items
+    // Build line items with product codes
     const lineItems = order.items.map((item) => {
       const taxRate = order.taxEnabled ? order.taxRate : 0;
       const taxAmount = item.subtotal * taxRate;
       
       return {
         name: item.menuItem.name,
-        code: undefined, // Could add barcode field to MenuItem
+        code: item.menuItem.productCode || item.menuItem.id, // Use product code for B2B compliance
         unitType: 'EA', // Each item
         quantity: item.quantity,
         unitPrice: item.unitPrice,
@@ -104,9 +198,22 @@ export async function POST(request: NextRequest) {
     const totalTaxAmount = order.taxEnabled ? order.taxAmount : 0;
     const totalDiscountAmount = (order.loyaltyDiscount || 0) + (order.promoDiscount || 0) + (order.manualDiscountAmount || 0);
 
+    // Determine document type based on customer and transaction
+    const documentType = determineDocumentType(order, order.customer);
+
+    // Validate B2B requirements if applicable
+    const b2bValidation = validateB2BRequirements(documentType, customer, lineItems);
+    if (!b2bValidation.valid) {
+      return NextResponse.json({
+        success: false,
+        error: 'B2B E-Invoice validation failed',
+        errors: b2bValidation.errors,
+      }, { status: 400 });
+    }
+
     // Build document data
     const documentData = {
-      documentType: { type: '389' as const }, // 389 = Receipt
+      documentType: { type: documentType },
       documentUuid,
       issueDate: new Date(order.orderTimestamp),
       currency: 'EGP',
@@ -383,7 +490,7 @@ export async function POST(request: NextRequest) {
         etaQRCode: qrCodeDataURL,
         etaResponse: JSON.stringify(etaResponseData),
         etaSettingsId: settings.id,
-        etaDocumentType: '389', // Receipt
+        etaDocumentType: documentType, // Use the determined document type (381, 388, or 389)
       },
     });
 
