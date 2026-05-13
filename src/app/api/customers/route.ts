@@ -165,13 +165,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Convert empty string creditLimit to null or number
+    const parsedCreditLimit = creditLimit && creditLimit.trim() !== ''
+      ? parseFloat(creditLimit)
+      : null;
+
     // Create customer with addresses
     const customer = await db.customer.create({
       data: {
         name,
         phone,
         email: email || null,
-        branchId,
+        branchId: branchId || null,
         notes: notes || null,
         // B2B fields
         customerType: customerType || 'B2C',
@@ -180,7 +185,7 @@ export async function POST(request: NextRequest) {
         commercialRegister: commercialRegister || null,
         billingAddress: billingAddress || null,
         paymentTerms: paymentTerms || null,
-        creditLimit: creditLimit !== undefined ? creditLimit : null,
+        creditLimit: parsedCreditLimit,
         addresses: addresses?.length > 0 ? {
           create: addresses.map((addr: any) => ({
             building: addr.building,

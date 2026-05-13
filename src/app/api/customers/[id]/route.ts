@@ -86,6 +86,11 @@ export async function PATCH(
       );
     }
 
+    // Convert empty string creditLimit to null or number
+    const parsedCreditLimit = creditLimit !== undefined
+      ? (creditLimit && creditLimit.trim() !== '' ? parseFloat(creditLimit) : null)
+      : undefined;
+
     // Update customer
     const customer = await db.customer.update({
       where: { id },
@@ -102,7 +107,7 @@ export async function PATCH(
         ...(commercialRegister !== undefined && { commercialRegister }),
         ...(billingAddress !== undefined && { billingAddress }),
         ...(paymentTerms !== undefined && { paymentTerms }),
-        ...(creditLimit !== undefined && { creditLimit }),
+        ...(parsedCreditLimit !== undefined && { creditLimit: parsedCreditLimit }),
       },
       include: {
         addresses: {
