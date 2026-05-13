@@ -35,6 +35,14 @@ interface Customer {
   branchName?: string | null;
   addresses: CustomerAddress[];
   createdAt: string;
+  // B2B fields for ETA E-Invoice
+  customerType?: 'B2C' | 'B2B' | 'BOTH';
+  taxRegistrationNumber?: string | null;
+  isVatRegistered?: boolean;
+  commercialRegister?: string | null;
+  billingAddress?: string | null;
+  paymentTerms?: string | null;
+  creditLimit?: number | null;
 }
 
 interface CustomerAddress {
@@ -77,6 +85,14 @@ export default function CustomerManagement() {
     email: '',
     branchId: '',
     notes: '',
+    // B2B fields for ETA E-Invoice
+    customerType: 'B2C' as 'B2C' | 'B2B' | 'BOTH',
+    taxRegistrationNumber: '',
+    isVatRegistered: false,
+    commercialRegister: '',
+    billingAddress: '',
+    paymentTerms: '',
+    creditLimit: '',
   });
   const [addressForm, setAddressForm] = useState({
     building: '',
@@ -244,6 +260,14 @@ export default function CustomerManagement() {
       email: customer.email || '',
       branchId: customer.branchId || '',
       notes: customer.notes || '',
+      // B2B fields
+      customerType: customer.customerType || 'B2C',
+      taxRegistrationNumber: customer.taxRegistrationNumber || '',
+      isVatRegistered: customer.isVatRegistered || false,
+      commercialRegister: customer.commercialRegister || '',
+      billingAddress: customer.billingAddress || '',
+      paymentTerms: customer.paymentTerms || '',
+      creditLimit: customer.creditLimit?.toString() || '',
     });
     setDialogOpen(true);
   };
@@ -338,6 +362,14 @@ export default function CustomerManagement() {
       email: '',
       branchId: '',
       notes: '',
+      // B2B fields
+      customerType: 'B2C',
+      taxRegistrationNumber: '',
+      isVatRegistered: false,
+      commercialRegister: '',
+      billingAddress: '',
+      paymentTerms: '',
+      creditLimit: '',
     });
     setAddressForm({
       building: '',
@@ -476,6 +508,136 @@ export default function CustomerManagement() {
                         placeholder="john@example.com"
                         className="h-11"
                       />
+                    </div>
+
+                    {/* B2B Settings Section for ETA E-Invoice */}
+                    <Separator />\n                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base font-semibold flex items-center gap-2">
+                          <Store className="h-4 w-4" />
+                          B2B Settings (ETA E-Invoice)
+                        </Label>
+                        <Select 
+                          value={formData.customerType} 
+                          onValueChange={(value: 'B2C' | 'B2B' | 'BOTH') => setFormData({ ...formData, customerType: value })}
+                        >
+                          <SelectTrigger className="w-[140px] h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="B2C">B2C Only</SelectItem>
+                            <SelectItem value="B2B">B2B Only</SelectItem>
+                            <SelectItem value="BOTH">B2B & B2C</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {formData.customerType !== 'B2C' && (
+                        <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            Configure B2B settings for Egyptian Tax Authority (ETA) E-Invoice compliance
+                          </p>
+                          
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              id="isVatRegistered"
+                              checked={formData.isVatRegistered}
+                              onChange={(e) => setFormData({ ...formData, isVatRegistered: e.target.checked })}
+                              className="h-4 w-4 rounded border-gray-300 focus:ring-primary"
+                            />
+                            <Label htmlFor="isVatRegistered" className="text-sm cursor-pointer">
+                              VAT Registered (Requires E-Invoice)
+                            </Label>
+                          </div>
+
+                          {formData.isVatRegistered && (
+                            <div className="space-y-3">
+                              <div className="space-y-2">
+                                <Label htmlFor="taxRegistrationNumber" className="text-sm">
+                                  Tax Registration Number (TRN) * <span className="text-slate-400">- 9 digits</span>
+                                </Label>
+                                <Input
+                                  id="taxRegistrationNumber"
+                                  value={formData.taxRegistrationNumber}
+                                  onChange={(e) => {
+                                    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 9);
+                                    setFormData({ ...formData, taxRegistrationNumber: value });
+                                  }}
+                                  placeholder="123456789"
+                                  maxLength={9}
+                                  required={formData.isVatRegistered}
+                                  className="h-9 font-mono"
+                                />
+                                {formData.taxRegistrationNumber.length > 0 && formData.taxRegistrationNumber.length !== 9 && (
+                                  <p className="text-xs text-amber-600">
+                                    TRN must be exactly 9 digits
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="commercialRegister" className="text-sm">
+                                  Commercial Register Number
+                                </Label>
+                                <Input
+                                  id="commercialRegister"
+                                  value={formData.commercialRegister}
+                                  onChange={(e) => setFormData({ ...formData, commercialRegister: e.target.value })}
+                                  placeholder="CR-12345"
+                                  className="h-9"
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="billingAddress" className="text-sm">
+                                  Billing Address *
+                                </Label>
+                                <Textarea
+                                  id="billingAddress"
+                                  value={formData.billingAddress}
+                                  onChange={(e) => setFormData({ ...formData, billingAddress: e.target.value })}
+                                  placeholder="Full billing address for invoices..."
+                                  rows={2}
+                                  required={formData.isVatRegistered}
+                                  className="min-h-[64px] text-sm"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-2">
+                                  <Label htmlFor="paymentTerms" className="text-sm">
+                                    Payment Terms
+                                  </Label>
+                                  <Input
+                                    id="paymentTerms"
+                                    value={formData.paymentTerms}
+                                    onChange={(e) => setFormData({ ...formData, paymentTerms: e.target.value })}
+                                    placeholder="NET 30"
+                                    className="h-9"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor="creditLimit" className="text-sm">
+                                    Credit Limit (EGP)
+                                  </Label>
+                                  <Input
+                                    id="creditLimit"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={formData.creditLimit}
+                                    onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
+                                    placeholder="10000.00"
+                                    className="h-9"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {user?.role === 'ADMIN' && (
@@ -644,6 +806,18 @@ export default function CustomerManagement() {
                             <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
                               <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
                                 <h3 className="text-lg font-semibold">{customer.name}</h3>
+                                {/* B2B Badges */}
+                                {customer.customerType !== 'B2C' && (
+                                  <Badge variant="secondary" className="bg-purple-100 text-purple-700 w-fit">
+                                    <Store className="h-3 w-3 mr-1" />
+                                    {customer.customerType === 'B2B' ? 'B2B' : 'B2B & B2C'}
+                                  </Badge>
+                                )}
+                                {customer.isVatRegistered && (
+                                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 w-fit">
+                                    VAT Registered
+                                  </Badge>
+                                )}
                                 {customer.totalOrders > 0 && (
                                   <Badge variant="secondary" className="bg-blue-100 text-blue-700 w-fit">
                                     <Package className="h-3 w-3 mr-1" />
@@ -676,6 +850,29 @@ export default function CustomerManagement() {
                                 <p className="text-sm text-slate-500 line-clamp-2">
                                   {customer.notes}
                                 </p>
+                              )}
+
+                              {/* B2B Information */}
+                              {customer.customerType !== 'B2C' && (
+                                <div className="space-y-1">
+                                  {customer.taxRegistrationNumber && (
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <Badge variant="outline" className="bg-slate-100 text-slate-700">
+                                        TRN: {customer.taxRegistrationNumber}
+                                      </Badge>
+                                      {customer.commercialRegister && (
+                                        <Badge variant="outline" className="bg-slate-100 text-slate-700">
+                                          CR: {customer.commercialRegister}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                  {customer.billingAddress && (
+                                    <p className="text-xs text-slate-500 truncate">
+                                      📍 {customer.billingAddress}
+                                    </p>
+                                  )}
+                                </div>
                               )}
 
                               {/* Loyalty Information */}

@@ -55,6 +55,14 @@ export async function GET(request: NextRequest) {
       totalOrders: customer.orderCount || 0,
       branchId: customer.branchId,
       branchName: customer.branch?.branchName || null,
+      // B2B fields for ETA E-Invoice
+      customerType: customer.customerType || 'B2C',
+      taxRegistrationNumber: customer.taxRegistrationNumber || null,
+      isVatRegistered: customer.isVatRegistered || false,
+      commercialRegister: customer.commercialRegister || null,
+      billingAddress: customer.billingAddress || null,
+      paymentTerms: customer.paymentTerms || null,
+      creditLimit: customer.creditLimit || null,
       addresses: customer.addresses.map((addr) => ({
         id: addr.id,
         customerId: customer.id,
@@ -89,12 +97,44 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, phone, email, branchId, addresses, notes, createdBy } = body;
+    const { 
+      name, 
+      phone, 
+      email, 
+      branchId, 
+      addresses, 
+      notes, 
+      createdBy,
+      // B2B fields for ETA E-Invoice
+      customerType,
+      taxRegistrationNumber,
+      isVatRegistered,
+      commercialRegister,
+      billingAddress,
+      paymentTerms,
+      creditLimit
+    } = body;
 
     // Validate required fields
     if (!name || !phone) {
       return NextResponse.json(
         { success: false, error: 'Name and phone are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate B2B-specific requirements
+    if (isVatRegistered && !taxRegistrationNumber) {
+      return NextResponse.json(
+        { success: false, error: 'Tax Registration Number (TRN) is required for VAT-registered customers' },
+        { status: 400 }
+      );
+    }
+
+    // Validate TRN format (9 digits) if provided
+    if (taxRegistrationNumber && !/^[0-9]{9}$/.test(taxRegistrationNumber)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid Tax Registration Number format (must be 9 digits)' },
         { status: 400 }
       );
     }
@@ -111,6 +151,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if TRN is already registered (if provided)
+    if (taxRegistrationNumber) {
+      const existingTRN = await db.customer.findFirst({
+        where: { taxRegistrationNumber },
+      });
+
+      if (existingTRN) {
+        return NextResponse.json(
+          { success: false, error: 'Tax Registration Number is already registered to another customer' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Create customer with addresses
     const customer = await db.customer.create({
       data: {
@@ -119,6 +173,14 @@ export async function POST(request: NextRequest) {
         email: email || null,
         branchId,
         notes: notes || null,
+        // B2B fields
+        customerType: customerType || 'B2C',
+        taxRegistrationNumber: taxRegistrationNumber || null,
+        isVatRegistered: isVatRegistered || false,
+        commercialRegister: commercialRegister || null,
+        billingAddress: billingAddress || null,
+        paymentTerms: paymentTerms || null,
+        creditLimit: creditLimit !== undefined ? creditLimit : null,
         addresses: addresses?.length > 0 ? {
           create: addresses.map((addr: any) => ({
             building: addr.building,

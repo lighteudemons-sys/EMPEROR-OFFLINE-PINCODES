@@ -9,9 +9,23 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, phone, email, notes, branchId } = body;
+    const { 
+      name, 
+      phone, 
+      email, 
+      notes, 
+      branchId,
+      // B2B fields for ETA E-Invoice
+      customerType,
+      taxRegistrationNumber,
+      isVatRegistered,
+      commercialRegister,
+      billingAddress,
+      paymentTerms,
+      creditLimit
+    } = body;
 
-    console.log('[Customer Update] Received data:', { id, name, phone, email, notes, branchId });
+    console.log('[Customer Update] Received data:', { id, name, phone, email, notes, branchId, customerType, taxRegistrationNumber });
 
     // Check if customer exists
     const existingCustomer = await db.customer.findUnique({
@@ -39,6 +53,39 @@ export async function PATCH(
       }
     }
 
+    // If TRN is being changed, check if it's already taken
+    if (taxRegistrationNumber && taxRegistrationNumber !== existingCustomer.taxRegistrationNumber) {
+      const duplicateTRN = await db.customer.findFirst({
+        where: { 
+          taxRegistrationNumber,
+          NOT: { id }, // Exclude current customer
+        },
+      });
+
+      if (duplicateTRN) {
+        return NextResponse.json(
+          { success: false, error: 'Tax Registration Number is already registered to another customer' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate TRN format (9 digits) if provided
+    if (taxRegistrationNumber && !/^[0-9]{9}$/.test(taxRegistrationNumber)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid Tax Registration Number format (must be 9 digits)' },
+        { status: 400 }
+      );
+    }
+
+    // Validate B2B-specific requirements
+    if (isVatRegistered && !taxRegistrationNumber) {
+      return NextResponse.json(
+        { success: false, error: 'Tax Registration Number (TRN) is required for VAT-registered customers' },
+        { status: 400 }
+      );
+    }
+
     // Update customer
     const customer = await db.customer.update({
       where: { id },
@@ -48,6 +95,14 @@ export async function PATCH(
         ...(email !== undefined && { email }),
         ...(notes !== undefined && { notes }),
         ...(branchId !== undefined && branchId !== '' && { branchId }),
+        // B2B fields
+        ...(customerType !== undefined && { customerType }),
+        ...(taxRegistrationNumber !== undefined && { taxRegistrationNumber }),
+        ...(isVatRegistered !== undefined && { isVatRegistered }),
+        ...(commercialRegister !== undefined && { commercialRegister }),
+        ...(billingAddress !== undefined && { billingAddress }),
+        ...(paymentTerms !== undefined && { paymentTerms }),
+        ...(creditLimit !== undefined && { creditLimit }),
       },
       include: {
         addresses: {
