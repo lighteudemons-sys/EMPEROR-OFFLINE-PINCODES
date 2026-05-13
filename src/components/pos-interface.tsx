@@ -491,6 +491,50 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
       }
     }
 
+    // Create offline credit transaction if payment method is credit
+    if (orderData.paymentMethod === 'credit' && orderData.customerId) {
+      try {
+        // Get customer credit info from IndexedDB
+        const customers = await indexedDBStorage.getJSON('customers') || [];
+        const customer = customers.find((c: any) => c.id === orderData.customerId);
+
+        if (customer && (customer.customerType === 'B2B' || customer.customerType === 'BOTH')) {
+          const previousBalance = customer.creditBalance || 0;
+          const totalAmount = orderData.total || 0;
+          const newBalance = previousBalance + totalAmount;
+
+          // Create offline credit transaction record
+          const creditTransaction = {
+            id: `temp-credit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            customerId: orderData.customerId,
+            amount: totalAmount,
+            type: 'CREDIT_PURCHASE',
+            orderId: tempId,
+            previousBalance,
+            newBalance,
+            createdBy: orderData.cashierId,
+            notes: `Order #${newOrder.orderNumber}`,
+            createdAt: new Date().toISOString(),
+            _offlineData: {
+              willSync: true,
+            },
+          };
+
+          // Save credit transaction to IndexedDB
+          await indexedDBStorage.put('creditTransactions', creditTransaction);
+
+          // Update customer credit balance locally
+          customer.creditBalance = newBalance;
+          await indexedDBStorage.put('customers', customer);
+
+          console.log('[Order] Offline credit transaction created:', creditTransaction);
+        }
+      } catch (creditError) {
+        console.error('[Order] Failed to create offline credit transaction:', creditError);
+        // Don't fail the order if credit transaction fails
+      }
+    }
+
     console.log('[Order] Order created offline successfully:', newOrder);
     return { order: newOrder, success: true };
   } catch (error) {
@@ -928,6 +972,11 @@ export default function POSInterface() {
 
   // Order Details state
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+
+  // Credit payment state
+  const [customerCreditInfo, setCustomerCreditInfo] = useState<any>(null);
+  const [loadingCreditInfo, setLoadingCreditInfo] = useState(false);
+  const [showCreditPaymentDialog, setShowCreditPaymentDialog] = useState(false);
   const [showOrderDetailsDialog, setShowOrderDetailsDialog] = useState(false);
   const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
 
@@ -2214,11 +2263,29 @@ export default function POSInterface() {
     setShowPaymentDialog(true);
   };
 
-  const handlePaymentSelect = async (paymentMethod: 'cash' | 'card') => {
+  const handlePaymentSelect = async (paymentMethod: 'cash' | 'card' | 'credit') => {
     if (paymentMethod === 'cash') {
       // Process cash payment immediately
       setShowPaymentDialog(false);
       await createTableOrder('cash');
+    } else if (paymentMethod === 'credit') {
+      // Validate credit before allowing credit payment
+      if (!customerCreditInfo) {
+        alert('Credit information not available. Please select a B2B customer.');
+        setShowPaymentDialog(false);
+        return;
+      }
+
+      const availableCredit = customerCreditInfo.availableCredit || 0;
+      if (availableCredit < total) {
+        alert(`Insufficient credit balance.\n\nAvailable: ${formatCurrency(availableCredit, currency)}\nRequired: ${formatCurrency(total, currency)}\n\nPlease ask the customer to make a payment or choose another payment method.`);
+        setShowPaymentDialog(false);
+        return;
+      }
+
+      // Show credit payment confirmation dialog
+      setShowPaymentDialog(false);
+      setShowCreditPaymentDialog(true);
     } else {
       // For card payments, show card payment dialog to select payment method detail
       setShowPaymentDialog(false);
@@ -2918,6 +2985,195 @@ export default function POSInterface() {
     }
   };
 
+  const createTableOrderWithCredit = async () => {
+    if (!selectedTable || tableCart.length === 0) return;
+
+    setProcessing(true);
+
+    try {
+      if (!user) {
+        alert('User not logged in');
+        setProcessing(false);
+        return;
+      }
+
+      const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+      if (!branchId) {
+        alert('Branch not found');
+        setProcessing(false);
+        return;
+      }
+
+      // For cashiers and branch managers, check if they have an active shift
+      if ((user?.role === 'CASHIER' || user?.role === 'BRANCH_MANAGER') && !currentShift) {
+        alert('Please open a shift first');
+        setProcessing(false);
+        return;
+      }
+
+      // For cashiers only, check if any staff is clocked in
+      // Branch managers bypass this validation
+      if (user?.role === 'CASHIER' && currentShift) {
+        const activeStaffCheck = await checkActiveStaff(branchId, user.id);
+        if (!activeStaffCheck.hasActiveStaff) {
+          alert('⚠️ Cannot process order. At least one staff member must be clocked in before processing orders.\n\nPlease clock in a staff member from the POS tab.');
+          setProcessing(false);
+          return;
+        }
+      }
+
+      // Validate credit balance one more time
+      if (!customerCreditInfo) {
+        alert('Credit information not available');
+        setProcessing(false);
+        return;
+      }
+
+      const availableCredit = customerCreditInfo.availableCredit || 0;
+      const subtotal = tableCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const total = subtotal; // No delivery fee for dine-in
+
+      if (availableCredit < total) {
+        alert(`Insufficient credit balance.\n\nAvailable: ${formatCurrency(availableCredit, currency)}\nRequired: ${formatCurrency(total, currency)}`);
+        setProcessing(false);
+        return;
+      }
+
+      // Prepare order items
+      const orderItems = tableCart.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        menuItemVariantId: item.variantId || null,
+        customVariantValue: item.customVariantValue || null,
+        specialInstructions: item.note || null,
+      }));
+
+      // Generate idempotency key to prevent duplicate orders
+      const idempotencyKey = generateUUID();
+
+      const orderData: any = {
+        branchId,
+        orderType: 'dine-in',
+        items: orderItems,
+        subtotal,
+        taxRate: 0.14,
+        total,
+        paymentMethod: 'credit',
+        cashierId: user?.id,
+        tableId: selectedTable.id,
+        shiftId: currentShift?.id,
+        idempotencyKey,
+      };
+
+      // Add customer data if available
+      if (selectedAddress) {
+        orderData.customerId = selectedAddress.customerId;
+        orderData.customerAddressId = selectedAddress.id;
+        orderData.customerName = selectedAddress.customerName;
+        orderData.customerPhone = selectedAddress.customerPhone;
+      }
+
+      // Check actual network connectivity before trying API
+      let isActuallyOnline = navigator.onLine;
+
+      if (navigator.onLine) {
+        // Verify with actual network request
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          await fetch('/api/branches', {
+            method: 'HEAD',
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          clearTimeout(timeoutId);
+          isActuallyOnline = true;
+          console.log('[Table Order With Credit] Network check passed, trying API...');
+        } catch (netError) {
+          console.log('[Table Order With Credit] Network check failed, assuming offline:', netError.message);
+          isActuallyOnline = false;
+        }
+      }
+
+      if (isActuallyOnline) {
+        // Try API first
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Clear table cart from IndexedDB first
+          await storage.removeSetting(`table-cart-${selectedTable.id}`);
+          setTableCart([]);
+
+          // Close the table in DB BEFORE showing receipt
+          const closeResponse = await fetch(`/api/tables/${selectedTable.id}/close`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cashierId: user?.id,
+            }),
+          });
+
+          if (!closeResponse.ok) {
+            console.error('Failed to close table in database');
+            const errorData = await closeResponse.json();
+            alert(`Order created but failed to close table: ${errorData.error || 'Unknown error'}. Please close the table manually.`);
+          }
+
+          // Show receipt
+          setReceiptData(data.order);
+          setIsDuplicateReceipt(false);
+          setShowReceipt(true);
+
+          // Manually deselect table and show table grid
+          setSelectedTable(null);
+          setShowTableGrid(true);
+        } else {
+          // Check if it's a network error - try offline fallback
+          const isNetworkError = !response.ok && (
+            response.status === 0 ||
+            response.type === 'error' ||
+            response.statusText === 'Failed to fetch' ||
+            data.error?.includes('Failed to fetch') ||
+            data.error?.includes('network')
+          );
+
+          if (isNetworkError) {
+            console.log('[Table Order With Credit] Network error detected, trying offline mode');
+            try {
+              await createTableOrderOffline(orderData, tableCart, 'credit');
+            } catch (offlineError) {
+              console.error('[Table Order With Credit] Offline order creation failed:', offlineError);
+              throw new Error(`Failed to create order offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+            }
+          } else {
+            const errorMessage = data.error || data.details || 'Failed to create order';
+            throw new Error(errorMessage);
+          }
+        }
+      } else {
+        // Offline mode - create order locally
+        console.log('[Table Order With Credit] Offline mode detected, creating order locally');
+        try {
+          await createTableOrderOffline(orderData, tableCart, 'credit');
+        } catch (offlineError) {
+          console.error('[Table Order With Credit] Offline order creation failed:', offlineError);
+          throw new Error(`Failed to create order offline: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create table order with credit:', error);
+      alert(`Failed to create order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const getDeliveryFee = () => {
     if (orderType === 'delivery' && deliveryArea) {
       const area = deliveryAreas.find(a => a.id === deliveryArea);
@@ -2938,6 +3194,39 @@ export default function POSInterface() {
   useEffect(() => {
     setRedeemedPoints(0);
     setLoyaltyDiscount(0);
+  }, [selectedAddress]);
+
+  // Fetch customer credit info when B2B customer is selected
+  useEffect(() => {
+    const fetchCreditInfo = async () => {
+      if (selectedAddress && selectedAddress.customerId) {
+        // Check if customer is B2B or BOTH
+        const customerType = selectedAddress.customerType || 'B2C';
+        if (customerType === 'B2B' || customerType === 'BOTH') {
+          setLoadingCreditInfo(true);
+          try {
+            const response = await fetch(`/api/customers/${selectedAddress.customerId}/credit`);
+            if (response.ok) {
+              const data = await response.json();
+              setCustomerCreditInfo(data.customer);
+            } else {
+              setCustomerCreditInfo(null);
+            }
+          } catch (error) {
+            console.error('Failed to fetch credit info:', error);
+            setCustomerCreditInfo(null);
+          } finally {
+            setLoadingCreditInfo(false);
+          }
+        } else {
+          setCustomerCreditInfo(null);
+        }
+      } else {
+        setCustomerCreditInfo(null);
+      }
+    };
+
+    fetchCreditInfo();
   }, [selectedAddress]);
 
   const handleRedeemPoints = () => {
@@ -4520,7 +4809,36 @@ export default function POSInterface() {
     setPaymentMethodDetail('CARD');
   };
 
-  const handleCheckout = async (paymentMethod: 'cash' | 'card', cardRefNumber?: string, paymentMethodDetailParam?: 'CARD' | 'INSTAPAY' | 'MOBILE_WALLET') => {
+  const handleCreditPaymentSubmit = async () => {
+    if (!customerCreditInfo) {
+      alert('Credit information not available. Please select a B2B customer.');
+      setShowCreditPaymentDialog(false);
+      return;
+    }
+
+    const availableCredit = customerCreditInfo.availableCredit || 0;
+    if (availableCredit < total) {
+      alert(`Insufficient credit balance.\n\nAvailable: ${formatCurrency(availableCredit, currency)}\nRequired: ${formatCurrency(total, currency)}`);
+      return;
+    }
+
+    setShowCreditPaymentDialog(false);
+
+    // Check if this is a table order or regular cart order
+    if (orderType === 'dine-in' && selectedTable && tableCart.length > 0) {
+      // Create table order with credit payment
+      await createTableOrderWithCredit();
+    } else {
+      // Regular cart order
+      await handleCheckout('credit');
+    }
+  };
+
+  const handleCreditPaymentCancel = () => {
+    setShowCreditPaymentDialog(false);
+  };
+
+  const handleCheckout = async (paymentMethod: 'cash' | 'card' | 'credit', cardRefNumber?: string, paymentMethodDetailParam?: 'CARD' | 'INSTAPAY' | 'MOBILE_WALLET') => {
     if (cart.length === 0) return;
 
     // Warn if manual discount is entered but not applied
@@ -6371,13 +6689,20 @@ export default function POSInterface() {
               <p className="text-3xl font-bold text-emerald-600">
                 {formatCurrency(total, currency)}
               </p>
+              {customerCreditInfo && (
+                <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg p-2 mt-2">
+                  <p className="text-xs text-purple-700 dark:text-purple-300">
+                    Available Credit: <span className="font-bold">{formatCurrency(customerCreditInfo.availableCredit || 0, currency)}</span>
+                  </p>
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3 pt-4">
+            <div className={`grid gap-3 pt-4 ${customerCreditInfo ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <Button
                 onClick={() => handlePaymentSelect('cash')}
                 className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 h-14 text-lg font-semibold"
               >
-                <DollarSign className="h-5 w-5 mr-2" />
+                <DollarSign className="h-5 w-5 mr-1" />
                 Cash
               </Button>
               <Button
@@ -6385,11 +6710,118 @@ export default function POSInterface() {
                 variant="outline"
                 className="h-14 text-lg font-semibold border-2"
               >
-                <CreditCard className="h-5 w-5 mr-2" />
+                <CreditCard className="h-5 w-5 mr-1" />
                 Card
               </Button>
+              {customerCreditInfo && (
+                <Button
+                  onClick={() => handlePaymentSelect('credit')}
+                  variant="outline"
+                  className={`h-14 text-lg font-semibold border-2 ${
+                    customerCreditInfo.availableCredit >= total
+                      ? 'border-purple-600 text-purple-600 hover:bg-purple-50 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-950/30'
+                      : 'border-slate-300 text-slate-400 cursor-not-allowed'
+                  }`}
+                  disabled={customerCreditInfo.availableCredit < total}
+                  title={customerCreditInfo.availableCredit < total ? 'Insufficient credit balance' : 'Pay with credit'}
+                >
+                  <Wallet className="h-5 w-5 mr-1" />
+                  Credit
+                </Button>
+              )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Credit Payment Confirmation Dialog */}
+      <Dialog open={showCreditPaymentDialog} onOpenChange={setShowCreditPaymentDialog}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Wallet className="h-5 w-5 text-white" />
+              </div>
+              <DialogTitle className="text-xl font-bold">Credit Payment</DialogTitle>
+            </div>
+            <DialogDescription>
+              Confirm credit payment for this order
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {customerCreditInfo && (
+              <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-purple-900 dark:text-purple-300">Credit Limit</span>
+                  <span className="text-sm font-bold text-purple-900 dark:text-purple-300">
+                    {formatCurrency(customerCreditInfo.creditLimit || 0, currency)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-purple-900 dark:text-purple-300">Outstanding Balance</span>
+                  <span className="text-sm font-bold text-red-600">
+                    {formatCurrency(customerCreditInfo.creditBalance || 0, currency)}
+                  </span>
+                </div>
+                <Separator className="bg-purple-200 dark:bg-purple-800" />
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-purple-900 dark:text-purple-300">Available Credit</span>
+                  <span className="text-lg font-bold text-emerald-600">
+                    {formatCurrency(customerCreditInfo.availableCredit || 0, currency)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-sm font-medium text-purple-900 dark:text-purple-300">Order Total</span>
+                  <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                    {formatCurrency(total, currency)}
+                  </span>
+                </div>
+                {(customerCreditInfo.availableCredit || 0) >= total && (
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="text-sm font-medium text-purple-900 dark:text-purple-300">Remaining Credit</span>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                      {formatCurrency((customerCreditInfo.availableCredit || 0) - total, currency)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            {customerCreditInfo && (customerCreditInfo.availableCredit || 0) < total && (
+              <Alert className="border-red-200 bg-red-50 dark:bg-red-950/30">
+                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                <AlertDescription className="text-red-800 dark:text-red-300">
+                  Insufficient credit balance. Please ask the customer to make a payment or choose another payment method.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter className="gap-3">
+            <Button
+              variant="outline"
+              onClick={handleCreditPaymentCancel}
+              disabled={processing}
+              className="flex-1 rounded-xl h-11 font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreditPaymentSubmit}
+              disabled={processing || !customerCreditInfo || (customerCreditInfo.availableCredit || 0) < total}
+              className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 rounded-xl h-11 font-semibold shadow-lg shadow-purple-500/30"
+            >
+              {processing ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Wallet className="h-4 w-4 mr-2" />
+                  Confirm Credit Payment
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

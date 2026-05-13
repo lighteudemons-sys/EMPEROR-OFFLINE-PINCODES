@@ -869,6 +869,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Create credit transaction if payment method is credit
+    if (paymentMethod === 'credit' && customerId) {
+      try {
+        const customer = await db.customer.findUnique({
+          where: { id: customerId },
+        });
+
+        if (customer && (customer.customerType === 'B2B' || customer.customerType === 'BOTH')) {
+          const previousBalance = customer.creditBalance || 0;
+          const newBalance = previousBalance + totalAmount;
+
+          // Create credit transaction
+          await db.creditTransaction.create({
+            data: {
+              customerId,
+              amount: totalAmount,
+              type: 'CREDIT_PURCHASE',
+              orderId: order.order.id,
+              previousBalance,
+              newBalance,
+              createdBy: cashierId,
+              notes: `Order #${finalOrderNumber}`,
+            },
+          });
+
+          // Update customer credit balance
+          await db.customer.update({
+            where: { id: customerId },
+            data: { creditBalance: newBalance },
+          });
+
+          console.log(`[Order] Credit transaction created: ${totalAmount} added to customer ${customerId}, new balance: ${newBalance}`);
+        }
+      } catch (creditError) {
+        console.error('Failed to create credit transaction:', creditError);
+        // Don't fail the order if credit transaction fails, log for manual review
+      }
+    }
+
     const responseOrder = order.order;
 
     return NextResponse.json({
