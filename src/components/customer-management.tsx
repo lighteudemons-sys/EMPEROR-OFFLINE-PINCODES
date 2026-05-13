@@ -381,6 +381,18 @@ export default function CustomerManagement() {
     });
   };
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (open && !selectedCustomer) {
+      // Opening for adding new customer, reset forms
+      resetForms();
+    }
+    setDialogOpen(open);
+    if (!open) {
+      // Dialog closed, clear selected customer
+      setSelectedCustomer(null);
+    }
+  };
+
   const totalOrders = customers.reduce((sum, c) => sum + c.totalOrders, 0);
   const activeCustomers = customers.filter(c => c.totalOrders > 0).length;
 
@@ -457,16 +469,9 @@ export default function CustomerManagement() {
                 {user?.role === 'BRANCH_MANAGER' && ' (Your branch only)'}
               </CardDescription>
             </div>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
               <DialogTrigger asChild>
-                <Button 
-                  className="w-full sm:w-auto h-11"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setSelectedCustomer(null);
-                    resetForms();
-                  }}
-                >
+                <Button className="w-full sm:w-auto h-11">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Customer
                 </Button>
