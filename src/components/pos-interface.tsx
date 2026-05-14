@@ -3219,6 +3219,7 @@ export default function POSInterface() {
             if (response.ok) {
               const data = await response.json();
               console.log('[POS Credit] Credit info fetched successfully:', data.customer);
+              console.log('[POS Credit] Setting customerCreditInfo with availableCredit:', data.customer.availableCredit);
               setCustomerCreditInfo(data.customer);
             } else {
               const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -3243,6 +3244,11 @@ export default function POSInterface() {
 
     fetchCreditInfo();
   }, [selectedAddress]);
+
+  // Debug: Log when customerCreditInfo changes
+  useEffect(() => {
+    console.log('[POS Credit] customerCreditInfo state changed:', customerCreditInfo);
+  }, [customerCreditInfo]);
 
   const handleRedeemPoints = () => {
     if (!selectedAddress || selectedAddress.loyaltyPoints === undefined) {
@@ -5681,6 +5687,22 @@ export default function POSInterface() {
                     <CreditCard className="h-5 w-5 mr-2" />
                     {t('pos.card.upper')}
                   </Button>
+                  {customerCreditInfo && (
+                    <Button
+                      onClick={() => handleCheckout('credit')}
+                      disabled={processing || currentCart.length === 0 || (customerCreditInfo.availableCredit || 0) < total}
+                      variant="outline"
+                      className={`w-full h-12 border-2 font-bold text-lg rounded-xl ${
+                        (customerCreditInfo.availableCredit || 0) >= total
+                          ? 'border-purple-600 text-purple-600 hover:bg-purple-50 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-950/30'
+                          : 'border-slate-300 text-slate-400 cursor-not-allowed'
+                      }`}
+                      title={(customerCreditInfo.availableCredit || 0) < total ? 'Insufficient credit balance' : 'Pay with credit'}
+                    >
+                      <Wallet className="h-5 w-5 mr-2" />
+                      {t('pos.credit.upper')}
+                    </Button>
+                  )}
                   <Button
                     onClick={handleHoldOrder}
                     disabled={processing || currentCart.length === 0}
@@ -6177,30 +6199,51 @@ export default function POSInterface() {
                     PRINT PREP ORDER
                   </Button>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      onClick={() => {
-                        setMobileCartOpen(false);
-                        handleCheckout('cash');
-                      }}
-                      disabled={processing || cart.length === 0}
-                      className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-xl shadow-emerald-500/30 font-bold h-12 text-sm rounded-xl transition-all"
-                    >
-                      <DollarSign className="h-4 w-4 mr-2" />
-                      Cash
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setMobileCartOpen(false);
-                        handleCardPaymentClick();
-                      }}
-                      disabled={processing || cart.length === 0}
-                      variant="outline"
-                      className="border-2 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold h-12 text-sm rounded-xl transition-all"
-                    >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Card
-                    </Button>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        onClick={() => {
+                          setMobileCartOpen(false);
+                          handleCheckout('cash');
+                        }}
+                        disabled={processing || cart.length === 0}
+                        className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-xl shadow-emerald-500/30 font-bold h-12 text-sm rounded-xl transition-all"
+                      >
+                        <DollarSign className="h-4 w-4 mr-2" />
+                        Cash
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setMobileCartOpen(false);
+                          handleCardPaymentClick();
+                        }}
+                        disabled={processing || cart.length === 0}
+                        variant="outline"
+                        className="border-2 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold h-12 text-sm rounded-xl transition-all"
+                      >
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Card
+                      </Button>
+                    </div>
+                    {customerCreditInfo && (
+                      <Button
+                        onClick={() => {
+                          setMobileCartOpen(false);
+                          handleCheckout('credit');
+                        }}
+                        disabled={processing || cart.length === 0 || (customerCreditInfo.availableCredit || 0) < total}
+                        variant="outline"
+                        className={`w-full border-2 font-bold h-12 text-sm rounded-xl transition-all ${
+                          (customerCreditInfo.availableCredit || 0) >= total
+                            ? 'border-purple-600 text-purple-600 hover:bg-purple-50 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-950/30'
+                            : 'border-slate-300 text-slate-400 cursor-not-allowed'
+                        }`}
+                        title={(customerCreditInfo.availableCredit || 0) < total ? 'Insufficient credit balance' : 'Pay with credit'}
+                      >
+                        <Wallet className="h-4 w-4 mr-2" />
+                        Credit
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
