@@ -488,11 +488,11 @@ export default function RecipeManagement() {
   return (
     <div className="space-y-6">
       {/* Header Card */}
-      <Card className="bg-gradient-to-br from-violet-50 via-white to-indigo-50 dark:from-violet-950/20 dark:via-slate-950 dark:to-indigo-950/20 border-2 border-violet-200 dark:border-violet-900">
+      <Card className="bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-emerald-950/20 dark:via-slate-950 dark:to-teal-950/20 border-2 border-emerald-200 dark:border-emerald-900">
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/30">
                 <Utensils className="h-8 w-8 text-white" />
               </div>
               <div>
@@ -513,7 +513,7 @@ export default function RecipeManagement() {
               if (!open) resetForm();
             }}>
               <DialogTrigger asChild>
-                <Button onClick={() => { resetForm(); }} className="h-12 px-6 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white font-semibold shadow-lg shadow-violet-500/30 border-0">
+                <Button onClick={() => { resetForm(); }} className="h-12 px-6 bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white font-semibold shadow-lg shadow-emerald-500/30 border-0">
                   <Plus className="h-5 w-5 mr-2" />
                   Add Recipe
                 </Button>
@@ -723,7 +723,7 @@ export default function RecipeManagement() {
                     <Button
                       type="submit"
                       disabled={saving || formData.ingredients.length === 0}
-                      className="w-full sm:w-auto h-12 px-8 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 font-semibold shadow-lg shadow-violet-500/30 border-0"
+                      className="w-full sm:w-auto h-12 px-8 bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 font-semibold shadow-lg shadow-emerald-500/30 border-0"
                     >
                       {saving ? (
                         <span className="flex items-center gap-2">
@@ -788,7 +788,7 @@ export default function RecipeManagement() {
       {/* Recipe Cards */}
       {loading ? (
         <div className="text-center py-16">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-slate-200 border-t-violet-500 animate-spin"></div>
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-slate-200 border-t-emerald-500 animate-spin"></div>
           <p className="text-slate-600 dark:text-slate-400 text-lg">Loading recipes...</p>
         </div>
       ) : filteredGroups.length === 0 ? (
@@ -814,7 +814,7 @@ export default function RecipeManagement() {
                 <CollapsibleTrigger className="w-full">
                   <div className="flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                     <div className="flex items-center gap-4 flex-1">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 flex-shrink-0">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/30 flex-shrink-0">
                         <Sparkles className="h-6 w-6 text-white" />
                       </div>
                       <div className="flex-1">
@@ -823,7 +823,7 @@ export default function RecipeManagement() {
                             {menuItem.name}
                           </h3>
                           {menuItem.category && (
-                            <Badge variant="secondary" className="bg-violet-100 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800">
+                            <Badge variant="secondary" className="bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">
                               {menuItem.category}
                             </Badge>
                           )}
@@ -891,7 +891,7 @@ export default function RecipeManagement() {
                                       {getIngredientName(recipe.ingredientId)}
                                     </h4>
                                     {recipe.menuItemVariantId && (
-                                      <Badge variant="outline" className="border-2 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300">
+                                      <Badge variant="outline" className="border-2 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300">
                                         <Layers className="h-3 w-3 mr-1" />
                                         {getVariantName(recipe)}
                                       </Badge>
