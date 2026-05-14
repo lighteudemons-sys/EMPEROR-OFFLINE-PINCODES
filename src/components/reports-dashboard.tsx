@@ -2157,9 +2157,8 @@ export default function ReportsDashboard() {
                 </div>
               </div>
             ) : (
-              <ScrollArea className="flex-1 pr-4 max-h-[calc(90vh-220px)]">
-                <div className="space-y-3 pt-2">
-                  {paymentMethodOrders.map((order) => (
+              <div className="flex-1 overflow-y-auto pr-4 space-y-3 pt-2 custom-scrollbar">
+                {paymentMethodOrders.map((order) => (
                     <div
                       key={order.id}
                       className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
@@ -2215,8 +2214,7 @@ export default function ReportsDashboard() {
                       </div>
                     </div>
                   ))}
-                </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
 
