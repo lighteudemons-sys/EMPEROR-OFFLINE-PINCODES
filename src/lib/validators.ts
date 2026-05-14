@@ -15,7 +15,7 @@ export const orderCreateSchema = z.object({
   branchId: cuidSchema,
   cashierId: cuidSchema,
   items: z.array(orderItemSchema).min(1).max(50),
-  paymentMethod: z.enum(['cash', 'card', 'digital_wallet']),
+  paymentMethod: z.enum(['cash', 'card', 'digital_wallet', 'credit']),
   orderType: z.enum(['dine-in', 'take-away', 'delivery']).default('take-away'),
   tableId: z.string().min(1).optional(), // For dine-in orders linked to a table
   deliveryAddress: z.string().max(500).optional(),
