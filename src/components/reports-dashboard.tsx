@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import {
   BarChart3, TrendingUp, TrendingDown, Package, ShoppingCart, Calendar,
   DollarSign, Store, FileText, RotateCw, FileSpreadsheet, PieChart,
@@ -164,6 +165,12 @@ export default function ReportsDashboard() {
   const [detailedReportOpen, setDetailedReportOpen] = useState(false);
   const [detailedOrders, setDetailedOrders] = useState<any[]>([]);
   const [detailedReportLoading, setDetailedReportLoading] = useState(false);
+
+  // Payment Method Orders Dialog state
+  const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+  const [paymentMethodOrders, setPaymentMethodOrders] = useState<Order[]>([]);
+  const [paymentMethodLoading, setPaymentMethodLoading] = useState(false);
 
   // Fetch branches
   useEffect(() => {
@@ -383,6 +390,108 @@ export default function ReportsDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchOrdersByPaymentMethod = async (paymentMethod: string) => {
+    setPaymentMethodLoading(true);
+    try {
+      const range = timeRanges.find(r => r.value === timeRange);
+      if (!range) return;
+
+      const now = new Date();
+      const endDate = new Date(now);
+      let startDate = new Date(now);
+
+      // Set start time to 00:00:00 and end time to 23:59:59 for proper day filtering
+      if (timeRange === 'today') {
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'yesterday') {
+        startDate.setDate(now.getDate() - 1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setDate(now.getDate() - 1);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'lastWeek') {
+        startDate.setDate(now.getDate() - 7);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setDate(now.getDate() - 1);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'lastMonth') {
+        startDate.setMonth(now.getMonth() - 1);
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setMonth(now.getMonth());
+        endDate.setDate(0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'week') {
+        const dayOfWeek = startDate.getDay();
+        startDate.setDate(startDate.getDate() - dayOfWeek);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'month') {
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'quarter') {
+        startDate.setMonth(startDate.getMonth() - 3);
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (timeRange === 'year') {
+        startDate.setMonth(0, 1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      const params = new URLSearchParams();
+      if (selectedBranch && selectedBranch !== 'all') {
+        params.append('branchId', selectedBranch);
+      }
+      params.append('startDate', startDate.toISOString());
+      params.append('endDate', endDate.toISOString());
+      params.append('limit', '500'); // Fetch more orders for payment method view
+
+      const response = await fetch(`/api/orders?${params.toString()}`);
+      const data = await response.json();
+
+      console.log('[Payment Method Orders] API Response:', data);
+
+      if (data.orders) {
+        // Filter orders by payment method
+        let filteredOrders: Order[] = data.orders.filter((order: Order) => {
+          const orderPaymentMethod = order.paymentMethod.toLowerCase();
+          const targetPaymentMethod = paymentMethod.toLowerCase();
+
+          if (targetPaymentMethod === 'card') {
+            return orderPaymentMethod === 'card';
+          } else if (targetPaymentMethod === 'instapay') {
+            return orderPaymentMethod === 'card' && order.paymentMethodDetail === 'INSTAPAY';
+          } else if (targetPaymentMethod === 'wallet' || targetPaymentMethod === 'mobile_wallet') {
+            return orderPaymentMethod === 'card' && order.paymentMethodDetail === 'MOBILE_WALLET';
+          } else if (targetPaymentMethod === 'credit') {
+            return orderPaymentMethod === 'credit';
+          } else {
+            return orderPaymentMethod === targetPaymentMethod;
+          }
+        });
+
+        setPaymentMethodOrders(filteredOrders);
+      } else {
+        console.error('[Payment Method Orders] API Error: No orders in response');
+        setPaymentMethodOrders([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch payment method orders:', error);
+      setPaymentMethodOrders([]);
+    } finally {
+      setPaymentMethodLoading(false);
+    }
+  };
+
+  const handlePaymentMethodClick = (method: string) => {
+    setSelectedPaymentMethod(method);
+    setPaymentMethodDialogOpen(true);
+    fetchOrdersByPaymentMethod(method);
   };
 
   const handleRefund = async () => {
@@ -1063,7 +1172,11 @@ export default function ReportsDashboard() {
                       }
 
                       return (
-                        <div key={method} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                        <div
+                          key={method}
+                          className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                          onClick={() => handlePaymentMethodClick(method)}
+                        >
                           <div className="flex items-center gap-3">
                             <Icon className={`h-5 w-5 ${iconColor}`} />
                             <div>
@@ -1073,7 +1186,10 @@ export default function ReportsDashboard() {
                               <p className="text-xs text-slate-500">{count} {t('shifts.orders')}</p>
                             </div>
                           </div>
-                          <p className="font-bold text-primary">{formatCurrency(revenue, currency)}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-primary">{formatCurrency(revenue, currency)}</p>
+                            <ArrowRight className="h-4 w-4 text-slate-400" />
+                          </div>
                         </div>
                       );
                     })
@@ -1988,6 +2104,302 @@ export default function ReportsDashboard() {
           </div>
         </div>
       )}
+
+      {/* Payment Method Orders Dialog */}
+      <Dialog open={paymentMethodDialogOpen} onOpenChange={setPaymentMethodDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col rounded-3xl">
+          <DialogHeader className="flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-xl ${
+                  selectedPaymentMethod?.toLowerCase() === 'cash' ? 'bg-green-100 dark:bg-green-900/30' :
+                  selectedPaymentMethod?.toLowerCase() === 'card' ? 'bg-blue-100 dark:bg-blue-900/30' :
+                  selectedPaymentMethod?.toLowerCase() === 'instapay' ? 'bg-purple-100 dark:bg-purple-900/30' :
+                  selectedPaymentMethod?.toLowerCase() === 'wallet' || selectedPaymentMethod?.toLowerCase() === 'mobile_wallet' ? 'bg-orange-100 dark:bg-orange-900/30' :
+                  selectedPaymentMethod?.toLowerCase() === 'credit' ? 'bg-pink-100 dark:bg-pink-900/30' :
+                  'bg-slate-100 dark:bg-slate-800'
+                }`}>
+                  {selectedPaymentMethod?.toLowerCase() === 'cash' && <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />}
+                  {selectedPaymentMethod?.toLowerCase() === 'card' && <CreditCard className="h-6 w-6 text-blue-600 dark:text-blue-400" />}
+                  {selectedPaymentMethod?.toLowerCase() === 'instapay' && <Smartphone className="h-6 w-6 text-purple-600 dark:text-purple-400" />}
+                  {(selectedPaymentMethod?.toLowerCase() === 'wallet' || selectedPaymentMethod?.toLowerCase() === 'mobile_wallet') && <Wallet className="h-6 w-6 text-orange-600 dark:text-orange-400" />}
+                  {selectedPaymentMethod?.toLowerCase() === 'credit' && <Wallet className="h-6 w-6 text-pink-600 dark:text-pink-400" />}
+                </div>
+                <div>
+                  <DialogTitle className="text-2xl font-bold capitalize">
+                    {selectedPaymentMethod?.toLowerCase() === 'mobile_wallet' ? 'Mobile Wallet' : selectedPaymentMethod}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {paymentMethodOrders.length} orders • {timeRange === 'today' ? 'Today' :
+                      timeRange === 'yesterday' ? 'Yesterday' :
+                      timeRange === 'lastWeek' ? 'Last 7 Days' :
+                      timeRange === 'lastMonth' ? 'Last Month' :
+                      timeRange === 'week' ? 'This Week' :
+                      timeRange === 'month' ? 'This Month' :
+                      timeRange === 'quarter' ? 'This Quarter' : 'This Year'}
+                  </DialogDescription>
+                </div>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            {paymentMethodLoading ? (
+              <div className="flex items-center justify-center h-96">
+                <div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : paymentMethodOrders.length === 0 ? (
+              <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                  <CreditCard className="h-16 w-16 mx-auto mb-4 text-slate-300 dark:text-slate-700" />
+                  <p className="text-lg font-medium text-slate-600 dark:text-slate-400">No orders found</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">No orders with this payment method in the selected period</p>
+                </div>
+              </div>
+            ) : (
+              <ScrollArea className="flex-1 pr-4">
+                <div className="space-y-3 pt-2">
+                  {paymentMethodOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setOrderDialogOpen(true);
+                      }}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          order.orderType === 'dine-in' ? 'bg-emerald-100 dark:bg-emerald-900/30' :
+                          order.orderType === 'take-away' ? 'bg-amber-100 dark:bg-amber-900/30' :
+                          'bg-blue-100 dark:bg-blue-900/30'
+                        }`}>
+                          {order.orderType === 'dine-in' && <Utensils className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
+                          {order.orderType === 'take-away' && <ShoppingCart className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
+                          {order.orderType === 'delivery' && <Truck className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 dark:text-white">#{order.orderNumber}</span>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs font-semibold ${
+                                order.orderType === 'dine-in' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700' :
+                                order.orderType === 'take-away' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700' :
+                                'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700'
+                              }`}
+                            >
+                              {order.orderType}
+                            </Badge>
+                            {order.isRefunded && (
+                              <Badge variant="destructive" className="text-xs">Refunded</Badge>
+                            )}
+                          </div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                            {new Date(order.orderTimestamp).toLocaleString()}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                            {order.cashier?.name || 'Unknown'} • {order.branch?.branchName || 'Unknown Branch'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-lg text-slate-900 dark:text-white">
+                          {formatCurrency(order.subtotal, currency)}
+                        </div>
+                        {order.deliveryFee && order.deliveryFee > 0 && (
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            + {formatCurrency(order.deliveryFee, currency)} delivery
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+
+          <DialogFooter className="flex-shrink-0 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between w-full">
+              {paymentMethodOrders.length > 0 && (
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  Total: <span className="font-bold text-lg text-slate-900 dark:text-white ml-2">
+                    {formatCurrency(paymentMethodOrders.reduce((sum, order) => sum + order.subtotal, 0), currency)}
+                  </span>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setPaymentMethodDialogOpen(false)}
+                className="font-semibold px-6 py-2 rounded-xl"
+              >
+                Close
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Details Dialog */}
+      <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg">
+                  <ShoppingCart className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-2xl font-bold">Order #{selectedOrder?.orderNumber}</DialogTitle>
+                  <DialogDescription>
+                    {selectedOrder && new Date(selectedOrder.orderTimestamp).toLocaleString()}
+                  </DialogDescription>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {selectedOrder && !selectedOrder.isRefunded && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setRefundDialogOpen(true);
+                      setOrderDialogOpen(false);
+                    }}
+                    className="font-semibold"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Refund
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setDuplicateReceiptOrder(selectedOrder);
+                    setOrderDialogOpen(false);
+                  }}
+                  className="font-semibold"
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Receipt
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <ScrollArea className="max-h-[70vh]">
+              <div className="space-y-4">
+                {/* Order Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <Label className="text-xs text-slate-500 uppercase font-semibold tracking-wider">Order Type</Label>
+                    <Badge
+                      variant="outline"
+                      className={`mt-2 font-semibold ${
+                        selectedOrder.orderType === 'dine-in' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700' :
+                        selectedOrder.orderType === 'take-away' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700' :
+                        'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700'
+                      }`}
+                    >
+                      {selectedOrder.orderType}
+                    </Badge>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <Label className="text-xs text-slate-500 uppercase font-semibold tracking-wider">{t('order.payment')}</Label>
+                    <p className="font-semibold capitalize mt-2 text-slate-900 dark:text-white">
+                      {selectedOrder.paymentMethod === 'cash' ? t('pos.cash') :
+                       selectedOrder.paymentMethodDetail === 'INSTAPAY' ? 'InstaPay' :
+                       selectedOrder.paymentMethodDetail === 'MOBILE_WALLET' ? 'Mobile Wallet' :
+                       selectedOrder.paymentMethod}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                  <Label className="text-xs text-slate-500 uppercase font-semibold tracking-wider mb-3 block">{t('pos.items')}</Label>
+                  <div className="space-y-3">
+                    {selectedOrder.items?.map((item, index) => (
+                      <div key={index} className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-slate-900 dark:text-white">{item.itemName}</p>
+                          {item.variantName && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{item.variantName}</p>
+                          )}
+                          <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">
+                            {item.quantity} × {formatCurrency(item.unitPrice, currency)}
+                          </p>
+                        </div>
+                        <p className="font-semibold text-slate-900 dark:text-white">
+                          {formatCurrency(item.subtotal, currency)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Totals */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-400">{t('order.subtotal')}</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {formatCurrency(selectedOrder.subtotal, currency)}
+                    </span>
+                  </div>
+                  {selectedOrder.deliveryFee && selectedOrder.deliveryFee > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600 dark:text-slate-400">{t('order.delivery.fee')}</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {formatCurrency(selectedOrder.deliveryFee, currency)}
+                      </span>
+                    </div>
+                  )}
+                  <Separator className="bg-slate-200 dark:bg-slate-700" />
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-slate-900 dark:text-white">{t('pos.total')}</span>
+                    <span className="font-bold text-xl text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(selectedOrder.totalAmount, currency)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Cashier & Branch */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <Label className="text-xs text-slate-500 uppercase font-semibold tracking-wider">{t('order.cashier')}</Label>
+                    <p className="font-semibold mt-2 text-slate-900 dark:text-white">
+                      {selectedOrder.cashier?.name || 'Unknown'}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <Label className="text-xs text-slate-500 uppercase font-semibold tracking-wider">{t('dashboard.branches')}</Label>
+                    <p className="font-semibold mt-2 text-slate-900 dark:text-white">
+                      {selectedOrder.branch?.branchName || 'Unknown'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Refund Info */}
+                {selectedOrder.isRefunded && (
+                  <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                      <XCircle className="h-5 w-5" />
+                      <span className="font-semibold">Order Refunded</span>
+                    </div>
+                    {selectedOrder.refundReason && (
+                      <p className="text-sm text-red-600 dark:text-red-500 mt-1">
+                        Reason: {selectedOrder.refundReason}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
