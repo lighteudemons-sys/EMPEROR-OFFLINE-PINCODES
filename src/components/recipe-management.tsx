@@ -22,7 +22,7 @@ import {
   ChevronDown,
   ChevronRight,
   Edit,
-  Sparkles,
+  Coffee,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -815,7 +815,7 @@ export default function RecipeManagement() {
                   <div className="flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                     <div className="flex items-center gap-4 flex-1">
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/30 flex-shrink-0">
-                        <Sparkles className="h-6 w-6 text-white" />
+                        <Coffee className="h-6 w-6 text-white" />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-3 flex-wrap">
