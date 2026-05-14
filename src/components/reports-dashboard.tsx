@@ -2157,7 +2157,7 @@ export default function ReportsDashboard() {
                 </div>
               </div>
             ) : (
-              <ScrollArea className="flex-1 pr-4">
+              <ScrollArea className="flex-1 pr-4 max-h-[calc(90vh-220px)]">
                 <div className="space-y-3 pt-2">
                   {paymentMethodOrders.map((order) => (
                     <div
