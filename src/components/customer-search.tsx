@@ -6,13 +6,18 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, User, MapPin, Phone, UserPlus, X, Star, Gift } from 'lucide-react';
+import { Search, User, MapPin, Phone, UserPlus, X, Star, Gift, Wallet } from 'lucide-react';
 
 interface Address {
   id: string;
   customerId: string;
   customerName: string;
   customerPhone: string;
+  customerType?: string;
+  isVatRegistered?: boolean;
+  taxRegistrationNumber?: string;
+  creditLimit?: number;
+  creditBalance?: number;
   building?: string;
   streetAddress: string;
   floor?: string;
@@ -219,7 +224,16 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
   };
 
   const handleAddressClick = (address: Address, customer: any) => {
-    onAddressSelect(address);
+    // Include customer type and credit info in the address object
+    const addressWithCustomerInfo = {
+      ...address,
+      customerType: customer.customerType,
+      isVatRegistered: customer.isVatRegistered,
+      taxRegistrationNumber: customer.taxRegistrationNumber,
+      creditLimit: customer.creditLimit,
+      creditBalance: customer.creditBalance,
+    };
+    onAddressSelect(addressWithCustomerInfo);
     onCustomerSelect?.(customer);
     // Calculate redeemable points (multiples of 15)
     const customerPoints = customer.loyaltyPoints || 0;
@@ -301,6 +315,11 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
             customerId: data.customer.id,
             customerName: data.customer.name,
             customerPhone: data.customer.phone,
+            customerType: data.customer.customerType,
+            isVatRegistered: data.customer.isVatRegistered,
+            taxRegistrationNumber: data.customer.taxRegistrationNumber,
+            creditLimit: data.customer.creditLimit,
+            creditBalance: data.customer.creditBalance,
             building: data.customer.addresses[0].building,
             streetAddress: data.customer.addresses[0].streetAddress,
             floor: data.customer.addresses[0].floor,
@@ -381,6 +400,11 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
           customerId: tempCustomerId,
           customerName: customer.name,
           customerPhone: customer.phone,
+          customerType: customer.customerType,
+          isVatRegistered: customer.isVatRegistered,
+          taxRegistrationNumber: customer.taxRegistrationNumber,
+          creditLimit: customer.creditLimit,
+          creditBalance: customer.creditBalance,
           building: address.building,
           streetAddress: address.streetAddress,
           floor: address.floor,
@@ -659,7 +683,7 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
         <div className="max-h-60 overflow-y-auto border rounded-lg bg-white dark:bg-slate-900 shadow-lg">
           {searchResults.map((customer: any) => (
             <div key={customer.id} className="border-b last:border-b-0">
-              <div className="p-3 font-medium text-sm bg-slate-50 dark:bg-slate-800 flex items-center gap-2">
+              <div className="p-3 font-medium text-sm bg-slate-50 dark:bg-slate-800 flex items-center gap-2 flex-wrap">
                 <User className="h-4 w-4 text-slate-500" />
                 {customer.name}
                 <span className="text-slate-400">|</span>
@@ -667,6 +691,12 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
                   <Phone className="h-3 w-3" />
                   {customer.phone}
                 </span>
+                {(customer.customerType === 'B2B' || customer.customerType === 'BOTH') && (
+                  <span className="text-xs bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Wallet className="h-3 w-3" />
+                    B2B Credit
+                  </span>
+                )}
                 {customer.totalOrders > 0 && (
                   <span className="ml-auto text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">
                     {customer.totalOrders} {customer.totalOrders === 1 ? 'order' : 'orders'}
