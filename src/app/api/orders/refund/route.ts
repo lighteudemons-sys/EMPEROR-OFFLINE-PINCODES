@@ -302,7 +302,10 @@ export async function POST(request: NextRequest) {
 
         // Restore inventory based on recipes
         for (const recipe of recipes) {
-          const quantityToRestore = recipe.quantityRequired * orderItem.quantity;
+          // Use customVariantValue for custom weight variants (e.g., 0.25KG)
+          // Default to 1 for regular items
+          const variantMultiplier = orderItem.customVariantValue || 1;
+          const quantityToRestore = recipe.quantityRequired * variantMultiplier * orderItem.quantity;
 
           // Get current inventory
           const inventory = await tx.branchInventory.findUnique({
