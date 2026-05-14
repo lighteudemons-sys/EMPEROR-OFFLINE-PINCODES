@@ -233,6 +233,13 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
       creditLimit: customer.creditLimit,
       creditBalance: customer.creditBalance,
     };
+    console.log('[CustomerSearch] Address clicked:', {
+      customerName: customer.name,
+      customerType: customer.customerType,
+      addressWithCustomerType: addressWithCustomerInfo.customerType,
+      creditLimit: customer.creditLimit,
+      creditBalance: customer.creditBalance,
+    });
     onAddressSelect(addressWithCustomerInfo);
     onCustomerSelect?.(customer);
     // Calculate redeemable points (multiples of 15)

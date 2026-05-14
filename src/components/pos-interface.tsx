@@ -3202,26 +3202,41 @@ export default function POSInterface() {
       if (selectedAddress && selectedAddress.customerId) {
         // Check if customer is B2B or BOTH
         const customerType = selectedAddress.customerType || 'B2C';
+        console.log('[POS Credit] Customer selected:', {
+          customerId: selectedAddress.customerId,
+          customerName: selectedAddress.customerName,
+          customerType,
+          hasCreditLimit: !!selectedAddress.creditLimit,
+        });
+
         if (customerType === 'B2B' || customerType === 'BOTH') {
+          console.log('[POS Credit] Fetching credit info for B2B customer...');
           setLoadingCreditInfo(true);
           try {
             const response = await fetch(`/api/customers/${selectedAddress.customerId}/credit`);
+            console.log('[POS Credit] Credit API response status:', response.status);
+
             if (response.ok) {
               const data = await response.json();
+              console.log('[POS Credit] Credit info fetched successfully:', data.customer);
               setCustomerCreditInfo(data.customer);
             } else {
+              const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+              console.error('[POS Credit] Credit API error:', errorData);
               setCustomerCreditInfo(null);
             }
           } catch (error) {
-            console.error('Failed to fetch credit info:', error);
+            console.error('[POS Credit] Failed to fetch credit info:', error);
             setCustomerCreditInfo(null);
           } finally {
             setLoadingCreditInfo(false);
           }
         } else {
+          console.log('[POS Credit] Customer is not B2B/BOTH, skipping credit fetch');
           setCustomerCreditInfo(null);
         }
       } else {
+        console.log('[POS Credit] No customer selected');
         setCustomerCreditInfo(null);
       }
     };
