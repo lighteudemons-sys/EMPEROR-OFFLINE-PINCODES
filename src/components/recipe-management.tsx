@@ -23,7 +23,6 @@ import {
   ChevronRight,
   Edit,
   Sparkles,
-  MoreVertical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -139,6 +138,7 @@ export default function RecipeManagement() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
   const [formData, setFormData] = useState<RecipeFormData>({
     menuItemId: '',
     menuItemVariantId: '',
@@ -274,12 +274,11 @@ export default function RecipeManagement() {
     setSaving(true);
 
     try {
-      const menuItem = menuItems.find((i) => i.id === formData.menuItemId);
-      const shouldIncludeVariantId = menuItem?.hasVariants && formData.menuItemVariantId && formData.menuItemVariantId !== 'base';
-
-      const recipePromises = formData.ingredients.map(async (ing) => {
+      // Edit mode: update existing recipe
+      if (editingRecipeId && formData.ingredients.length === 1) {
+        const ing = formData.ingredients[0];
         const ingredient = getIngredientInfo(ing.ingredientId);
-        if (!ingredient) return null;
+        if (!ingredient) throw new Error('Ingredient not found');
 
         const quantityInIngredientUnit = convertToIngredientUnit(
           parseFloat(ing.quantityRequired),
@@ -287,38 +286,67 @@ export default function RecipeManagement() {
           ingredient.unit
         );
 
-        const payload: any = {
-          menuItemId: formData.menuItemId,
-          ingredientId: ing.ingredientId,
-          quantityRequired: quantityInIngredientUnit.toFixed(4),
-        };
-
-        if (shouldIncludeVariantId) {
-          payload.menuItemVariantId = formData.menuItemVariantId;
-        }
-
-        const response = await fetch('/api/recipes', {
-          method: 'POST',
+        const response = await fetch(`/api/recipes/${editingRecipeId}`, {
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            ingredientId: ing.ingredientId,
+            quantityRequired: quantityInIngredientUnit.toFixed(4),
+          }),
         });
 
         if (!response.ok) {
           const data = await response.json();
-          throw new Error(data.error || 'Failed to save recipe line');
+          throw new Error(data.error || 'Failed to update recipe');
         }
+      } else {
+        // Create mode: add new recipes
+        const menuItem = menuItems.find((i) => i.id === formData.menuItemId);
+        const shouldIncludeVariantId = menuItem?.hasVariants && formData.menuItemVariantId && formData.menuItemVariantId !== 'base';
 
-        return await response.json();
-      });
+        const recipePromises = formData.ingredients.map(async (ing) => {
+          const ingredient = getIngredientInfo(ing.ingredientId);
+          if (!ingredient) return null;
 
-      await Promise.all(recipePromises);
+          const quantityInIngredientUnit = convertToIngredientUnit(
+            parseFloat(ing.quantityRequired),
+            ing.inputUnit,
+            ingredient.unit
+          );
+
+          const payload: any = {
+            menuItemId: formData.menuItemId,
+            ingredientId: ing.ingredientId,
+            quantityRequired: quantityInIngredientUnit.toFixed(4),
+          };
+
+          if (shouldIncludeVariantId) {
+            payload.menuItemVariantId = formData.menuItemVariantId;
+          }
+
+          const response = await fetch('/api/recipes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Failed to save recipe line');
+          }
+
+          return await response.json();
+        });
+
+        await Promise.all(recipePromises);
+      }
 
       setDialogOpen(false);
       resetForm();
       await fetchData();
     } catch (error) {
-      console.error('Failed to save recipes:', error);
-      alert(error instanceof Error ? error.message : 'Failed to save recipes');
+      console.error('Failed to save recipe:', error);
+      alert(error instanceof Error ? error.message : 'Failed to save recipe');
     } finally {
       setSaving(false);
     }
@@ -342,7 +370,37 @@ export default function RecipeManagement() {
     }
   };
 
+  const handleEdit = (recipe: Recipe) => {
+    setEditingRecipeId(recipe.id);
+    const ingredient = getIngredientInfo(recipe.ingredientId);
+    const displayUnits = ingredient ? getDisplayUnits(ingredient.unit) : [recipe.unit];
+
+    setFormData({
+      menuItemId: recipe.menuItemId,
+      menuItemVariantId: recipe.menuItemVariantId || '',
+      ingredients: [{
+        ingredientId: recipe.ingredientId,
+        quantityRequired: recipe.quantityRequired.toString(),
+        inputUnit: displayUnits[0] || recipe.unit,
+      }],
+    });
+    setDialogOpen(true);
+  };
+
+  const handleQuickAdd = (menuItemId: string) => {
+    setEditingRecipeId(null);
+    setFormData({
+      menuItemId,
+      menuItemVariantId: '',
+      ingredients: [],
+    });
+    setDialogOpen(true);
+    // Expand the card when opening dialog
+    setExpandedCards(prev => new Set([...prev, menuItemId]));
+  };
+
   const resetForm = () => {
+    setEditingRecipeId(null);
     setFormData({
       menuItemId: '',
       menuItemVariantId: '',
@@ -425,6 +483,8 @@ export default function RecipeManagement() {
 
   const categories = Array.from(new Set(menuItems.map(item => item.category).filter(Boolean)));
 
+  const isEditMode = editingRecipeId !== null;
+
   return (
     <div className="space-y-6">
       {/* Header Card */}
@@ -448,28 +508,36 @@ export default function RecipeManagement() {
               </div>
             </div>
 
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) resetForm();
+            }}>
               <DialogTrigger asChild>
-                <Button onClick={resetForm} className="h-12 px-6 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white font-semibold shadow-lg shadow-violet-500/30 border-0">
+                <Button onClick={() => { resetForm(); }} className="h-12 px-6 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white font-semibold shadow-lg shadow-violet-500/30 border-0">
                   <Plus className="h-5 w-5 mr-2" />
                   Add Recipe
                 </Button>
               </DialogTrigger>
-              <DialogContent className="!w-[90vw] !max-w-[900px] !max-h-[90vh] overflow-hidden">
-                <form onSubmit={handleSubmit}>
-                  <DialogHeader className="pb-4">
-                    <DialogTitle className="text-2xl font-bold">Add Recipe (Multiple Ingredients)</DialogTitle>
+              <DialogContent className="!w-[90vw] !max-w-[900px] !max-h-[90vh] overflow-hidden flex flex-col">
+                <form onSubmit={handleSubmit} className="flex flex-col h-full">
+                  <DialogHeader className="pb-4 flex-shrink-0">
+                    <DialogTitle className="text-2xl font-bold">
+                      {isEditMode ? 'Edit Recipe' : 'Add Recipe (Multiple Ingredients)'}
+                    </DialogTitle>
                   </DialogHeader>
 
-                  <ScrollArea className="!max-h-[calc(90vh-180px)] pr-4">
+                  <ScrollArea className="!flex-1 !max-h-none pr-4">
                     <div className="space-y-5 py-2">
                       {/* Menu Item Selection */}
                       <div className="space-y-2">
-                        <Label htmlFor="menuItemId" className="text-base font-semibold">Menu Item *</Label>
+                        <Label htmlFor="menuItemId" className="text-base font-semibold">
+                          Menu Item *
+                        </Label>
                         <Select
                           value={formData.menuItemId}
                           onValueChange={handleMenuItemChange}
                           required
+                          disabled={isEditMode}
                         >
                           <SelectTrigger id="menuItemId" className="h-12">
                             <SelectValue placeholder="Select menu item" />
@@ -491,6 +559,7 @@ export default function RecipeManagement() {
                           <Select
                             value={formData.menuItemVariantId}
                             onValueChange={(value) => setFormData({ ...formData, menuItemVariantId: value })}
+                            disabled={isEditMode}
                           >
                             <SelectTrigger id="menuItemVariantId" className="h-12">
                               <SelectValue placeholder="Select variant or leave empty for base item" />
@@ -513,18 +582,22 @@ export default function RecipeManagement() {
                       {/* Ingredients Section */}
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <Label className="text-base font-semibold">Ingredients *</Label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={addIngredientLine}
-                            disabled={!formData.menuItemId}
-                            className="h-10"
-                          >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add Ingredient Line
-                          </Button>
+                          <Label className="text-base font-semibold">
+                            {isEditMode ? 'Ingredient *' : 'Ingredients *'}
+                          </Label>
+                          {!isEditMode && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={addIngredientLine}
+                              disabled={!formData.menuItemId}
+                              className="h-10"
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Ingredient Line
+                            </Button>
+                          )}
                         </div>
 
                         {formData.ingredients.length === 0 ? (
@@ -547,15 +620,17 @@ export default function RecipeManagement() {
                                     <span className="text-base font-semibold text-slate-700 dark:text-slate-300">
                                       Ingredient {index + 1}
                                     </span>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => removeIngredientLine(index)}
-                                      className="h-9 w-9 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
-                                    >
-                                      <X className="h-5 w-5" />
-                                    </Button>
+                                    {!isEditMode && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeIngredientLine(index)}
+                                        className="h-9 w-9 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                      >
+                                        <X className="h-5 w-5" />
+                                      </Button>
+                                    )}
                                   </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -566,6 +641,7 @@ export default function RecipeManagement() {
                                         value={ing.ingredientId}
                                         onValueChange={(value) => updateIngredientLine(index, 'ingredientId', value)}
                                         required
+                                        disabled={isEditMode}
                                       >
                                         <SelectTrigger id={`ingredient-${index}`} className="h-11">
                                           <SelectValue placeholder="Select ingredient" />
@@ -634,7 +710,7 @@ export default function RecipeManagement() {
                     </div>
                   </ScrollArea>
 
-                  <DialogFooter className="flex-col-reverse gap-3 sm:flex-row pt-4 border-t">
+                  <DialogFooter className="flex-shrink-0 flex-col-reverse gap-3 sm:flex-row pt-4 border-t">
                     <Button
                       type="button"
                       variant="outline"
@@ -652,12 +728,21 @@ export default function RecipeManagement() {
                       {saving ? (
                         <span className="flex items-center gap-2">
                           <div className="h-5 w-5 border-2 border-white/30 border-t-transparent animate-spin rounded-full"></div>
-                          Saving...
+                          {isEditMode ? 'Updating...' : 'Saving...'}
                         </span>
                       ) : (
                         <span className="flex items-center gap-2">
-                          <Plus className="h-5 w-5" />
-                          Save Recipe ({formData.ingredients.length} ingredient{formData.ingredients.length !== 1 ? 's' : ''})
+                          {isEditMode ? (
+                            <>
+                              <Edit className="h-5 w-5" />
+                              Update Recipe
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-5 w-5" />
+                              Save Recipe ({formData.ingredients.length} ingredient{formData.ingredients.length !== 1 ? 's' : ''})
+                            </>
+                          )}
                         </span>
                       )}
                     </Button>
@@ -754,17 +839,32 @@ export default function RecipeManagement() {
                         </p>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="flex-shrink-0 h-10 w-10"
-                    >
-                      {expandedCards.has(menuItemId) ? (
-                        <ChevronDown className="h-6 w-6" />
-                      ) : (
-                        <ChevronRight className="h-6 w-6" />
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleQuickAdd(menuItemId);
+                        }}
+                        className="h-9 px-3 gap-1"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span className="hidden sm:inline">Add</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10"
+                      >
+                        {expandedCards.has(menuItemId) ? (
+                          <ChevronDown className="h-6 w-6" />
+                        ) : (
+                          <ChevronRight className="h-6 w-6" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </CollapsibleTrigger>
 
@@ -807,14 +907,26 @@ export default function RecipeManagement() {
                                 </div>
                               </div>
 
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDelete(recipe.id)}
-                                className="flex-shrink-0 h-10 w-10 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
-                              >
-                                <Trash2 className="h-5 w-5" />
-                              </Button>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEdit(recipe)}
+                                  className="h-10 w-10 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                                  title="Edit quantity"
+                                >
+                                  <Edit className="h-5 w-5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDelete(recipe.id)}
+                                  className="h-10 w-10 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-5 w-5" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         ))}
