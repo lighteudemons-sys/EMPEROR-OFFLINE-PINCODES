@@ -304,6 +304,15 @@ export async function POST(
 
       // Restore inventory for each item
       for (const orderItem of order.items) {
+        console.log('[Refund] Processing order item:', {
+          orderItemId: orderItem.id,
+          itemName: orderItem.itemName,
+          quantity: orderItem.quantity,
+          customVariantValue: orderItem.customVariantValue,
+          menuItemVariantId: orderItem.menuItemVariantId,
+          variantName: orderItem.variantName,
+        });
+
         // Get recipe for the menu item, filtered by variant if present
         const recipes = await tx.recipe.findMany({
           where: {
@@ -312,12 +321,27 @@ export async function POST(
           },
         });
 
+        console.log('[Refund] Found recipes for item:', {
+          itemCount: recipes.length,
+          recipes: recipes.map(r => ({
+            ingredientId: r.ingredientId,
+            quantityRequired: r.quantityRequired,
+          }))
+        });
+
         // Restore ingredients
         for (const recipe of recipes) {
           // Use customVariantValue for custom weight variants (e.g., 0.25KG)
           // Default to 1 for regular items
           const variantMultiplier = orderItem.customVariantValue || 1;
           const quantityToRestore = recipe.quantityRequired * variantMultiplier * orderItem.quantity;
+
+          console.log('[Refund] Calculating restoration:', {
+            recipeQuantityRequired: recipe.quantityRequired,
+            variantMultiplier,
+            orderItemQuantity: orderItem.quantity,
+            quantityToRestore,
+          });
 
           // Get current inventory
           const inventory = await tx.branchInventory.findUnique({
