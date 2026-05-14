@@ -47,6 +47,7 @@ const OperationType = {
   CLOCK_IN: 'CLOCK_IN',
   CLOCK_OUT: 'CLOCK_OUT',
   MARK_ATTENDANCE_PAID: 'MARK_ATTENDANCE_PAID',
+  REFUND_ORDER: 'REFUND_ORDER',
 } as const;
 
 type OperationTypeType = typeof OperationType[keyof typeof OperationType];
@@ -112,6 +113,7 @@ function getOperationPriority(type: OperationTypeType): number {
     'UPDATE_USER': 4,
     'CLOCK_OUT': 4,  // Clock out must be processed AFTER CLOCK_IN
     'MARK_ATTENDANCE_PAID': 4,
+    'REFUND_ORDER': 2,  // Should be processed at the same priority as orders
   };
 
   const priority = priorityMap[type];
@@ -214,6 +216,116 @@ async function safeInventoryDeduct(
   });
 
   addLog(`[Inventory] Deducted ${quantityToDeductAbs} ${inventory?.unit || ''} of ${ingredientName} (stock: ${stockBefore} → ${stockAfter})`);
+}
+
+/**
+ * Refund order and restore inventory with correct customVariantValue
+ */
+async function refundOrder(data: any, branchId: string): Promise<void> {
+  addLog('[Refund Order] Starting refund for order: ' + data.orderId);
+
+  // Get the order with items
+  const order = await db.order.findUnique({
+    where: { id: data.orderId },
+    include: { items: true },
+  });
+
+  if (!order) {
+    addLog(`[Refund Order] Order not found: ${data.orderId}`);
+    throw new Error('Order not found');
+  }
+
+  if (order.isRefunded) {
+    addLog(`[Refund Order] Order already refunded: ${data.orderId}`);
+    return; // Already refunded, skip
+  }
+
+  addLog(`[Refund Order] Processing refund for order #${order.orderNumber}`);
+
+  // Process refund with inventory restoration
+  await db.$transaction(async (tx) => {
+    // Update order as refunded
+    await tx.order.update({
+      where: { id: data.orderId },
+      data: {
+        isRefunded: true,
+        refundReason: data.reason || 'No reason provided',
+        refundedAt: data.refundedAt ? new Date(data.refundedAt) : new Date(),
+      },
+    });
+
+    addLog(`[Refund Order] Marked order #${order.orderNumber} as refunded`);
+
+    // Restore inventory for each item
+    for (const orderItem of order.items) {
+      addLog(`[Refund Order] Processing order item: ${orderItem.itemName}, customVariantValue: ${orderItem.customVariantValue}`);
+
+      // Get recipe for the menu item, filtered by variant if present
+      const recipes = await tx.recipe.findMany({
+        where: {
+          menuItemId: orderItem.menuItemId,
+          menuItemVariantId: orderItem.menuItemVariantId || null,
+        },
+      });
+
+      // Restore ingredients
+      for (const recipe of recipes) {
+        // Use customVariantValue for custom weight variants (e.g., 0.25KG)
+        // Default to 1 for regular items
+        const variantMultiplier = orderItem.customVariantValue || 1;
+        const quantityToRestore = recipe.quantityRequired * variantMultiplier * orderItem.quantity;
+
+        addLog(`[Refund Order] Restoring ingredient ${recipe.ingredientId}: recipeQuantityRequired=${recipe.quantityRequired}, variantMultiplier=${variantMultiplier}, quantity=${orderItem.quantity}, quantityToRestore=${quantityToRestore}`);
+
+        // Get current inventory
+        const inventory = await tx.branchInventory.findUnique({
+          where: {
+            branchId_ingredientId: {
+              branchId,
+              ingredientId: recipe.ingredientId,
+            },
+          },
+        });
+
+        if (inventory) {
+          const stockBefore = inventory.currentStock;
+          const stockAfter = stockBefore + quantityToRestore;
+
+          await tx.branchInventory.update({
+            where: { id: inventory.id },
+            data: {
+              currentStock: stockAfter,
+              lastModifiedAt: new Date(),
+              lastModifiedBy: data.refundedBy || null,
+            },
+          });
+
+          // Create inventory transaction record
+          await tx.inventoryTransaction.create({
+            data: {
+              branchId,
+              ingredientId: recipe.ingredientId,
+              transactionType: 'REFUND',
+              quantityChange: quantityToRestore,
+              stockBefore,
+              stockAfter,
+              orderId: data.orderId,
+              reason: `Refund for order #${order.orderNumber}`,
+              createdBy: data.refundedBy || 'system',
+            },
+          });
+
+          addLog(`[Refund Order] Restored ${quantityToRestore} of ingredient ${recipe.ingredientId} (stock: ${stockBefore} → ${stockAfter})`);
+        } else {
+          addLog(`[Refund Order] WARNING: No inventory record found for ingredient ${recipe.ingredientId}`);
+        }
+      }
+    }
+
+    addLog(`[Refund Order] Inventory restoration completed for order #${order.orderNumber}`);
+  });
+
+  addLog(`[Refund Order] Refund completed for order #${order.orderNumber}`);
 }
 
 export async function POST(request: NextRequest) {
@@ -639,6 +751,10 @@ async function processOperation(operation: SyncOperation, branchId: string): Pro
 
     case OperationType.MARK_ATTENDANCE_PAID:
       await markAttendancePaid(operation.data, branchId);
+      break;
+
+    case OperationType.REFUND_ORDER:
+      await refundOrder(operation.data, branchId);
       break;
 
     default:
