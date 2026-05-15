@@ -45,6 +45,7 @@ interface CashTransaction {
 interface CashBalance {
   branchId: string;
   branchName: string;
+  isActive: boolean;
   totalIn: number;
   totalOut: number;
   currentBalance: number;
@@ -249,24 +250,29 @@ export default function CashManagement() {
 
         {/* Branch Balances */}
         {balances.map((balance) => (
-          <Card key={balance.branchId} className="hover:shadow-lg transition-shadow">
+          <Card key={balance.branchId} className={`hover:shadow-lg transition-shadow ${!balance.isActive ? 'opacity-60 bg-slate-50' : ''}`}>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Building className="h-5 w-5 text-emerald-600" />
+                <Building className={`h-5 w-5 ${balance.isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
                 {balance.branchName}
+                {!balance.isActive && (
+                  <Badge variant="secondary" className="text-xs ml-2">Inactive</Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-slate-900">{formatCurrency(balance.currentBalance)}</div>
+              <div className={`text-3xl font-bold ${balance.isActive ? 'text-slate-900' : 'text-slate-500'}`}>
+                {formatCurrency(balance.currentBalance)}
+              </div>
               <div className="mt-3 space-y-1 text-sm">
-                <div className="flex justify-between text-slate-600">
+                <div className={`flex justify-between ${balance.isActive ? 'text-slate-600' : 'text-slate-400'}`}>
                   <span className="flex items-center gap-1">
                     <TrendingUp className="h-4 w-4 text-emerald-600" />
                     Cash In:
                   </span>
                   <span className="font-semibold text-emerald-600">{formatCurrency(balance.totalIn)}</span>
                 </div>
-                <div className="flex justify-between text-slate-600">
+                <div className={`flex justify-between ${balance.isActive ? 'text-slate-600' : 'text-slate-400'}`}>
                   <span className="flex items-center gap-1">
                     <ArrowDown className="h-4 w-4 text-red-600" />
                     Cash Out:
@@ -312,6 +318,9 @@ export default function CashManagement() {
                           {balances.map((balance) => (
                             <SelectItem key={balance.branchId} value={balance.branchId}>
                               {balance.branchName}
+                              {!balance.isActive && (
+                                <span className="text-xs text-slate-400 ml-2">(Inactive)</span>
+                              )}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -374,6 +383,9 @@ export default function CashManagement() {
                           {balances.map((balance) => (
                             <SelectItem key={balance.branchId} value={balance.branchId}>
                               {balance.branchName} ({formatCurrency(balance.currentBalance)} available)
+                              {!balance.isActive && (
+                                <span className="text-xs text-slate-400 ml-2">(Inactive)</span>
+                              )}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -424,6 +436,9 @@ export default function CashManagement() {
                   {balances.map((balance) => (
                     <SelectItem key={balance.branchId} value={balance.branchId}>
                       {balance.branchName}
+                      {!balance.isActive && (
+                        <span className="text-xs text-slate-400 ml-2">(Inactive)</span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>

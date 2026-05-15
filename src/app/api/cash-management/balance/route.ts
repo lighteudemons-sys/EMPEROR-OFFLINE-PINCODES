@@ -10,12 +10,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const branchId = searchParams.get('branchId');
 
-    // Get all branches with their cash balances
+    // Get all branches with their cash balances (include inactive branches for cash management)
     const branches = await db.branch.findMany({
-      where: branchId ? { id: branchId } : { isActive: true },
+      where: branchId ? { id: branchId } : undefined, // Remove isActive filter to show all branches
       select: {
         id: true,
         branchName: true,
+        isActive: true, // Include isActive status
         _count: {
           select: {
             cashTransactions: true,
@@ -48,6 +49,7 @@ export async function GET(request: NextRequest) {
         return {
           branchId: branch.id,
           branchName: branch.branchName,
+          isActive: branch.isActive,
           totalIn,
           totalOut,
           currentBalance,
