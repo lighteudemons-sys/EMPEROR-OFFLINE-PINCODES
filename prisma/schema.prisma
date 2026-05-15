@@ -40,6 +40,7 @@ model User {
   wasteLogs              WasteLog[]             @relation("WasteRecorder")
   attendances            Attendance[]
   paidAttendances        Attendance[]           @relation("AttendancePayer")
+  cashTransactions       CashTransaction[]     @relation("CashTransactionCreator")
 
   @@index([username])
   @@index([userCode])
@@ -87,6 +88,7 @@ model Branch {
   etaSettings             BranchETASettings?
   licenses                BranchLicense[]
   attendances             Attendance[]
+  cashTransactions        CashTransaction[]
 
   @@index([licenseKey])
   @@index([isActive])
@@ -771,6 +773,7 @@ model Shift {
   branch                  Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
   cashier                 User           @relation(fields: [cashierId], references: [id])
   businessDay             BusinessDay?   @relation("BusinessDayShifts", fields: [dayId], references: [id])
+  cashTransaction         CashTransaction? @relation("ShiftCashTransaction")
 
   @@index([branchId])
   @@index([dayId])
@@ -1366,4 +1369,28 @@ enum AttendanceStatus {
   ON_LEAVE
   SICK
   OVERTIME
+}
+
+enum CashTransactionType {
+  SHIFT_CLOSING      // Cash from shift closing
+  WITHDRAWAL         // Manual withdrawal from safe
+}
+
+model CashTransaction {
+  id             String             @id @default(cuid())
+  branchId       String
+  type           CashTransactionType
+  amount         Float
+  description    String?
+  shiftId        String?            // Reference to shift if from shift closing
+  createdBy      String
+  createdAt      DateTime           @default(now())
+  branch         Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  creator        User               @relation("CashTransactionCreator", fields: [createdBy], references: [id])
+  shift          Shift?             @relation("ShiftCashTransaction", fields: [shiftId], references: [id])
+
+  @@index([branchId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([shiftId])
 }

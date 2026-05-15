@@ -235,6 +235,27 @@ async function closeShift(id: string, body: any) {
   // Log shift closing to audit logs
   await logShiftClosed(shift.cashierId, id, parseFloat(closingCash));
 
+  // Create cash IN transaction for cash management (only for cash amount)
+  if (paymentBreakdown.cash > 0) {
+    console.log('[closeShift] Creating cash management transaction:', paymentBreakdown.cash);
+    try {
+      await db.cashTransaction.create({
+        data: {
+          branchId: shift.branchId,
+          type: 'SHIFT_CLOSING',
+          amount: paymentBreakdown.cash,
+          description: `Cash from shift closing - ${shift.cashier.username}`,
+          shiftId: id,
+          createdBy: shift.cashierId,
+        },
+      });
+      console.log('[closeShift] Cash transaction created successfully');
+    } catch (cashTxnError) {
+      console.error('[closeShift] Failed to create cash transaction:', cashTxnError);
+      // Don't fail the shift closing if cash transaction creation fails
+    }
+  }
+
   console.log('[closeShift] Shift updated successfully');
 
   return {
