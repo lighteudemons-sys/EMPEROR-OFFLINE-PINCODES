@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DollarSign, TrendingUp, ArrowDown, Calendar, Building, Plus, Wallet } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowDown, Calendar, Building, Plus, Wallet, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth-context';
 
@@ -62,6 +62,10 @@ export default function CashManagement() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawDescription, setWithdrawDescription] = useState('');
   const [selectedBranchForWithdraw, setSelectedBranchForWithdraw] = useState<string>('');
+  const [depositDialogOpen, setDepositDialogOpen] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositDescription, setDepositDescription] = useState('');
+  const [selectedBranchForDeposit, setSelectedBranchForDeposit] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   // Fetch balances
@@ -155,6 +159,49 @@ export default function CashManagement() {
     }
   };
 
+  // Handle deposit
+  const handleDeposit = async () => {
+    if (!depositAmount || !selectedBranchForDeposit) {
+      showErrorToast('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    const amount = parseFloat(depositAmount);
+    if (amount <= 0) {
+      showErrorToast('Error', 'Amount must be greater than 0');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/cash-management/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branchId: selectedBranchForDeposit,
+          amount,
+          description: depositDescription || 'Manual cash deposit',
+          createdBy: user?.id,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        showSuccessToast('Success', 'Deposit recorded successfully');
+        setDepositDialogOpen(false);
+        setDepositAmount('');
+        setDepositDescription('');
+        setSelectedBranchForDeposit('');
+        fetchBalances();
+        fetchTransactions();
+      } else {
+        showErrorToast('Error', data.error || 'Failed to record deposit');
+      }
+    } catch (error) {
+      console.error('Failed to record deposit:', error);
+      showErrorToast('Error', 'Failed to record deposit');
+    }
+  };
+
   // Get month name
   const getMonthName = (monthStr: string) => {
     const date = new Date(monthStr + '-01');
@@ -236,66 +283,131 @@ export default function CashManagement() {
               <CardTitle>Transaction History</CardTitle>
               <CardDescription>View cash transactions by branch and month</CardDescription>
             </div>
-            <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-emerald-600 hover:bg-emerald-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Record Withdrawal
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Record Cash Withdrawal</DialogTitle>
-                  <DialogDescription>Record a cash withdrawal from the safe</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="branch">Branch *</Label>
-                    <Select value={selectedBranchForWithdraw} onValueChange={setSelectedBranchForWithdraw}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select branch" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {balances.map((balance) => (
-                          <SelectItem key={balance.branchId} value={balance.branchId}>
-                            {balance.branchName} ({formatCurrency(balance.currentBalance)} available)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="amount">Amount (EGP) *</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      step="0.01"
-                      value={withdrawAmount}
-                      onChange={(e) => setWithdrawAmount(e.target.value)}
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={withdrawDescription}
-                      onChange={(e) => setWithdrawDescription(e.target.value)}
-                      placeholder="e.g., Purchased supplies, paid utility bill..."
-                      rows={3}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setWithdrawDialogOpen(false)}>
-                    Cancel
+            <div className="flex gap-2">
+              {/* Cash IN Button */}
+              <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-emerald-600 hover:bg-emerald-700">
+                    <ArrowUpCircle className="h-4 w-4 mr-2" />
+                    Cash IN
                   </Button>
-                  <Button onClick={handleWithdraw} className="bg-emerald-600 hover:bg-emerald-700">
-                    Record Withdrawal
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Record Cash IN</DialogTitle>
+                    <DialogDescription>Record manual cash deposit into the safe (e.g., from bank/card orders)</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="deposit-branch">Branch *</Label>
+                      <Select value={selectedBranchForDeposit} onValueChange={setSelectedBranchForDeposit}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select branch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {balances.map((balance) => (
+                            <SelectItem key={balance.branchId} value={balance.branchId}>
+                              {balance.branchName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="deposit-amount">Amount (EGP) *</Label>
+                      <Input
+                        id="deposit-amount"
+                        type="number"
+                        step="0.01"
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="deposit-description">Description</Label>
+                      <Textarea
+                        id="deposit-description"
+                        value={depositDescription}
+                        onChange={(e) => setDepositDescription(e.target.value)}
+                        placeholder="e.g., Cash from bank, card orders converted to cash..."
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDepositDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleDeposit} className="bg-emerald-600 hover:bg-emerald-700">
+                      Record Cash IN
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Cash OUT Button */}
+              <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-red-600 hover:bg-red-700">
+                    <ArrowDownCircle className="h-4 w-4 mr-2" />
+                    Cash OUT
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Record Cash OUT</DialogTitle>
+                    <DialogDescription>Record a cash withdrawal from the safe</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="branch">Branch *</Label>
+                      <Select value={selectedBranchForWithdraw} onValueChange={setSelectedBranchForWithdraw}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select branch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {balances.map((balance) => (
+                            <SelectItem key={balance.branchId} value={balance.branchId}>
+                              {balance.branchName} ({formatCurrency(balance.currentBalance)} available)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="amount">Amount (EGP) *</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        step="0.01"
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={withdrawDescription}
+                        onChange={(e) => setWithdrawDescription(e.target.value)}
+                        placeholder="e.g., Purchased supplies, paid utility bill..."
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setWithdrawDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleWithdraw} className="bg-red-600 hover:bg-red-700">
+                      Record Cash OUT
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
           <div className="flex gap-3 mt-4">
             <div className="flex-1">
@@ -364,7 +476,11 @@ export default function CashManagement() {
                       <span className="text-sm text-slate-600">{transaction.branch.branchName}</span>
                     </div>
                     <p className="text-sm font-medium text-slate-900 mt-1">
-                      {transaction.description || (transaction.type === 'SHIFT_CLOSING' ? 'Shift Closing' : 'Withdrawal')}
+                      {transaction.description || (
+                        transaction.type === 'SHIFT_CLOSING'
+                          ? (transaction.shift ? 'Shift Closing' : 'Manual Deposit')
+                          : 'Withdrawal'
+                      )}
                     </p>
                     <p className="text-xs text-slate-500 mt-1">
                       {new Date(transaction.createdAt).toLocaleString('en-EG')}
