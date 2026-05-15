@@ -56,7 +56,7 @@ export default function CashManagement() {
   const [balances, setBalances] = useState<CashBalance[]>([]);
   const [grandTotal, setGrandTotal] = useState(0);
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -87,13 +87,17 @@ export default function CashManagement() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (selectedBranch) params.append('branchId', selectedBranch);
+      if (selectedBranch && selectedBranch !== 'all') {
+        params.append('branchId', selectedBranch);
+      }
       if (selectedMonth) {
-        const startDate = `${selectedMonth}-01`;
-        const lastDay = new Date(selectedMonth + '-01').toISOString().slice(0, 7) + '-' + new Date(selectedMonth + '-01').getDate();
-        const endDate = new Date(selectedMonth + '-01').toISOString().slice(0, 7) + '-' + new Date(parseInt(selectedMonth.split('-')[0]), parseInt(selectedMonth.split('-')[1]), 0).toISOString().slice(8, 10);
+        const year = selectedMonth.split('-')[0];
+        const month = selectedMonth.split('-')[1];
+        const startDate = `${year}-${month}-01`;
+        const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+        const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
         params.append('startDate', startDate);
-        params.append('endDate', `${selectedMonth}-${endDate}`);
+        params.append('endDate', endDate);
       }
 
       const response = await fetch(`/api/cash-management/transactions?${params.toString()}`);
@@ -416,7 +420,7 @@ export default function CashManagement() {
                   <SelectValue placeholder="All Branches" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Branches</SelectItem>
+                  <SelectItem value="all">All Branches</SelectItem>
                   {balances.map((balance) => (
                     <SelectItem key={balance.branchId} value={balance.branchId}>
                       {balance.branchName}
