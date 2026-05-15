@@ -961,21 +961,24 @@ export function MobileInventory() {
                   />
                 </div>
               </div>
-              {!editingItem && (
-                <div className="space-y-2">
-                  <Label htmlFor="initialStock">Initial Stock ({formData.unit})</Label>
-                  <Input
-                    id="initialStock"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.initialStock}
-                    onChange={(e) => setFormData({ ...formData, initialStock: e.target.value })}
-                    placeholder="0.00"
-                    className="h-11"
-                  />
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="initialStock">Initial Stock ({formData.unit})</Label>
+                <Input
+                  id="initialStock"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.initialStock}
+                  onChange={(e) => setFormData({ ...formData, initialStock: e.target.value })}
+                  placeholder="0.00"
+                  className="h-11"
+                />
+                <p className="text-xs text-slate-500">
+                  {editingItem
+                    ? 'Update initial stock to adjust current inventory'
+                    : 'Set the starting stock amount for this ingredient'}
+                </p>
+              </div>
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto h-11">
