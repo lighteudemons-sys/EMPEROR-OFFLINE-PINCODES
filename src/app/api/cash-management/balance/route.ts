@@ -17,11 +17,6 @@ export async function GET(request: NextRequest) {
         id: true,
         branchName: true,
         isActive: true, // Include isActive status
-        _count: {
-          select: {
-            cashTransactions: true,
-          },
-        },
       },
     });
 
@@ -45,6 +40,7 @@ export async function GET(request: NextRequest) {
           .reduce((sum, t) => sum + t.amount, 0);
 
         const currentBalance = totalIn - totalOut;
+        const transactionCount = transactions.length;
 
         return {
           branchId: branch.id,
@@ -53,7 +49,7 @@ export async function GET(request: NextRequest) {
           totalIn,
           totalOut,
           currentBalance,
-          transactionCount: branch._count.cashTransactions,
+          transactionCount,
         };
       })
     );
