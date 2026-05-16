@@ -91,12 +91,16 @@ export function MobileCashManagement() {
       setLoading(true);
       const response = await fetch('/api/cash-management/balance');
       const data = await response.json();
+      console.log('[MobileCashManagement] Balance data:', data);
       if (data.success) {
-        setBalances(data.balances);
-        setGrandTotal(data.grandTotal);
+        setBalances(data.balances || []);
+        setGrandTotal(data.grandTotal || 0);
+      } else {
+        console.error('[MobileCashManagement] Balance API error:', data.error);
+        showErrorToast('Error', data.error || 'Failed to load cash balances');
       }
     } catch (error) {
-      console.error('Failed to fetch balances:', error);
+      console.error('[MobileCashManagement] Failed to fetch balances:', error);
       showErrorToast('Error', 'Failed to load cash balances');
     } finally {
       setLoading(false);
@@ -265,6 +269,14 @@ export function MobileCashManagement() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
+      {/* Loading State */}
+      {loading && balances.length === 0 && (
+        <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+          <div className="animate-spin h-12 w-12 border-4 border-emerald-600 border-t-transparent rounded-full mb-4" />
+          <p className="text-slate-600 font-medium">Loading cash data...</p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 text-white px-4 pt-12 pb-8 shadow-lg">
         <div className="flex items-center gap-3 mb-6">
@@ -308,13 +320,13 @@ export function MobileCashManagement() {
 
       <Tabs defaultValue="overview" className="bg-white">
         <TabsList className="w-full grid grid-cols-2 p-0 h-14 border-b">
-          <TabsTrigger 
-            value="overview" 
+          <TabsTrigger
+            value="overview"
             className="h-full rounded-none data-[state=active]:border-b-2 data-[state=active]:border-emerald-600"
           >
             Overview
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="transactions"
             className="h-full rounded-none data-[state=active]:border-b-2 data-[state=active]:border-emerald-600"
           >
@@ -322,9 +334,19 @@ export function MobileCashManagement() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Empty State */}
+        {!loading && balances.length === 0 && (
+          <div className="p-8 text-center">
+            <Wallet className="w-16 h-16 mx-auto mb-4 text-slate-300" />
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">No Branches Found</h3>
+            <p className="text-slate-600 text-sm">No branches are available. Please create branches first.</p>
+          </div>
+        )}
+
         {/* Overview Tab */}
         <TabsContent value="overview" className="m-0">
-          <div className="p-4 space-y-4">
+          {balances.length > 0 && (
+            <div className="p-4 space-y-4">
             {/* Quick Actions */}
             <div className="grid grid-cols-2 gap-3">
               <Button
@@ -394,12 +416,14 @@ export function MobileCashManagement() {
                 ))}
               </div>
             </div>
+          )}
           </div>
         </TabsContent>
 
         {/* Transactions Tab */}
         <TabsContent value="transactions" className="m-0">
-          <div className="p-4 space-y-4">
+          {balances.length > 0 && (
+            <div className="p-4 space-y-4">
             {/* Filters */}
             <Card className="bg-slate-50 border-slate-200">
               <CardContent className="p-4 space-y-3">
@@ -510,7 +534,8 @@ export function MobileCashManagement() {
                 </div>
               )}
             </ScrollArea>
-          </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
