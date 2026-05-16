@@ -85,6 +85,15 @@ export function MobileCashManagement() {
     description: '',
   });
 
+  // Calculate display balance based on selected branch
+  const displayBalance = selectedBranch === 'all' || !selectedBranch
+    ? grandTotal
+    : balances.find(b => b.branchId === selectedBranch)?.currentBalance || 0;
+
+  const displayBranchName = selectedBranch === 'all' || !selectedBranch
+    ? 'All Branches'
+    : balances.find(b => b.branchId === selectedBranch)?.branchName || '';
+
   // Fetch balances
   const fetchBalances = async () => {
     try {
@@ -305,10 +314,12 @@ export function MobileCashManagement() {
               <div>
                 <p className="text-emerald-100 text-sm font-medium flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
-                  Total Cash in Safe
+                  {displayBranchName === 'All Branches' ? 'Total Cash in Safe' : `${displayBranchName} Cash Balance`}
                 </p>
-                <p className="text-4xl font-bold mt-2">{formatCurrency(grandTotal)}</p>
-                <p className="text-emerald-100 text-xs mt-1">Across all branches</p>
+                <p className="text-4xl font-bold mt-2">{formatCurrency(displayBalance)}</p>
+                <p className="text-emerald-100 text-xs mt-1">
+                  {displayBranchName === 'All Branches' ? 'Across all branches' : `Branch balance`}
+                </p>
               </div>
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
                 <Wallet className="w-8 h-8 text-emerald-200" />
@@ -347,6 +358,27 @@ export function MobileCashManagement() {
         <TabsContent value="overview" className="m-0">
           {balances.length > 0 && (
             <div className="p-4 space-y-4">
+            {/* Branch Selector */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-slate-600">Select Branch</Label>
+              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                <SelectTrigger className="h-11">
+                  <SelectValue placeholder="All branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {balances.map((balance) => (
+                    <SelectItem key={balance.branchId} value={balance.branchId}>
+                      {balance.branchName}
+                      {!balance.isActive && (
+                        <span className="text-xs text-slate-400 ml-2">(Inactive)</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Quick Actions */}
             <div className="grid grid-cols-2 gap-3">
               <Button
@@ -369,12 +401,14 @@ export function MobileCashManagement() {
             <div>
               <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                 <Building className="w-5 h-5 text-slate-600" />
-                Branch Balances
+                {selectedBranch === 'all' ? 'Branch Balances' : `${displayBranchName} Balance`}
               </h3>
               <div className="space-y-3">
-                {balances.map((balance) => (
-                  <Card 
-                    key={balance.branchId} 
+                {balances
+                  .filter(balance => selectedBranch === 'all' || balance.branchId === selectedBranch)
+                  .map((balance) => (
+                  <Card
+                    key={balance.branchId}
                     className={`overflow-hidden ${!balance.isActive ? 'opacity-60 bg-slate-50' : ''}`}
                   >
                     <CardContent className="p-4">
@@ -394,7 +428,7 @@ export function MobileCashManagement() {
                           {formatCurrency(balance.currentBalance)}
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-emerald-50 rounded-lg p-3">
                           <p className="text-xs text-emerald-600 font-medium mb-1 flex items-center gap-1">
