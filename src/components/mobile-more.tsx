@@ -23,6 +23,7 @@ import { MobileAuditLogs } from '@/components/mobile-audit-logs';
 import { MobileUsers } from '@/components/mobile-users';
 import { MobileBranches } from '@/components/mobile-branches';
 import { MobileCosts } from '@/components/mobile-costs';
+import { MobileCashManagement } from '@/components/mobile-cash-management';
 import {
   User,
   LogOut,
@@ -54,6 +55,7 @@ import {
   LogOut as LogOutIcon,
   Coffee,
   UserCog,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -80,7 +82,7 @@ export function MobileMore() {
 
   // Mobile view sheets
   const [mobileViewOpen, setMobileViewOpen] = useState(false);
-  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'loyalty' | 'promo-codes' | 'delivery-areas' | 'couriers' | 'eta-settings' | 'suppliers' | 'purchase-orders' | 'audit-logs' | 'users' | 'branches' | 'costs' | null>(null);
+  const [currentMobileView, setCurrentMobileView] = useState<'menu' | 'inventory' | 'customers' | 'tables' | 'reports' | 'loyalty' | 'promo-codes' | 'delivery-areas' | 'couriers' | 'eta-settings' | 'suppliers' | 'purchase-orders' | 'audit-logs' | 'users' | 'branches' | 'costs' | 'cash-management' | null>(null);
 
   // Role-based access control - same as desktop
   const canAccessHQFeatures = user?.role === 'ADMIN';
@@ -96,6 +98,7 @@ export function MobileMore() {
   const canAccessAuditLogs = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
   const canAccessETA = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
   const canAccessCosts = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const canAccessCashManagement = user?.role === 'ADMIN';
 
   useEffect(() => {
     const fetchStorageInfo = async () => {
@@ -178,6 +181,7 @@ export function MobileMore() {
       features: [
         { id: 'reports', name: 'Reports', icon: BarChart3, category: 'Reports', canAccess: canAccessBranchFeatures },
         { id: 'costs', name: 'Costs', icon: TrendingDown, category: 'Reports', canAccess: canAccessCosts },
+        { id: 'cash-management', name: 'Cash Management', icon: Wallet, category: 'Reports', canAccess: canAccessCashManagement },
         { id: 'audit-logs', name: 'Audit Logs', icon: FileText, category: 'Reports', canAccess: canAccessAuditLogs },
       ],
     },
@@ -238,6 +242,12 @@ export function MobileMore() {
 
     if (feature.id === 'costs') {
       setCurrentMobileView('costs');
+      setMobileViewOpen(true);
+      return;
+    }
+
+    if (feature.id === 'cash-management') {
+      setCurrentMobileView('cash-management');
       setMobileViewOpen(true);
       return;
     }
@@ -556,6 +566,7 @@ export function MobileMore() {
                 {currentMobileView === 'tables' && 'Tables'}
                 {currentMobileView === 'reports' && 'Reports'}
                 {currentMobileView === 'costs' && 'Costs'}
+                {currentMobileView === 'cash-management' && 'Cash Management'}
                 {currentMobileView === 'loyalty' && 'Loyalty Program'}
                 {currentMobileView === 'promo-codes' && 'Promo Codes'}
                 {currentMobileView === 'delivery-areas' && 'Delivery Areas'}
@@ -576,6 +587,7 @@ export function MobileMore() {
             {currentMobileView === 'tables' && <MobileTables />}
             {currentMobileView === 'reports' && <MobileReports />}
             {currentMobileView === 'costs' && <MobileCosts />}
+            {currentMobileView === 'cash-management' && <MobileCashManagement />}
             {currentMobileView === 'loyalty' && <MobileLoyalty />}
             {currentMobileView === 'promo-codes' && <MobilePromoCodes />}
             {currentMobileView === 'delivery-areas' && <MobileDeliveryAreas />}

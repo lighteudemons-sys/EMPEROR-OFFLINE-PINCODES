@@ -249,14 +249,14 @@ export function MobileCashManagement() {
       : <Badge className="bg-red-100 text-red-800 border-red-200">Cash OUT</Badge>;
   };
 
-  if (user?.role !== 'ADMIN' && user?.role !== 'MANAGER') {
+  if (user?.role !== 'ADMIN') {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <Card className="max-w-sm w-full">
           <CardContent className="p-8 text-center">
             <Shield className="h-16 w-16 mx-auto mb-4 text-slate-300" />
             <h2 className="text-xl font-bold text-slate-900 mb-2">Access Denied</h2>
-            <p className="text-slate-600">Cash Management is only available to admins and managers.</p>
+            <p className="text-slate-600">Cash Management is only available to HQ Admins.</p>
           </CardContent>
         </Card>
       </div>
