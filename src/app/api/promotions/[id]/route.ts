@@ -1,0 +1,442 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { z } from 'zod';
+import { getSession } from '@/lib/session-manager';
+
+// Validation schema for updating promotions
+const promotionUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  discountType: z.enum(['PERCENTAGE', 'FIXED_AMOUNT', 'CATEGORY_PERCENTAGE', 'CATEGORY_FIXED', 'BUY_X_GET_Y_FREE']).optional(),
+  discountValue: z.number().min(0).optional(),
+  categoryId: z.string().nullable().optional(),
+  maxUses: z.number().int().positive().nullable().optional(),
+  usesPerCustomer: z.number().int().positive().nullable().optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  isActive: z.boolean().optional(),
+  allowStacking: z.boolean().optional(),
+  minOrderAmount: z.number().min(0).nullable().optional(),
+  maxDiscountAmount: z.number().min(0).nullable().optional(),
+  // BOGO fields
+  buyQuantity: z.number().int().positive().nullable().optional(),
+  getQuantity: z.number().int().positive().nullable().optional(),
+  buyProductId: z.string().nullable().optional(),
+  buyCategoryId: z.string().nullable().optional(),
+  buyProductVariantId: z.string().nullable().optional(),
+  getProductId: z.string().nullable().optional(),
+  getCategoryId: z.string().nullable().optional(),
+  getProductVariantId: z.string().nullable().optional(),
+  applyToCheapest: z.boolean().optional(),
+  branchIds: z.array(z.string()).optional().default([]),
+  categoryIds: z.array(z.string()).optional().default([]),
+});
+
+// GET /api/promotions/[id] - Get a single promotion
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Await params in Next.js 15
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Promotion ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const includeCodes = searchParams.get('includeCodes') === 'true';
+    const codesOffset = parseInt(searchParams.get('codesOffset') || '0');
+    const codesLimit = parseInt(searchParams.get('codesLimit') || '50');
+
+    const promotion = await db.promotion.findUnique({
+      where: { id },
+      include: {
+        codes: includeCodes ? {
+          take: codesLimit,
+          skip: codesOffset,
+          orderBy: { createdAt: 'desc' },
+        } : false,
+        branchRestrictions: {
+          include: {
+            branch: true,
+          },
+        },
+        categoryRestrictions: {
+          include: {
+            category: true,
+          },
+        },
+        _count: {
+          select: {
+            codes: true,
+            usageLogs: true,
+          },
+        },
+      },
+    });
+
+    if (!promotion) {
+      return NextResponse.json(
+        { success: false, error: 'Promotion not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      promotion,
+    });
+  } catch (error) {
+    console.error('Error fetching promotion:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch promotion' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/promotions/[id] - Update a promotion
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Await params in Next.js 15
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Promotion ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const validatedData = promotionUpdateSchema.parse(body);
+
+    // Check if promotion exists and include branch restrictions
+    const existingPromotion = await db.promotion.findUnique({
+      where: { id },
+      include: {
+        branchRestrictions: {
+          select: {
+            branchId: true,
+          },
+        },
+      },
+    });
+
+    if (!existingPromotion) {
+      return NextResponse.json(
+        { success: false, error: 'Promotion not found' },
+        { status: 404 }
+      );
+    }
+
+    // Branch managers can only update promotions for their branch
+    if (session.role === 'BRANCH_MANAGER') {
+      if (!session.branchId) {
+        return NextResponse.json(
+          { success: false, error: 'Branch manager must be assigned to a branch' },
+          { status: 403 }
+        );
+      }
+
+      // Check if the promotion is accessible to this branch manager
+      const hasBranchAccess = existingPromotion.branchRestrictions.some(
+        (br) => br.branchId === session.branchId
+      );
+
+      if (!hasBranchAccess) {
+        return NextResponse.json(
+          { success: false, error: 'You can only update promotions for your branch' },
+          { status: 403 }
+        );
+      }
+
+      // Force branchIds to only include the manager's branch
+      if (validatedData.branchIds !== undefined) {
+        validatedData.branchIds = [session.branchId];
+      }
+    }
+
+    // Validate dates if provided
+    if (validatedData.startDate && validatedData.endDate) {
+      const startDate = new Date(validatedData.startDate);
+      const endDate = new Date(validatedData.endDate);
+      if (endDate <= startDate) {
+        return NextResponse.json(
+          { success: false, error: 'End date must be after start date' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate percentage discounts if changing
+    if (validatedData.discountType && validatedData.discountValue !== undefined) {
+      if (
+        (validatedData.discountType === 'PERCENTAGE' ||
+          validatedData.discountType === 'CATEGORY_PERCENTAGE') &&
+        (validatedData.discountValue < 0 || validatedData.discountValue > 100)
+      ) {
+        return NextResponse.json(
+          { success: false, error: 'Percentage discount must be between 0 and 100' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate BOGO discounts if changing
+    if (validatedData.discountType === 'BUY_X_GET_Y_FREE') {
+      if (!validatedData.buyQuantity || validatedData.buyQuantity < 1) {
+        return NextResponse.json(
+          { success: false, error: 'Buy quantity is required and must be at least 1' },
+          { status: 400 }
+        );
+      }
+      if (!validatedData.getQuantity || validatedData.getQuantity < 1) {
+        return NextResponse.json(
+          { success: false, error: 'Get quantity is required and must be at least 1' },
+          { status: 400 }
+        );
+      }
+      if (!validatedData.buyProductId && !validatedData.buyCategoryId) {
+        return NextResponse.json(
+          { success: false, error: 'Buy product or category is required for BOGO promotions' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Update promotion with related data in a transaction
+    const promotion = await db.$transaction(async (tx) => {
+      // Update promotion
+      const updatedPromotion = await tx.promotion.update({
+        where: { id },
+        data: {
+          ...(validatedData.name !== undefined && { name: validatedData.name }),
+          ...(validatedData.description !== undefined && { description: validatedData.description }),
+          ...(validatedData.discountType !== undefined && { discountType: validatedData.discountType }),
+          ...(validatedData.discountValue !== undefined && { discountValue: validatedData.discountValue }),
+          ...(validatedData.categoryId !== undefined && { categoryId: validatedData.categoryId }),
+          ...(validatedData.maxUses !== undefined && { maxUses: validatedData.maxUses }),
+          ...(validatedData.usesPerCustomer !== undefined && { usesPerCustomer: validatedData.usesPerCustomer }),
+          ...(validatedData.startDate !== undefined && { startDate: new Date(validatedData.startDate) }),
+          ...(validatedData.endDate !== undefined && { endDate: new Date(validatedData.endDate) }),
+          ...(validatedData.isActive !== undefined && { isActive: validatedData.isActive }),
+          ...(validatedData.allowStacking !== undefined && { allowStacking: validatedData.allowStacking }),
+          ...(validatedData.minOrderAmount !== undefined && { minOrderAmount: validatedData.minOrderAmount }),
+          ...(validatedData.maxDiscountAmount !== undefined && { maxDiscountAmount: validatedData.maxDiscountAmount }),
+          // BOGO fields
+          ...(validatedData.buyQuantity !== undefined && { buyQuantity: validatedData.buyQuantity }),
+          ...(validatedData.getQuantity !== undefined && { getQuantity: validatedData.getQuantity }),
+          ...(validatedData.buyProductId !== undefined && { buyProductId: validatedData.buyProductId }),
+          ...(validatedData.buyCategoryId !== undefined && { buyCategoryId: validatedData.buyCategoryId }),
+          ...(validatedData.buyProductVariantId !== undefined && { buyProductVariantId: validatedData.buyProductVariantId }),
+          ...(validatedData.getProductId !== undefined && { getProductId: validatedData.getProductId }),
+          ...(validatedData.getCategoryId !== undefined && { getCategoryId: validatedData.getCategoryId }),
+          ...(validatedData.getProductVariantId !== undefined && { getProductVariantId: validatedData.getProductVariantId }),
+          ...(validatedData.applyToCheapest !== undefined && { applyToCheapest: validatedData.applyToCheapest }),
+        },
+      });
+
+      // Update branch restrictions if provided
+      if (validatedData.branchIds !== undefined) {
+        // Delete existing restrictions
+        await tx.promotionBranch.deleteMany({
+          where: { promotionId: id },
+        });
+
+        // Add new restrictions
+        if (validatedData.branchIds.length > 0) {
+          await tx.promotionBranch.createMany({
+            data: validatedData.branchIds.map((branchId) => ({
+              promotionId: id,
+              branchId,
+            })),
+          });
+        }
+      }
+
+      // Update category restrictions if provided
+      if (validatedData.categoryIds !== undefined) {
+        // Delete existing restrictions
+        await tx.promotionCategory.deleteMany({
+          where: { promotionId: id },
+        });
+
+        // Add new restrictions
+        if (validatedData.categoryIds.length > 0) {
+          await tx.promotionCategory.createMany({
+            data: validatedData.categoryIds.map((categoryId) => ({
+              promotionId: id,
+              categoryId,
+            })),
+          });
+        }
+      }
+
+      return updatedPromotion;
+    });
+
+    // Fetch the complete promotion with relations (limit codes to avoid 5MB limit)
+    const completePromotion = await db.promotion.findUnique({
+      where: { id: promotion.id },
+      include: {
+        codes: {
+          take: 50, // Limit to 50 most recent codes to avoid response size limit
+          orderBy: { createdAt: 'desc' },
+        },
+        branchRestrictions: {
+          include: {
+            branch: true,
+          },
+        },
+        categoryRestrictions: {
+          include: {
+            category: true,
+          },
+        },
+        _count: {
+          select: {
+            codes: true,
+            usageLogs: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      promotion: completePromotion,
+    });
+  } catch (error) {
+    console.error('Error updating promotion:', error);
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Validation error', details: error.errors },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Failed to update promotion' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/promotions/[id] - Delete a promotion
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Await params in Next.js 15
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Promotion ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Check if promotion exists and include branch restrictions
+    const existingPromotion = await db.promotion.findUnique({
+      where: { id },
+      include: {
+        branchRestrictions: {
+          select: {
+            branchId: true,
+          },
+        },
+        _count: {
+          select: {
+            usageLogs: true,
+          },
+        },
+      },
+    });
+
+    if (!existingPromotion) {
+      return NextResponse.json(
+        { success: false, error: 'Promotion not found' },
+        { status: 404 }
+      );
+    }
+
+    // Branch managers can only delete promotions for their branch
+    if (session.role === 'BRANCH_MANAGER') {
+      if (!session.branchId) {
+        return NextResponse.json(
+          { success: false, error: 'Branch manager must be assigned to a branch' },
+          { status: 403 }
+        );
+      }
+
+      // Check if the promotion is accessible to this branch manager
+      const hasBranchAccess = existingPromotion.branchRestrictions.some(
+        (br) => br.branchId === session.branchId
+      );
+
+      if (!hasBranchAccess) {
+        return NextResponse.json(
+          { success: false, error: 'You can only delete promotions for your branch' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Prevent deletion if promotion has been used
+    if (existingPromotion._count.usageLogs > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Cannot delete promotion that has been used. Deactivate it instead.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Delete promotion (cascade will handle related records)
+    await db.promotion.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Promotion deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting promotion:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete promotion' },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,929 @@
+[Service Worker] Installing v5...
+sw.js:64 [Service Worker] Caching app shell and static assets
+sw.js:81 [Service Worker] Installation complete
+sw.js:94 [Service Worker] Activating v5...
+sw.js:116 [Service Worker] Activation complete
+Access to fetch at 'https://vercel.com/sso-api?url=https%3A%2F%2Femperor-offline-lighteudemons-2170s-projects.vercel.app%2Fmanifest.json&nonce=f14414f5d79da9006d4fa707dc8f72ce64d81db987ac86b32372042dddaf228a' (redirected from 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json') from origin 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+sw.js:286 [Service Worker] Using cached static asset: https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json
+Access to fetch at 'https://vercel.com/sso-api?url=https%3A%2F%2Femperor-offline-lighteudemons-2170s-projects.vercel.app%2Fmanifest.json&nonce=f444a9ddbdb5c54c276735ef6bcd15f1b922d655e50af74212e0d531620219e1' (redirected from 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json') from origin 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+sw.js:286 [Service Worker] Using cached static asset: https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json
+Access to fetch at 'https://vercel.com/sso-api?url=https%3A%2F%2Femperor-offline-lighteudemons-2170s-projects.vercel.app%2Fmanifest.json&nonce=b12bd7376a8eb31b1a3ff57cc79de5eb44569736ad690f0964edb9dbdb31744d' (redirected from 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json') from origin 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+sw.js:286 [Service Worker] Using cached static asset: https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json
+Access to fetch at 'https://vercel.com/sso-api?url=https%3A%2F%2Femperor-offline-lighteudemons-2170s-projects.vercel.app%2Fmanifest.json&nonce=e0d1ccd83b96e662e76732dc12114db3f4b9bb00523825cc6f4f27e61edaa3cf' (redirected from 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json') from origin 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+sw.js:286 [Service Worker] Using cached static asset: https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json
+Access to fetch at 'https://vercel.com/sso-api?url=https%3A%2F%2Femperor-offline-lighteudemons-2170s-projects.vercel.app%2Fmanifest.json&nonce=f01031908164f88d6a198c578b803c5357e7133fcf272aa24e774bda5ab0107e' (redirected from 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json') from origin 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+sw.js:286 [Service Worker] Using cached static asset: https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json
+sw-loader.js:58 [SW-Loader] Connection status: online
+00ztuxwu5oz~q.js:1 [PWA] Service Worker support detected
+00ztuxwu5oz~q.js:1 [PWA] Service Worker registered: https://emperor-offline-lighteudemons-2170s-projects.vercel.app/
+185-r0ihxs7uu.js:1 [IndexedDBStorage] Database initialized successfully
+sw-loader.js:17 [SW-Loader] Service Worker registered successfully: https://emperor-offline-lighteudemons-2170s-projects.vercel.app/
+185-r0ihxs7uu.js:1 [DataExpiration] Cleanup interval started (5 minutes)
+185-r0ihxs7uu.js:1 [OfflineManager] Checking actual network connectivity...
+00ztuxwu5oz~q.js:1 [LicenseGuard] Device activated for branch: undefined
+05u7_uk6t..w2.js:2926 [StorageMonitor] Starting storage monitoring (every 5 minutes)
+05u7_uk6t..w2.js:2926 [Dashboard] Initializing offline manager for branch: cmr1xwcfh0004l404nqjjxi18
+00ztuxwu5oz~q.js:1 [LicenseGuard] User authenticated, bypassing license activation check: CASHIER
+185-r0ihxs7uu.js:1 [Auth] Initializing offline manager for branch: cmr1xwcfh0004l404nqjjxi18
+(index):1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+185-r0ihxs7uu.js:1 [OfflineManager] Network check successful - already online
+185-r0ihxs7uu.js:1 [OfflineManager] Initialized - Online: true Branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2926 [Dashboard] Offline manager initialized (auto-sync disabled)
+185-r0ihxs7uu.js:1 [Auth] Offline manager initialized
+05u7_uk6t..w2.js:2926 [Dashboard] No open shift from API, checking offline...
+Access to fetch at 'https://vercel.com/sso-api?url=https%3A%2F%2Femperor-offline-lighteudemons-2170s-projects.vercel.app%2Fmanifest.json&nonce=5891893f9ca2c050c5ec08eee4981db943552dff6e34169d7e237779620414a0' (redirected from 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json') from origin 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+sw.js:286 [Service Worker] Using cached static asset: https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json
+00ztuxwu5oz~q.js:1 [LicenseGuard] User authenticated, bypassing license activation check: CASHIER
+05u7_uk6t..w2.js:2926 [Dashboard] Business day is open from API, allowing POS access
+05u7_uk6t..w2.js:2926 [Dashboard] Final POS access decision: Object
+05u7_uk6t..w2.js:2926 [Dashboard] POS access granted because: Open business day from API
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/branches
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/delivery-areas
+05u7_uk6t..w2.js:399 [useOfflineData] no API endpoint, fetching from IndexedDB: (none)
+05u7_uk6t..w2.js:530 [POS Credit] No customer selected
+05u7_uk6t..w2.js:530 [POS Credit] customerCreditInfo state changed: null
+05u7_uk6t..w2.js:399 [AutoSync] Offline manager initialized for branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:405 [POS] Fetching recipes for offline caching...
+05u7_uk6t..w2.js:399 [useOfflineData] IndexedDB fetch successful: (none)
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/categories?active=true
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/menu-items/pos?branchId=cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/branches
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 2 items to branches
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/delivery-areas
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: No items to save for delivery_areas
+05u7_uk6t..w2.js:2926 [Dashboard] No open shift from API, checking offline...
+05u7_uk6t..w2.js:405 [POS] Cached 0 recipes for offline use
+05u7_uk6t..w2.js:1 [Receipt Viewer] Receipt settings loaded from database: Object
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/menu-items/pos?branchId=cmr1xwcfh0004l404nqjjxi18
+0q0266~4grz5_.js:1 [MenuCache] Cached menu items: 5 items
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 5 items to menu_items
+05u7_uk6t..w2.js:2926 [Dashboard] Business day is open from API, allowing POS access
+05u7_uk6t..w2.js:2926 [Dashboard] Final POS access decision: Object
+05u7_uk6t..w2.js:2926 [Dashboard] POS access granted because: Open business day from API
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/branches
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch changed to: 
+05u7_uk6t..w2.js:2162 [Shift Management] branchesData changed: null
+05u7_uk6t..w2.js:2162 [Shift Management] shiftsData changed: null
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch: 
+05u7_uk6t..w2.js:2162 [Shift Management] User or branches changed: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Setting user branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/shifts
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch changed to: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2162 [Shift Management] Shift fetching is now enabled
+05u7_uk6t..w2.js:2162 [Shift Management] shiftsData changed: null
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2162 [Shift Management] fetchBusinessDayStatus called for branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/branches
+05u7_uk6t..w2.js:2162 [Shift Management] branchesData changed: Array(2)
+05u7_uk6t..w2.js:2162 [Shift Management] branchesList: Array(2)
+05u7_uk6t..w2.js:2162 [Shift Management] User or branches changed: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Setting user branch: cmr1xwcfh0004l404nqjjxi18
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 2 items to branches
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/categories?active=true
+0q0266~4grz5_.js:1 [MenuCache] Cached categories: 4 categories
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 4 items to categories
+05u7_uk6t..w2.js:2162 [Shift Management] User or branches changed: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Setting user branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:405 [POS] Found shifts for current user: 4
+05u7_uk6t..w2.js:405 [POS] Using most recent shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] API response for business day status: Object
+0z2du_cvj3rq..js:5 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ 0z2du_cvj3rq..js:5
+05u7_uk6t..w2.js:2926 [Dashboard] No open shift from API, checking offline...
+05u7_uk6t..w2.js:2926 [Dashboard] Business day is open from API, allowing POS access
+05u7_uk6t..w2.js:2926 [Dashboard] Final POS access decision: Object
+05u7_uk6t..w2.js:2926 [Dashboard] POS access granted because: Open business day from API
+05u7_uk6t..w2.js:2166 [Shift Management] handleOpenShift called
+05u7_uk6t..w2.js:2166 [Shift Management] Current business day status: Object
+05u7_uk6t..w2.js:2166 [Shift Management] Is opening shift: false
+05u7_uk6t..w2.js:2166 [Shift Management] Selected shift: null
+05u7_uk6t..w2.js:2166 [Shift Management] Business day is open, proceeding to open shift
+05u7_uk6t..w2.js:2166 [Shift Management] user: Object
+05u7_uk6t..w2.js:2166 [Shift Management] Shift data to send: Object
+05u7_uk6t..w2.js:2166 [Shift] Network check passed, trying API...
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/shifts
+05u7_uk6t..w2.js:2162 [Shift Management] shiftsData changed: Array(4)
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2162 [Shift Management] API shifts: Array(4)
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 4 items to shifts
+05u7_uk6t..w2.js:2162 [Shift Management] Offline shifts: Array(4)
+05u7_uk6t..w2.js:2162 [Shift Management] Combined shifts: Array(4)
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Filtered shifts: Array(4)
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/shifts
+05u7_uk6t..w2.js:2926 [Dashboard] refreshShiftStatus event received
+05u7_uk6t..w2.js:2926 [Dashboard] refreshOnTabChange triggered, activeTab: shifts
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/branches
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/delivery-areas
+05u7_uk6t..w2.js:399 [useOfflineData] no API endpoint, fetching from IndexedDB: (none)
+05u7_uk6t..w2.js:530 [POS Credit] No customer selected
+05u7_uk6t..w2.js:530 [POS Credit] customerCreditInfo state changed: null
+05u7_uk6t..w2.js:399 [AutoSync] Offline manager initialized for branch: cmr1xwcfh0004l404nqjjxi18
+0q0266~4grz5_.js:1 [MenuCache] Returning cached categories
+05u7_uk6t..w2.js:399 [useOfflineData] Using cached categories
+0q0266~4grz5_.js:1 [MenuCache] Returning cached menu items
+05u7_uk6t..w2.js:399 [useOfflineData] Using cached menu items
+05u7_uk6t..w2.js:405 [POS] Fetching recipes for offline caching...
+05u7_uk6t..w2.js:399 [useOfflineData] IndexedDB fetch successful: (none)
+05u7_uk6t..w2.js:2926 [Dashboard] Found open shift from API: Object
+05u7_uk6t..w2.js:2926 [Dashboard] Final POS access decision: Object
+05u7_uk6t..w2.js:2926 [Dashboard] POS access granted because: Open shift from API
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/shifts
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 5 items to shifts
+05u7_uk6t..w2.js:405 [POS] Cached 0 recipes for offline use
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/delivery-areas
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: No items to save for delivery_areas
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/branches
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 2 items to branches
+05u7_uk6t..w2.js:1 [Receipt Viewer] Receipt settings loaded from database: Object
+05u7_uk6t..w2.js:2926 [Dashboard] Found open shift from API: Object
+05u7_uk6t..w2.js:2926 [Dashboard] Final POS access decision: Object
+05u7_uk6t..w2.js:2926 [Dashboard] POS access granted because: Open shift from API
+05u7_uk6t..w2.js:405 [Captain Receipt] getMenuItemRequiresCaptainReceipt called: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] Using categoryRel: false
+05u7_uk6t..w2.js:405 [Cart] Creating cart item: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Daily expenses from API: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] getMenuItemRequiresCaptainReceipt called: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] Using categoryRel: false
+05u7_uk6t..w2.js:405 [Cart] Creating cart item: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] getMenuItemRequiresCaptainReceipt called: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] Using categoryRel: false
+05u7_uk6t..w2.js:405 [Cart] Creating cart item: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] getMenuItemRequiresCaptainReceipt called: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] Using categoryRel: false
+05u7_uk6t..w2.js:405 [Cart] Creating cart item: Object
+05u7_uk6t..w2.js:552 [Checkout Staff Check] User role: CASHIER Branch ID: cmr1xwcfh0004l404nqjjxi18 Current shift: cmr21ekou0001la04tz2a1r96
+05u7_uk6t..w2.js:405 [checkActiveStaff] Checking for active staff in branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:405 [checkActiveStaff] Checking for staff clocked in after: 2026-06-30T12:13:56.220Z
+05u7_uk6t..w2.js:405 [checkActiveStaff] Checking online API...
+05u7_uk6t..w2.js:405 [checkActiveStaff] API response: Object
+05u7_uk6t..w2.js:405 [checkActiveStaff] Attendance cmr1yptf00003l504eple5kud: clockIn=2026-07-01T12:13:53.821Z, isWithin24Hours=true, isActive=true
+05u7_uk6t..w2.js:405 [checkActiveStaff] Found active staff from API: 1
+05u7_uk6t..w2.js:405 [checkActiveStaff] Checking IndexedDB...
+05u7_uk6t..w2.js:405 [checkActiveStaff] Offline attendance records: 0
+05u7_uk6t..w2.js:405 [checkActiveStaff] Final result: Object
+05u7_uk6t..w2.js:552 [Checkout Staff Check] Active staff check result: Object
+05u7_uk6t..w2.js:552 [Checkout Staff Check] Active staff found, allowing checkout: Array(1)
+05u7_uk6t..w2.js:552 [Checkout] Order data being sent: Object
+05u7_uk6t..w2.js:552 [Checkout] Manual discount: Object
+05u7_uk6t..w2.js:552 Order data prepared: Object
+05u7_uk6t..w2.js:552 [Order] Network check passed, trying API...
+0z2du_cvj3rq..js:5 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ 0z2du_cvj3rq..js:5
+05u7_uk6t..w2.js:1 [Receipt] handlePrint called
+05u7_uk6t..w2.js:1 [Receipt] thermalPrinterConnected: false
+05u7_uk6t..w2.js:1 [Receipt] Order ID: cmr1xwcfh0004l404nqjjxi18-11-1782908039991
+05u7_uk6t..w2.js:1 [Receipt] Order items: Array(1)
+05u7_uk6t..w2.js:1 [Receipt] Item 0: Americano, requiresCaptainReceipt: false
+05u7_uk6t..w2.js:1 [Receipt] Thermal printer not connected, using standard print
+05u7_uk6t..w2.js:1 Using standard print...
+05u7_uk6t..w2.js:549 [Shift Expenses] Loading expenses for shift: cmr21ekou0001la04tz2a1r96
+05u7_uk6t..w2.js:549 [Shift Expenses] Loaded from API: 0 expenses
+05u7_uk6t..w2.js:549 [Shift Expenses] Loaded from IndexedDB: 0 expenses
+05u7_uk6t..w2.js:549 [Shift Expenses] Total loaded: 0 expenses for shift: cmr21ekou0001la04tz2a1r96
+05u7_uk6t..w2.js:530 [Daily Expense] expenseData created: Object
+05u7_uk6t..w2.js:530 [Daily Expense] Network status: true
+05u7_uk6t..w2.js:530 [Daily Expense] Online mode, submitting to API
+05u7_uk6t..w2.js:405 [Captain Receipt] getMenuItemRequiresCaptainReceipt called: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] Using categoryRel: false
+05u7_uk6t..w2.js:405 [Cart] Creating cart item: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] getMenuItemRequiresCaptainReceipt called: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] Using categoryRel: false
+05u7_uk6t..w2.js:405 [Cart] Creating cart item: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] getMenuItemRequiresCaptainReceipt called: Object
+05u7_uk6t..w2.js:405 [Captain Receipt] Using categoryRel: false
+05u7_uk6t..w2.js:405 [Cart] Creating cart item: Object
+05u7_uk6t..w2.js:552 [Checkout Staff Check] User role: CASHIER Branch ID: cmr1xwcfh0004l404nqjjxi18 Current shift: cmr21ekou0001la04tz2a1r96
+05u7_uk6t..w2.js:405 [checkActiveStaff] Checking for active staff in branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:405 [checkActiveStaff] Checking for staff clocked in after: 2026-06-30T12:14:18.952Z
+05u7_uk6t..w2.js:405 [checkActiveStaff] Checking online API...
+05u7_uk6t..w2.js:405 [checkActiveStaff] API response: Object
+05u7_uk6t..w2.js:405 [checkActiveStaff] Attendance cmr1yptf00003l504eple5kud: clockIn=2026-07-01T12:13:53.821Z, isWithin24Hours=true, isActive=true
+05u7_uk6t..w2.js:405 [checkActiveStaff] Found active staff from API: 1
+05u7_uk6t..w2.js:405 [checkActiveStaff] Checking IndexedDB...
+05u7_uk6t..w2.js:405 [checkActiveStaff] Offline attendance records: 0
+05u7_uk6t..w2.js:405 [checkActiveStaff] Final result: Object
+05u7_uk6t..w2.js:552 [Checkout Staff Check] Active staff check result: Object
+05u7_uk6t..w2.js:552 [Checkout Staff Check] Active staff found, allowing checkout: Array(1)
+05u7_uk6t..w2.js:552 [Checkout] Order data being sent: Object
+05u7_uk6t..w2.js:552 [Checkout] Manual discount: Object
+05u7_uk6t..w2.js:552 Order data prepared: Object
+05u7_uk6t..w2.js:552 [Order] Network check passed, trying API...
+0z2du_cvj3rq..js:5 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ 0z2du_cvj3rq..js:5
+05u7_uk6t..w2.js:1 [Receipt] handlePrint called
+05u7_uk6t..w2.js:1 [Receipt] thermalPrinterConnected: false
+05u7_uk6t..w2.js:1 [Receipt] Order ID: cmr1xwcfh0004l404nqjjxi18-12-1782908061338
+05u7_uk6t..w2.js:1 [Receipt] Order items: Array(1)
+05u7_uk6t..w2.js:1 [Receipt] Item 0: Americano, requiresCaptainReceipt: false
+05u7_uk6t..w2.js:1 [Receipt] Thermal printer not connected, using standard print
+05u7_uk6t..w2.js:1 Using standard print...
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/branches
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch changed to: 
+05u7_uk6t..w2.js:2162 [Shift Management] branchesData changed: null
+05u7_uk6t..w2.js:2162 [Shift Management] shiftsData changed: null
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch: 
+05u7_uk6t..w2.js:2162 [Shift Management] User or branches changed: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Setting user branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/shifts
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch changed to: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2162 [Shift Management] Shift fetching is now enabled
+05u7_uk6t..w2.js:2162 [Shift Management] shiftsData changed: null
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2162 [Shift Management] fetchBusinessDayStatus called for branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/branches
+05u7_uk6t..w2.js:2162 [Shift Management] branchesData changed: Array(2)
+05u7_uk6t..w2.js:2162 [Shift Management] branchesList: Array(2)
+05u7_uk6t..w2.js:2162 [Shift Management] User or branches changed: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Setting user branch: cmr1xwcfh0004l404nqjjxi18
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 2 items to branches
+05u7_uk6t..w2.js:2162 [Shift Management] User or branches changed: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Setting user branch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2162 [Shift Management] API response for business day status: Object
+05u7_uk6t..w2.js:2926 [Dashboard] Found open shift from API: Object
+05u7_uk6t..w2.js:2926 [Dashboard] Final POS access decision: Object
+05u7_uk6t..w2.js:2926 [Dashboard] POS access granted because: Open shift from API
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/shifts
+05u7_uk6t..w2.js:2162 [Shift Management] shiftsData changed: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2162 [Shift Management] API shifts: Array(5)
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 5 items to shifts
+05u7_uk6t..w2.js:2162 [Shift Management] Offline shifts: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] Combined shifts: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Filtered shifts: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] Daily expenses from API: Object
+0z2du_cvj3rq..js:5 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ 0z2du_cvj3rq..js:5
+05u7_uk6t..w2.js:2171 [Shift Management] Cash revenue fetched: 140
+05u7_uk6t..w2.js:2171 [Shift Management] Voided items: 0
+05u7_uk6t..w2.js:2171 [Shift Management] Refunds: 0
+05u7_uk6t..w2.js:2171 [Shift Management] Payment breakdown pre-populated: Object
+05u7_uk6t..w2.js:2166 [Active Staff Check] Found 0 active staff from API (online mode - ignoring IndexedDB)
+05u7_uk6t..w2.js:2170 [Shift] Network check passed, trying API to close shift...
+Access to fetch at 'https://vercel.com/sso-api?url=https%3A%2F%2Femperor-offline-lighteudemons-2170s-projects.vercel.app%2Fmanifest.json&nonce=caaa403b6954ed6b502398a3d228497a440b035bd0431022ef6fcc3cf6c62bc2' (redirected from 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json') from origin 'https://emperor-offline-lighteudemons-2170s-projects.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+sw.js:286 [Service Worker] Using cached static asset: https://emperor-offline-lighteudemons-2170s-projects.vercel.app/manifest.json
+05u7_uk6t..w2.js:2170 [handleCloseShift] Response status: 200
+05u7_uk6t..w2.js:2170 [handleCloseShift] Response data: Object
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/shifts
+05u7_uk6t..w2.js:2926 [Dashboard] refreshShiftStatus event received
+05u7_uk6t..w2.js:2926 [Dashboard] refreshOnTabChange triggered, activeTab: shifts
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] Dialog opened, evaluating data source...
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] shiftId: cmr21ekou0001la04tz2a1r96
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] shiftData: Object
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] shiftData.id: cmr21ekou0001la04tz2a1r96
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] shiftData starts with temp-?: false
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] shiftData.shiftNumber: undefined
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] shiftData.closingRevenue: null
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] shiftData.closingOrders: null
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] navigator.onLine: true
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] hasTempId: false
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] hasRealClosingData: false
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] isOffline: false
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] useShiftData: false
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] Fetching shift data from API for shiftId: cmr21ekou0001la04tz2a1r96
+0z2du_cvj3rq..js:5 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ 0z2du_cvj3rq..js:5
+iv @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+s_ @ 078ej-k-.vn36.js:1
+sE @ 078ej-k-.vn36.js:1
+sk @ 078ej-k-.vn36.js:1
+(anonymous) @ 078ej-k-.vn36.js:1
+sv @ 078ej-k-.vn36.js:1
+st @ 078ej-k-.vn36.js:1
+se @ 078ej-k-.vn36.js:1
+sW @ 078ej-k-.vn36.js:1
+sU @ 078ej-k-.vn36.js:1
+sk @ 078ej-k-.vn36.js:1
+(anonymous) @ 078ej-k-.vn36.js:1
+sv @ 078ej-k-.vn36.js:1
+st @ 078ej-k-.vn36.js:1
+se @ 078ej-k-.vn36.js:1
+s$ @ 078ej-k-.vn36.js:1
+O @ 078ej-k-.vn36.js:1
+05u7_uk6t..w2.js:2162 [Shift] Using offline shift: Object
+05u7_uk6t..w2.js:2926 [Dashboard] No open shift from API, checking offline...
+05u7_uk6t..w2.js:2926 [Dashboard] Business day is open from API, allowing POS access
+05u7_uk6t..w2.js:2926 [Dashboard] Final POS access decision: Object
+05u7_uk6t..w2.js:2926 [Dashboard] POS access granted because: Open business day from API
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/shifts
+05u7_uk6t..w2.js:2162 [Shift Management] shiftsData changed: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2162 [Shift Management] API shifts: Array(5)
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 5 items to shifts
+05u7_uk6t..w2.js:2162 [Shift Management] Offline shifts: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] Combined shifts: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Filtered shifts: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] Daily expenses from API: Object
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] API Response report: Object
+05u7_uk6t..w2.js:1308 [Shift Closing Receipt] Category breakdown: Array(1)
+05u7_uk6t..w2.js:2166 [Active Staff Check] Found 0 active staff from API (online mode - ignoring IndexedDB)
+05u7_uk6t..w2.js:2166 [Day Closing] Business day closed successfully
+05u7_uk6t..w2.js:2166 [Day Closing] Fetching closing report for businessDayId: cmr21ebhn0001jr04q22iuwxa
+05u7_uk6t..w2.js:2166 [Day Closing] Report response status: 200
+05u7_uk6t..w2.js:2166 [Day Closing] Report data: Object
+05u7_uk6t..w2.js:2166 [Day Closing] Setting closing report and opening dialog
+05u7_uk6t..w2.js:399 [useOfflineData] Fetching from API: /api/shifts
+05u7_uk6t..w2.js:556 [Day Closing Receipt] Dialog open: true businessDayId: cmr21ebhn0001jr04q22iuwxa
+05u7_uk6t..w2.js:556 [Day Closing Receipt] Fetching closing report for businessDayId: cmr21ebhn0001jr04q22iuwxa
+0z2du_cvj3rq..js:5 `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.
+
+If you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.
+
+For more information, see https://radix-ui.com/primitives/docs/components/dialog
+(anonymous) @ 0z2du_cvj3rq..js:5
+iv @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+s_ @ 078ej-k-.vn36.js:1
+sE @ 078ej-k-.vn36.js:1
+sk @ 078ej-k-.vn36.js:1
+(anonymous) @ 078ej-k-.vn36.js:1
+sv @ 078ej-k-.vn36.js:1
+st @ 078ej-k-.vn36.js:1
+se @ 078ej-k-.vn36.js:1
+sW @ 078ej-k-.vn36.js:1
+sU @ 078ej-k-.vn36.js:1
+sk @ 078ej-k-.vn36.js:1
+(anonymous) @ 078ej-k-.vn36.js:1
+sv @ 078ej-k-.vn36.js:1
+st @ 078ej-k-.vn36.js:1
+se @ 078ej-k-.vn36.js:1
+s$ @ 078ej-k-.vn36.js:1
+O @ 078ej-k-.vn36.js:1
+0z2du_cvj3rq..js:5 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ 0z2du_cvj3rq..js:5
+iv @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+ud @ 078ej-k-.vn36.js:1
+up @ 078ej-k-.vn36.js:1
+s_ @ 078ej-k-.vn36.js:1
+sE @ 078ej-k-.vn36.js:1
+sk @ 078ej-k-.vn36.js:1
+(anonymous) @ 078ej-k-.vn36.js:1
+sv @ 078ej-k-.vn36.js:1
+st @ 078ej-k-.vn36.js:1
+se @ 078ej-k-.vn36.js:1
+sW @ 078ej-k-.vn36.js:1
+sU @ 078ej-k-.vn36.js:1
+sk @ 078ej-k-.vn36.js:1
+(anonymous) @ 078ej-k-.vn36.js:1
+sv @ 078ej-k-.vn36.js:1
+st @ 078ej-k-.vn36.js:1
+se @ 078ej-k-.vn36.js:1
+s$ @ 078ej-k-.vn36.js:1
+O @ 078ej-k-.vn36.js:1
+05u7_uk6t..w2.js:399 [useOfflineData] API fetch successful: /api/shifts
+05u7_uk6t..w2.js:2162 [Shift Management] shiftsData changed: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] selectedBranch: cmr1xwcfh0004l404nqjjxi18
+05u7_uk6t..w2.js:2162 [Shift Management] API shifts: Array(5)
+185-r0ihxs7uu.js:1 [IndexedDBStorage] batchPut: Saved 5 items to shifts
+05u7_uk6t..w2.js:2162 [Shift Management] Offline shifts: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] Combined shifts: Array(5)
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Checking shift: Object
+05u7_uk6t..w2.js:2162 [Shift Management] Filtered shifts: Array(5)
+05u7_uk6t..w2.js:556 [Day Closing Receipt] Response status: 200
+05u7_uk6t..w2.js:556 [Day Closing Receipt] Response data: Object
+05u7_uk6t..w2.js:556 [Day Closing Receipt] Report loaded successfully, shifts count: 1

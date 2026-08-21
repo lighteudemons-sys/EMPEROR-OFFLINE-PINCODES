@@ -1,0 +1,310 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { AttendanceStatus, UserRole } from '@prisma/client';
+
+// GET /api/attendance - List attendance records
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    const branchId = searchParams.get('branchId');
+    const status = searchParams.get('status');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const isPaid = searchParams.get('isPaid');
+    const currentUserId = searchParams.get('currentUserId');
+
+    if (!currentUserId) {
+      return NextResponse.json(
+        { error: 'User not authenticated' },
+        { status: 401 }
+      );
+    }
+
+    // Get current user to check permissions
+    const currentUser = await db.user.findUnique({
+      where: { id: currentUserId },
+      include: { branch: true },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Build where clause with role-based access control
+    const where: any = {};
+
+    // Branch managers can only see their branch, admins can see all
+    if (currentUser.role === UserRole.BRANCH_MANAGER && currentUser.branchId) {
+      where.branchId = currentUser.branchId;
+    } else if (branchId) {
+      where.branchId = branchId;
+    }
+
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (status) {
+      where.status = status as AttendanceStatus;
+    }
+
+    if (startDate || endDate) {
+      where.clockIn = {}; // Filter by clockIn date, not createdAt
+      if (startDate) {
+        where.clockIn.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.clockIn.lte = new Date(endDate);
+      }
+    }
+
+    if (isPaid !== null && isPaid !== undefined) {
+      where.isPaid = isPaid === 'true';
+    }
+
+    const attendances = await db.attendance.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            role: true,
+            dailyRate: true,
+          },
+        },
+        branch: {
+          select: {
+            id: true,
+            branchName: true,
+          },
+        },
+        payer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return NextResponse.json({ attendances });
+  } catch (error) {
+    console.error('Error fetching attendances:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch attendances' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/attendance - Clock in (create/update attendance record)
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { userId, branchId, notes, currentUserId } = body;
+
+    if (!userId || !branchId || !currentUserId) {
+      return NextResponse.json(
+        { error: 'Missing required fields: userId, branchId, currentUserId' },
+        { status: 400 }
+      );
+    }
+
+    // Verify user exists
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      include: { branch: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Get user's date (YYYY-MM-DD) for checking same-day attendance
+    const now = new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayDate = today.toISOString();
+
+    // Define a reasonable time window for "recent" active attendance (12 hours)
+    // This prevents treating old/stale orphaned records as "active"
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+
+    // Check if user already has an ACTIVE attendance (not clocked out)
+    // This handles merging multiple clock-in attempts within the same shift
+    const existingActiveAttendance = await db.attendance.findFirst({
+      where: {
+        userId,
+        branchId,
+        status: {
+          in: [AttendanceStatus.PRESENT, AttendanceStatus.LATE], // Check for active status records
+        },
+        clockIn: {
+          gte: new Date(todayDate), // Only check records from today onwards
+          gte: twelveHoursAgo, // AND must be recent (within last 12 hours)
+        },
+        clockOut: null, // Must not have clocked out
+      },
+      orderBy: {
+        clockIn: 'desc', // Get the most recent one
+      },
+    });
+
+    // Check for the MOST RECENT clocked-out attendance
+    // This helps distinguish between resuming a shift vs starting a new one
+    const mostRecentClockedOut = await db.attendance.findFirst({
+      where: {
+        userId,
+        branchId,
+        clockOut: {
+          not: null, // Must have been clocked out
+        },
+      },
+      orderBy: {
+        clockIn: 'desc', // Get the most recent clocked-out
+      },
+    });
+
+    // Check for previous completed attendance today (clocked out or ABSENT)
+    // Check for previous completed attendance (clocked out)
+    // This prevents duplicate entries when clocking in after closing at 3 AM
+    // Only consider resuming if most recent clocked-out is RECENT (within 12 hours)
+    let previousTodayAttendance = null;
+
+    if (mostRecentClockedOut) {
+      // Check if most recent clocked-out was recent (within 12 hours)
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      const isRecent = mostRecentClockedOut.clockIn && new Date(mostRecentClockedOut.clockIn) >= twelveHoursAgo;
+
+      if (isRecent) {
+        // Recent clocked-out - user is resuming the same shift/day
+        console.log('[Attendance API] Found recent clocked-out, will resume:', mostRecentClockedOut);
+        previousTodayAttendance = mostRecentClockedOut;
+      } else {
+        // Old clocked-out (from previous day/shift) - ignore, start fresh
+        console.log('[Attendance API] Old clocked-out found, will create new record');
+        previousTodayAttendance = null;
+      }
+    }
+
+    console.log('[Attendance] Clock-in check:', {
+      hasActive: !!existingActiveAttendance,
+      hasPreviousToday: !!previousTodayAttendance,
+      date: todayDate,
+    });
+
+    let attendance;
+
+    if (existingActiveAttendance) {
+      // User has an active attendance, update it instead of creating new
+      // This handles cases where cashier accidentally clicks clock in twice in the same shift
+      console.log('[Attendance API] Found existing active attendance:', existingActiveAttendance);
+
+      attendance = await db.attendance.update({
+        where: { id: existingActiveAttendance.id },
+        data: {
+          clockIn: new Date(), // Update clock in time to current time
+          status: AttendanceStatus.PRESENT,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              role: true,
+              dailyRate: true,
+            },
+          },
+        },
+      });
+      console.log('[Attendance API] Updated existing attendance:', attendance);
+    } else if (previousTodayAttendance) {
+      // User has a completed attendance from today and is clocking in again
+      // MERGE: Update the previous attendance instead of creating a new one
+      // Reset clockOut to null and update clockIn to resume the day
+      console.log('[Attendance API] Found previous today attendance, merging:', previousTodayAttendance);
+
+      attendance = await db.attendance.update({
+        where: { id: previousTodayAttendance.id },
+        data: {
+          clockIn: new Date(), // Update clock in time to current time (new session)
+          clockOut: null, // Reset clock out - employee is working again
+          status: AttendanceStatus.PRESENT, // Reset to active status
+          notes: notes
+            ? `${notes}\n---\nResumed at: ${new Date().toLocaleTimeString()} (after previous clock-out at ${previousTodayAttendance.clockOut?.toLocaleTimeString()})`
+            : `Resumed at: ${new Date().toLocaleTimeString()} (after previous clock-out)`,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              role: true,
+              dailyRate: true,
+            },
+          },
+          branch: {
+            select: {
+              id: true,
+              branchName: true,
+            },
+          },
+        },
+      });
+      console.log('[Attendance API] Merged with previous attendance:', attendance);
+    } else {
+      // No active attendance, create new record
+      // This handles multiple shifts in a day (after clocking out from previous shift)
+      console.log('[Attendance API] No active attendance, creating new record');
+
+      attendance = await db.attendance.create({
+        data: {
+          userId,
+          branchId,
+          clockIn: new Date(),
+          status: AttendanceStatus.PRESENT,
+          notes: notes || null,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              role: true,
+              dailyRate: true,
+            },
+          },
+          branch: {
+            select: {
+              id: true,
+              branchName: true,
+            },
+          },
+        },
+      });
+    }
+
+    return NextResponse.json({ success: true, attendance }, { status: 201 });
+  } catch (error) {
+    console.error('Error clocking in:', error);
+    return NextResponse.json(
+      { error: 'Failed to clock in' },
+      { status: 500 }
+    );
+  }
+}
