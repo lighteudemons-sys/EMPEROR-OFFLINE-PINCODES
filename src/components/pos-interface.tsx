@@ -1049,6 +1049,7 @@ export default function POSInterface() {
       return `/api/menu-items/pos?branchId=${branchId}`;
     })(),
     {
+      branchId: user?.role === 'ADMIN' ? selectedBranch : user?.branchId, // CRITICAL: pass branchId so the hook invalidates cache on branch change
       fetchFromDB: offlineDataFetchers.menuItems,
       deps: [selectedBranch, user?.branchId, user?.role],
       useCache: true, // Enable in-memory caching for instant tab switching
