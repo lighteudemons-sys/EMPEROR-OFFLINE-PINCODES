@@ -422,6 +422,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Note: Do NOT clear device registration data (emperor_device_*, emperor_device_registered*)
           // This ensures device stays registered after logout
           console.log('[Auth] User session cleared from IndexedDB (device registration preserved)');
+
+          // CRITICAL: clear the in-memory menuCache so the next login doesn't see
+          // the previous user's cached menu items. Without this, a cashier logging
+          // out of Branch A and into Branch B would see Branch A's menu items
+          // and prices for up to 5 minutes (the cache TTL).
+          try {
+            const { menuCache } = await import('@/lib/menu-cache');
+            menuCache.clear();
+            console.log('[Auth] menuCache cleared on logout');
+          } catch (cacheErr) {
+            console.warn('[Auth] Could not clear menuCache:', cacheErr);
+          }
+
+          // Also clear the IndexedDB menu_items store so the offline fallback
+          // doesn't return the previous branch's cached items.
+          try {
+            const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+            const indexedDB = getIndexedDBStorage();
+            await indexedDB.init();
+            await indexedDB.clearStore('menu_items');
+            console.log('[Auth] IndexedDB menu_items store cleared on logout');
+          } catch (idbErr) {
+            console.warn('[Auth] Could not clear IndexedDB menu_items:', idbErr);
+          }
         } catch (error) {
           console.warn('[Auth] IndexedDB not accessible:', error);
         }
@@ -441,6 +465,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await storage.removeSetting('user');
           await storage.removeSetting('isLoggedIn');
           // Note: Preserve device registration data
+
+          // Best-effort cache cleanup on error path too
+          try {
+            const { menuCache } = await import('@/lib/menu-cache');
+            menuCache.clear();
+          } catch {}
+          try {
+            const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+            const indexedDB = getIndexedDBStorage();
+            await indexedDB.init();
+            await indexedDB.clearStore('menu_items');
+          } catch {}
         } catch (error) {
           console.warn('[Auth] IndexedDB not accessible:', error);
         }
