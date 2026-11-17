@@ -427,24 +427,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // the previous user's cached menu items. Without this, a cashier logging
           // out of Branch A and into Branch B would see Branch A's menu items
           // and prices for up to 5 minutes (the cache TTL).
+          //
+          // NOTE: We only clear the in-memory cache, NOT the IndexedDB menu_items
+          // store. The IndexedDB store is the offline fallback that allows the
+          // cashier to keep working if the network drops. Clearing it on logout
+          // would break the offline workflow in this scenario:
+          //   1. Cashier logs in online, menu cached in IndexedDB
+          //   2. Cashier logs out (clears IndexedDB menu_items)
+          //   3. Network drops
+          //   4. Cashier tries to log back in — but they can't (user record cleared)
+          //   5. Even if they could, there's no menu to work with
+          // By keeping the IndexedDB menu_items, if the cashier re-logs in online
+          // and the network drops again immediately, the IndexedDB fallback still
+          // has a menu (though it may be stale — but stale menu is better than no menu).
           try {
             const { menuCache } = await import('@/lib/menu-cache');
             menuCache.clear();
             console.log('[Auth] menuCache cleared on logout');
           } catch (cacheErr) {
             console.warn('[Auth] Could not clear menuCache:', cacheErr);
-          }
-
-          // Also clear the IndexedDB menu_items store so the offline fallback
-          // doesn't return the previous branch's cached items.
-          try {
-            const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
-            const indexedDB = getIndexedDBStorage();
-            await indexedDB.init();
-            await indexedDB.clearStore('menu_items');
-            console.log('[Auth] IndexedDB menu_items store cleared on logout');
-          } catch (idbErr) {
-            console.warn('[Auth] Could not clear IndexedDB menu_items:', idbErr);
           }
         } catch (error) {
           console.warn('[Auth] IndexedDB not accessible:', error);
@@ -466,16 +467,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await storage.removeSetting('isLoggedIn');
           // Note: Preserve device registration data
 
-          // Best-effort cache cleanup on error path too
+          // Best-effort in-memory cache cleanup on error path too
           try {
             const { menuCache } = await import('@/lib/menu-cache');
             menuCache.clear();
-          } catch {}
-          try {
-            const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
-            const indexedDB = getIndexedDBStorage();
-            await indexedDB.init();
-            await indexedDB.clearStore('menu_items');
           } catch {}
         } catch (error) {
           console.warn('[Auth] IndexedDB not accessible:', error);
