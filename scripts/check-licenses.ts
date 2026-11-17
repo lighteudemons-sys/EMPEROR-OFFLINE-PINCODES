@@ -2,8 +2,12 @@
 import { PrismaClient } from '@prisma/client';
 import { generateLicenseKey, validateLicenseKey, parseLicenseKey } from '../src/lib/license/license';
 
-// Set DATABASE_URL to match the dev script
-process.env.DATABASE_URL = 'postgresql://neondb_owner:npg_jR2nVQDJXG8O@ep-nameless-flower-alam3jmb-pooler.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+// SECURITY: Read DATABASE_URL from the environment. Do not hardcode credentials.
+// The .env file (gitignored) should contain DATABASE_URL=postgresql://...
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL is not set. Set it in .env or in the environment.');
+  process.exit(1);
+}
 
 const db = new PrismaClient();
 

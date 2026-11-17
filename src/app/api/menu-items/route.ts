@@ -15,9 +15,12 @@ export async function GET(request: NextRequest) {
 
     const menuItems = await getCached(cacheKey, async () => {
       // Build where clause
+      // Phase 3.3: exclude soft-deleted items by default (unless explicitly requested via ?includeArchived=true)
+      const includeArchived = searchParams.get('includeArchived') === 'true';
       const whereClause: any = {
         ...(category && category !== 'all' ? { category } : {}),
         ...(active !== null ? { isActive: active === 'true' } : {}),
+        ...(includeArchived ? {} : { deletedAt: null }),
       };
 
       // If branchId is provided, filter menu items by branch
@@ -32,7 +35,13 @@ export async function GET(request: NextRequest) {
             { name: 'asc' },
           ],
           include: {
-            branchAssignments: true,
+            branchAssignments: {
+              include: {
+                branch: {
+                  select: { id: true, branchName: true },
+                },
+              },
+            },
             recipes: {
               include: {
                 ingredient: {
@@ -98,7 +107,7 @@ export async function GET(request: NextRequest) {
           return item.branchAssignments.some(ba => ba.branchId === branchId);
         });
       } else {
-        // No branch filter, return all items
+        // No branch filter, return all items (including the new fields)
         return await db.menuItem.findMany({
           where: whereClause,
           orderBy: [
@@ -106,7 +115,14 @@ export async function GET(request: NextRequest) {
             { name: 'asc' },
           ],
           include: {
-            branchAssignments: true,
+            // Phase 3.3: include full branch assignments (with price + isActive)
+            branchAssignments: {
+              include: {
+                branch: {
+                  select: { id: true, branchName: true },
+                },
+              },
+            },
             recipes: {
               include: {
                 ingredient: {
@@ -233,14 +249,19 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
+
     // Check if this is a PATCH override for updates
     if (body._method === 'PATCH') {
       return await handleUpdate(body);
     }
 
     // Original POST logic for creating new items
-    const { name, category, categoryId, price, taxRate, isActive, sortOrder, hasVariants, branchIds, imagePath } = body;
+    // Phase 3.3: Added availabilityMode and branchPrices support
+    const {
+      name, category, categoryId, price, taxRate, isActive, sortOrder,
+      hasVariants, branchIds, imagePath,
+      availabilityMode, branchPrices,
+    } = body;
 
     if (!name || !price) {
       return NextResponse.json(
@@ -262,8 +283,9 @@ export async function POST(request: NextRequest) {
       validCategoryId = categoryId;
     }
 
-    // Validate branchIds if provided
+    // Validate branchIds if provided (legacy field — for backward compatibility with existing UI)
     let validBranchIds: string[] = [];
+    let isExplicit = false;
     if (branchIds && Array.isArray(branchIds) && branchIds.length > 0) {
       // Check if "all" is selected (special case)
       if (!branchIds.includes('all')) {
@@ -273,8 +295,53 @@ export async function POST(request: NextRequest) {
           select: { id: true },
         });
         validBranchIds = branches.map(b => b.id);
+        if (validBranchIds.length > 0) {
+          isExplicit = true; // has branch-specific assignments → EXPLICIT
+        }
       }
       // If "all" is in the array, we leave validBranchIds empty (means available to all)
+    }
+
+    // Phase 3.3: If branchPrices is provided, it takes precedence over branchIds
+    // (it carries both the assignment and the price override)
+    let resolvedAvailabilityMode: 'GLOBAL' | 'EXPLICIT' = 'GLOBAL';
+    if (availabilityMode === 'EXPLICIT' || availabilityMode === 'GLOBAL') {
+      resolvedAvailabilityMode = availabilityMode;
+    } else if (isExplicit) {
+      resolvedAvailabilityMode = 'EXPLICIT';
+    }
+
+    // Build branch-assignments data from either branchPrices (new) or branchIds (legacy)
+    let branchAssignmentsData: { branchId: string; price?: number; isActive?: boolean }[] = [];
+    if (branchPrices && Array.isArray(branchPrices) && branchPrices.length > 0) {
+      // Validate each branchId in branchPrices
+      const bpBranchIds = branchPrices.map((bp: any) => bp.branchId).filter(Boolean);
+      const branches = await db.branch.findMany({
+        where: { id: { in: bpBranchIds } },
+        select: { id: true },
+      });
+      const validBpBranchIds = new Set(branches.map(b => b.id));
+      branchAssignmentsData = branchPrices
+        .filter((bp: any) => validBpBranchIds.has(bp.branchId))
+        .map((bp: any) => ({
+          branchId: bp.branchId,
+          price: bp.price !== undefined && bp.price !== null && bp.price !== ''
+            ? Number(bp.price)
+            : undefined,
+          isActive: bp.isActive !== undefined ? Boolean(bp.isActive) : true,
+        }));
+      if (branchAssignmentsData.length > 0) {
+        // Has explicit branch rows — implies EXPLICIT mode (unless availabilityMode says GLOBAL)
+        if (availabilityMode !== 'GLOBAL') {
+          resolvedAvailabilityMode = 'EXPLICIT';
+        }
+      }
+    } else if (validBranchIds.length > 0) {
+      // Legacy: branchIds without prices — just create availability rows
+      branchAssignmentsData = validBranchIds.map(branchId => ({
+        branchId,
+        isActive: true,
+      }));
     }
 
     // Create menu item
@@ -289,21 +356,25 @@ export async function POST(request: NextRequest) {
         sortOrder: sortOrder !== undefined && sortOrder !== '' ? parseInt(sortOrder) : null,
         hasVariants: hasVariants !== undefined ? hasVariants : false,
         imagePath: imagePath || null,
+        availabilityMode: resolvedAvailabilityMode,
       },
     });
 
-    // Create branch assignments if specific branches are selected
-    if (validBranchIds.length > 0) {
+    // Create branch assignments (with optional prices) if any were specified
+    if (branchAssignmentsData.length > 0) {
       await db.menuItemBranch.createMany({
-        data: validBranchIds.map(branchId => ({
+        data: branchAssignmentsData.map(ba => ({
           menuItemId: menuItem.id,
-          branchId,
+          branchId: ba.branchId,
+          price: ba.price !== undefined ? ba.price : null,
+          isActive: ba.isActive !== undefined ? ba.isActive : true,
         })),
         skipDuplicates: true,
       });
     }
 
-    // Invalidate menu items cache
+    // Phase 3.3: Invalidate BOTH the admin cache and the POS cache
+    // (POS cache was previously NOT invalidated, causing stale prices for up to 10 min)
     invalidateCachePattern('^menu:items:');
 
     return NextResponse.json({
@@ -320,7 +391,11 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleUpdate(body: any) {
-  const { id, name, category, categoryId, price, taxRate, isActive, sortOrder, hasVariants, branchIds, imagePath } = body;
+  const {
+    id, name, category, categoryId, price, taxRate, isActive, sortOrder,
+    hasVariants, branchIds, imagePath,
+    availabilityMode, branchPrices,
+  } = body;
 
   if (!id) {
     return NextResponse.json(
@@ -369,6 +444,10 @@ async function handleUpdate(body: any) {
   }
   if (hasVariants !== undefined) updateData.hasVariants = hasVariants;
   if (imagePath !== undefined) updateData.imagePath = imagePath;
+  // Phase 3.3: allow updating availabilityMode
+  if (availabilityMode === 'GLOBAL' || availabilityMode === 'EXPLICIT') {
+    updateData.availabilityMode = availabilityMode;
+  }
 
   // Update menu item
   const menuItem = await db.menuItem.update({
@@ -376,37 +455,66 @@ async function handleUpdate(body: any) {
     data: updateData,
   });
 
-  // Handle branch assignments if provided
-  if (branchIds !== undefined) {
-    // Delete existing branch assignments
+  // Handle branch assignments if provided.
+  // Phase 3.3: branchPrices takes precedence over branchIds (legacy).
+  // Either field triggers a full replace of MenuItemBranch rows for this item.
+  if (branchPrices !== undefined) {
+    // New path: branchPrices (with optional price overrides)
     await db.menuItemBranch.deleteMany({
       where: { menuItemId: id },
     });
 
-    // Create new assignments if specific branches are selected
+    if (Array.isArray(branchPrices) && branchPrices.length > 0) {
+      const bpBranchIds = branchPrices.map((bp: any) => bp.branchId).filter(Boolean);
+      const branches = await db.branch.findMany({
+        where: { id: { in: bpBranchIds } },
+        select: { id: true },
+      });
+      const validBpBranchIds = new Set(branches.map(b => b.id));
+      const validAssignments = branchPrices
+        .filter((bp: any) => validBpBranchIds.has(bp.branchId))
+        .map((bp: any) => ({
+          menuItemId: id,
+          branchId: bp.branchId,
+          price: bp.price !== undefined && bp.price !== null && bp.price !== ''
+            ? Number(bp.price)
+            : null,
+          isActive: bp.isActive !== undefined ? Boolean(bp.isActive) : true,
+        }));
+      if (validAssignments.length > 0) {
+        await db.menuItemBranch.createMany({
+          data: validAssignments,
+          skipDuplicates: true,
+        });
+      }
+    }
+  } else if (branchIds !== undefined) {
+    // Legacy path: branchIds (just availability, no prices)
+    await db.menuItemBranch.deleteMany({
+      where: { menuItemId: id },
+    });
+
     if (branchIds && Array.isArray(branchIds) && branchIds.length > 0 && !branchIds.includes('all')) {
-      // Validate branch IDs
       const branches = await db.branch.findMany({
         where: { id: { in: branchIds } },
         select: { id: true },
       });
-      
       const validBranchIds = branches.map(b => b.id);
-      
       if (validBranchIds.length > 0) {
         await db.menuItemBranch.createMany({
           data: validBranchIds.map(branchId => ({
             menuItemId: id,
             branchId,
+            isActive: true,
+            price: null,
           })),
           skipDuplicates: true,
         });
       }
     }
-    // If branchIds is empty or contains "all", don't create any assignments (available to all)
   }
 
-  // Invalidate menu items cache
+  // Phase 3.3: Invalidate BOTH the admin cache and the POS cache
   invalidateCachePattern('^menu:items:');
 
   return NextResponse.json({
@@ -443,6 +551,7 @@ export async function DELETE(request: NextRequest) {
     // Check if menu item exists
     const existingItem = await db.menuItem.findUnique({
       where: { id },
+      select: { id: true, name: true, deletedAt: true },
     });
 
     if (!existingItem) {
@@ -452,17 +561,28 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Delete menu item (will cascade to order items and recipes and branch assignments)
-    await db.menuItem.delete({
+    // Phase 3.3: SOFT-DELETE instead of hard delete.
+    // The OrderItem.menuItem FK is now ON DELETE RESTRICT (changed in migration),
+    // so a hard delete would fail if any historical orders reference this item.
+    // Soft-delete sets deletedAt = now() and isActive = false, which:
+    //   - Hides the item from the POS (isActive = false filter)
+    //   - Hides the item from the admin list (deletedAt IS NULL filter)
+    //   - Preserves all historical OrderItem rows (no cascade)
+    //   - Allows the item to be un-archived later if needed
+    await db.menuItem.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+        isActive: false,
+      },
     });
 
-    // Invalidate menu items cache
+    // Phase 3.3: Invalidate BOTH the admin cache and the POS cache
     invalidateCachePattern('^menu:items:');
 
     return NextResponse.json({
       success: true,
-      message: 'Menu item deleted successfully',
+      message: 'Menu item archived successfully (soft-delete). Historical orders preserved.',
     });
   } catch (error: any) {
     console.error('Delete menu item error:', error);

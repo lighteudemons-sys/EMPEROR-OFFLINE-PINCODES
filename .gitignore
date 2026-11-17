@@ -1,2 +1,45 @@
-skills/
+# Dependencies
 node_modules/
+skills/
+
+# Environment files — never commit database credentials or secrets
+.env
+.env.*
+!.env.example
+
+# Local database files
+*.db
+*.db-journal
+db/
+
+# Next.js build artifacts (auto-generated — never commit)
+.next/
+out/
+next-env.d.ts
+
+# Logs
+*.log
+dev.log
+server.log
+
+# Backups and audit snapshots (local only — contain credentials)
+download/
+scripts/*.bak
+*.old.bak
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Z.ai sandbox infrastructure (not part of the application)
+.zscripts/
+upload/
+mini-services/.gitkeep
+tests/
+examples/
+
+# Local PostgreSQL data (for restore testing)
+/tmp/pg-restore-test-data/

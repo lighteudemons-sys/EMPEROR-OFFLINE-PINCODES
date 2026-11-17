@@ -242,6 +242,8 @@ model MenuItem {
   price             Float
   taxRate           Float             @default(0.14)
   isActive          Boolean           @default(true)
+  deletedAt         DateTime?
+  availabilityMode  MenuAvailabilityMode @default(GLOBAL)
   imagePath         String?
   sortOrder         Int?
   hasVariants       Boolean           @default(false)
@@ -261,19 +263,30 @@ model MenuItem {
   @@index([version])
   @@index([hasVariants])
   @@index([productCode])
+  @@index([availabilityMode])
+  @@index([deletedAt])
+}
+
+enum MenuAvailabilityMode {
+  GLOBAL
+  EXPLICIT
 }
 
 model MenuItemBranch {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   menuItemId String
   branchId   String
-  createdAt  DateTime @default(now())
-  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  price      Decimal?  @db.Decimal(10, 2)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
+  branch     Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@unique([menuItemId, branchId])
   @@index([menuItemId])
   @@index([branchId])
+  @@index([isActive])
 }
 
 model Recipe {
@@ -637,13 +650,15 @@ model OrderItem {
   specialInstructions    String?
   customVariantValue     Float?
   requiresCaptainReceipt Boolean      @default(false)
-  menuItem               MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  priceSource            String?      // 'online' | 'offline' | NULL (historical/unknown). Audit-only field.
+  menuItem               MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
   order                  Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   voidedItems            VoidedItem[] @relation("OrderItemVoidedItems")
 
   @@index([orderId])
   @@index([menuItemId])
   @@index([menuItemVariantId])
+  @@index([priceSource])
 }
 
 model VoidedItem {

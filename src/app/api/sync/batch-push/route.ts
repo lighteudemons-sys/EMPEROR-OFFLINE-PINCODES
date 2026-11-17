@@ -936,6 +936,37 @@ async function createOrder(data: any, branchId: string): Promise<void> {
   addLog(`[BatchPush] Creating order with shiftId: ${shiftId}, orderNumber: ${data.orderNumber}`);
   addLog(`[BatchPush] Order data before creation: shiftId=${shiftId}, orderTimestamp=${orderData.orderTimestamp}, totalAmount=${orderData.totalAmount}, itemsCount=${orderItems.length}`);
 
+  // IDEMPOTENCY FIX (Phase 3.1c+): transactionHash-based deduplication safety net.
+  //
+  // The IdempotencyKey-table check (in processOperation) is the primary deduplication
+  // mechanism. However, it requires the original online idempotencyKey to be preserved
+  // through the offline queue — which only works for desktop POS orders created AFTER
+  // this fix. For orders created before this fix, or for any path where the
+  // idempotencyKey wasn't preserved (e.g., mobile POS with the pre-fix code), we
+  // use transactionHash as a secondary safety net.
+  //
+  // transactionHash is generated client-side at order creation time and is unique.
+  // If an order with this hash already exists, the offline order is a duplicate of
+  // an order that was already created (online or via a previous sync). We skip
+  // creation and treat it as a successful no-op.
+  const offlineTransactionHash = data.transactionHash || generateTransactionHash(data, branchId, data.orderNumber, data.totalAmount, data.cashierId, data.createdAt);
+  if (offlineTransactionHash) {
+    const existingOrderByHash = await db.order.findUnique({
+      where: { transactionHash: offlineTransactionHash },
+      select: { id: true, orderNumber: true, branchId: true, shiftId: true },
+    });
+    if (existingOrderByHash) {
+      addLog(`[BatchPush] Order with transactionHash=${offlineTransactionHash.substring(0, 30)}... already exists (id=${existingOrderByHash.id}, orderNumber=${existingOrderByHash.orderNumber}). Skipping creation as duplicate.`);
+      // Map the temp ID to the existing order ID so any subsequent operations
+      // (e.g., voided items, refunds) referencing the temp ID will find the real one.
+      if (data.id && data.id.startsWith('temp-')) {
+        tempIdToRealIdMap.set(data.id, existingOrderByHash.id);
+        addLog(`[BatchPush] Mapped temp order ID ${data.id} to existing real ID ${existingOrderByHash.id}`);
+      }
+      return; // Skip creation — this is a duplicate
+    }
+  }
+
   // Create order with inventory deduction in a transaction
   const createdOrder = await db.$transaction(async (tx) => {
     // Create order
@@ -953,6 +984,13 @@ async function createOrder(data: any, branchId: string): Promise<void> {
             unitPrice: item.unitPrice,
             subtotal: item.subtotal || (item.quantity * item.unitPrice),
             recipeVersion: item.recipeVersion || 1,
+            // Phase 3.1c: Audit-only field. The client-sent unitPrice is preserved
+            // as the authoritative snapshot of the price at order-creation time.
+            // We do NOT recompute the price server-side for offline orders —
+            // the client captured it at the moment of sale, when the network
+            // was down, and that price must be honored even if the admin later
+            // changes the branch price.
+            priceSource: 'offline',
           })),
         },
       },
@@ -980,9 +1018,27 @@ async function createOrder(data: any, branchId: string): Promise<void> {
 
     return newOrder;
   }).catch((transactionError) => {
-    addLog(`[BatchPush] Transaction failed for order ${data.orderNumber}: ${transactionError instanceof Error ? transactionError.message : String(transactionError)}`);
+    // IDEMPOTENCY FIX: detect unique-constraint violations on transactionHash
+    // and treat them as duplicates (not errors). This handles the race condition
+    // where two sync requests arrive simultaneously — the transactionHash pre-check
+    // above might miss the second one, but the database unique constraint catches it.
+    const errMsg = transactionError instanceof Error ? transactionError.message : String(transactionError);
+    if (errMsg.includes('transactionHash') && (errMsg.includes('unique') || errMsg.includes('duplicate') || errMsg.includes('constraint'))) {
+      addLog(`[BatchPush] Order ${data.orderNumber} creation hit transactionHash unique constraint — duplicate detected, skipping.`);
+      // Look up the existing order so we can map the temp ID
+      // (the transactionHash check above should have caught it, but just in case)
+      return null;
+    }
+    addLog(`[BatchPush] Transaction failed for order ${data.orderNumber}: ${errMsg}`);
     throw transactionError;
   });
+
+  // If the transaction returned null (duplicate detected via constraint violation),
+  // treat as success and skip the post-creation logic.
+  if (!createdOrder) {
+    addLog(`[BatchPush] Order ${data.orderNumber} was a duplicate — skipping post-creation logic.`);
+    return;
+  }
 
   addLog(`[BatchPush] Order created successfully: orderId=${createdOrder.id}, orderNumber=${createdOrder.orderNumber}, shiftId=${createdOrder.shiftId}, orderTimestamp=${createdOrder.orderTimestamp}, totalAmount=${createdOrder.totalAmount}`);
 
@@ -1100,6 +1156,8 @@ async function updateOrder(data: any, branchId: string): Promise<void> {
         unitPrice: item.unitPrice,
         subtotal: item.subtotal || (item.quantity * item.unitPrice),
         recipeVersion: item.recipeVersion || 1,
+        // Phase 3.1c: same audit-only field as the main offline order creation path.
+        priceSource: 'offline',
       })),
     });
   }

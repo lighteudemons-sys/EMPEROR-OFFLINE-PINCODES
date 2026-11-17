@@ -376,16 +376,49 @@ class IndexedDBStorage {
     return key.replace(/[^a-zA-Z0-9_-]/g, '_');
   }
 
-  async addOperation(operation: Omit<SyncOperation, 'id' | 'timestamp' | 'retryCount' | 'idempotencyKey'>): Promise<void> {
-    const idempotencyKey = this.generateIdempotencyKey(
-      operation.type,
-      operation.branchId,
-      operation.data
-    );
+  /**
+   * Add a sync operation to the queue.
+   *
+   * IDEMPOTENCY FIX (Phase 3.1c+):
+   * If `operation.idempotencyKey` is provided (client-supplied), use it AS-IS instead
+   * of generating a new one. This is critical for the "online succeeds → client loses
+   * response → offline retries" scenario:
+   *
+   *   1. Cashier creates order online. Desktop POS generates idempotencyKey = UUID-1.
+   *   2. Server creates the order, records UUID-1 in the IdempotencyKey table.
+   *   3. Network drops before client receives the response.
+   *   4. Client falls back to createOrderOffline(), which calls addOperation().
+   *      If addOperation generates a NEW key (CREATE_ORDER_branch_X_17), the server
+   *      won't find a match and will create a DUPLICATE order.
+   *   5. By preserving the original UUID-1, the server's checkIdempotencyKey() lookup
+   *      finds the match and skips the duplicate.
+   *
+   * For operations that DON'T have a client-supplied key (e.g., shifts, attendances,
+   * expenses), we fall back to generateIdempotencyKey() as before — backward compatible.
+   *
+   * The signature accepts an optional `idempotencyKey` field via a typed extension
+   * of the operation parameter.
+   */
+  async addOperation(
+    operation: Omit<SyncOperation, 'id' | 'timestamp' | 'retryCount'> & {
+      idempotencyKey?: string;
+    },
+  ): Promise<void> {
+    // Use the client-supplied idempotencyKey if provided (preserves the original
+    // online UUID through the offline queue). Otherwise generate one.
+    const idempotencyKey = operation.idempotencyKey
+      ? this.sanitizeKey(operation.idempotencyKey)
+      : this.generateIdempotencyKey(
+          operation.type,
+          operation.branchId,
+          operation.data,
+        );
 
     const newOperation: SyncOperation = {
-      ...operation,
-      id: `op_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: operation.id || `op_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: operation.type,
+      data: operation.data,
+      branchId: operation.branchId,
       timestamp: Date.now(),
       retryCount: 0,
       idempotencyKey,
@@ -393,6 +426,35 @@ class IndexedDBStorage {
 
     console.log(`[IndexedDBStorage] Adding operation with idempotencyKey: ${idempotencyKey}`);
     await this.put('sync_operations', newOperation);
+  }
+
+  /**
+   * Sanitize an idempotency key the same way generateIdempotencyKey does.
+   * Removes any characters that aren't alphanumeric, underscore, or hyphen.
+   */
+  private sanitizeKey(key: string): string {
+    return key.replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+
+  /**
+   * Find an existing operation by its idempotencyKey. Used to detect
+   * client-side duplicates before queuing.
+   */
+  async findOperationByIdempotencyKey(idempotencyKey: string): Promise<SyncOperation | null> {
+    if (!this.db) return null;
+    try {
+      const tx = this.db.transaction('sync_operations', 'readonly');
+      const store = tx.objectStore('sync_operations');
+      const index = store.index('idempotencyKey');
+      const request = index.get(idempotencyKey);
+      return new Promise((resolve) => {
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+      });
+    } catch (e) {
+      console.warn('[IndexedDBStorage] findOperationByIdempotencyKey failed:', e);
+      return null;
+    }
   }
 
   async getPendingOperations(): Promise<SyncOperation[]> {

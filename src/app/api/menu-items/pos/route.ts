@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getCached } from '@/lib/cache';
+import {
+  isItemAvailableInBranch,
+  resolveBranchPrice,
+  toNumber,
+  type MenuItemForResolution,
+} from '@/lib/menu-pricing';
 
 /**
  * Ultra-lightweight Menu Items API for POS Interface
@@ -11,6 +17,15 @@ import { getCached } from '@/lib/cache';
  * - NO recipes, NO ingredient data, NO variant details
  *
  * This reduces data transfer by ~90% compared to the full menu items API
+ *
+ * BRANCH PRICING (Phase 3.1b):
+ * - When branchId is provided, this endpoint resolves the branch-specific price
+ *   for each item (falling back to MenuItem.price if no override exists).
+ * - When branchId is provided, items are also filtered by branch availability
+ *   (GLOBAL items with isActive=false override for this branch are hidden,
+ *    EXPLICIT items not listed for this branch are hidden).
+ * - The cashier UI receives the resolved price as a plain number in the `price`
+ *   field — no client-side change needed.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -22,13 +37,20 @@ export async function GET(request: NextRequest) {
     const cacheKey = `menu:items:pos:${category || 'all'}:${branchId || 'all-branches'}`;
 
     const menuItems = await getCached(cacheKey, async () => {
-      return await db.menuItem.findMany({
+      const items = await db.menuItem.findMany({
         where: {
           isActive: true,
+          deletedAt: null,
           ...(category && category !== 'all' ? { category } : {}),
+          // Existing availability filter (preserves backward compatibility):
+          //   - Items with no branch assignments are available everywhere (GLOBAL)
+          //   - Items with branch assignments are available only in listed branches (EXPLICIT)
+          // The new per-branch isActive override is applied AFTER the query in JS,
+          // so we still fetch a superset and filter down. This is safe because:
+          //   - EXPLICIT items not in this branch are already filtered by the OR clause
+          //   - GLOBAL items with isActive=false override need to be filtered in JS
+          //     (this is the only NEW behavior we add)
           ...(branchId ? {
-            // Items are available if they have NO branch assignments (all branches)
-            // OR have an assignment to this branch
             OR: [
               { branchAssignments: { none: {} } },
               { branchAssignments: { some: { branchId } } },
@@ -44,6 +66,19 @@ export async function GET(request: NextRequest) {
           taxRate: true,
           hasVariants: true,
           sortOrder: true,
+          availabilityMode: true,
+          // Include branch assignments for the requested branch (at most 1 row per branch)
+          // so we can resolve the override price and isActive flag in JS.
+          ...(branchId ? {
+            branchAssignments: {
+              where: { branchId },
+              select: {
+                branchId: true,
+                price: true,
+                isActive: true,
+              },
+            },
+          } : {}),
           // REMOVED: imagePath - causes 400-450 MB data transfer
           // POS interface on touch monitors doesn't need images
           // Include variants with essential data (variant type, option, price modifier)
@@ -94,6 +129,50 @@ export async function GET(request: NextRequest) {
           { name: 'asc' },
         ],
       });
+
+      // If no branchId, return items as-is (no branch resolution needed)
+      if (!branchId) {
+        return items.map(item => ({
+          ...item,
+          price: item.price, // global Float, already a number
+        }));
+      }
+
+      // Branch-specific resolution:
+      // 1. Filter out items that are not available in this branch (per-branch isActive=false)
+      // 2. Resolve the branch-specific price (override or global fallback)
+      const resolved = items
+        .filter((item): item is typeof item & { branchAssignments: any[] } => {
+          // Apply the helper to determine availability
+          const menuItemForResolution: MenuItemForResolution = {
+            price: item.price,
+            isActive: item.isActive,
+            deletedAt: item.deletedAt,
+            availabilityMode: item.availabilityMode,
+            branchAssignments: (item as any).branchAssignments || [],
+          };
+          return isItemAvailableInBranch(menuItemForResolution, branchId);
+        })
+        .map(item => {
+          const menuItemForResolution: MenuItemForResolution = {
+            price: item.price,
+            isActive: item.isActive,
+            deletedAt: item.deletedAt,
+            availabilityMode: item.availabilityMode,
+            branchAssignments: (item as any).branchAssignments || [],
+          };
+          const resolvedPrice = resolveBranchPrice(menuItemForResolution, branchId);
+          // Strip branchAssignments from the response — cashier doesn't need it
+          // (it was only included for resolution purposes)
+          const { branchAssignments, ...itemWithoutAssignments } = item as any;
+          return {
+            ...itemWithoutAssignments,
+            price: resolvedPrice, // plain number, branch-resolved
+            priceIsOverridden: resolvedPrice !== item.price, // for UI hints if needed
+          };
+        });
+
+      return resolved;
     }, 600000); // 10 minute cache for POS
 
     return NextResponse.json({

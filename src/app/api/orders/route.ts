@@ -4,6 +4,7 @@ import { validateRequest, orderCreateSchema, formatZodErrors } from '@/lib/valid
 import { parsePaginationParams, buildPaginatedResponse, defaultPagination } from '@/lib/pagination';
 import { logOrderCreated, logPromoCodeApplied } from '@/lib/audit-logger';
 import { calculateOrderTax, calculateTotalAmount } from '@/lib/tax-calculation';
+import { resolveBranchPrice } from '@/lib/menu-pricing';
 
 /**
  * Get or create "Loyalty Discounts" cost category for a branch
@@ -383,6 +384,13 @@ export async function POST(request: NextRequest) {
               },
             },
             categoryRel: true,
+            // Phase 3.1b: Include branch assignments for this branch so we can
+            // resolve the branch-specific price (override or global fallback).
+            // At most one row per branch due to @@unique([menuItemId, branchId]).
+            branchAssignments: {
+              where: { branchId },
+              select: { branchId: true, price: true, isActive: true },
+            },
             ...(item.menuItemVariantId ? {
               variants: {
                 include: {
@@ -437,8 +445,22 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Phase 3.1b: Resolve branch-specific price.
+      // Falls back to MenuItem.price if no override exists.
+      // Uses the single source of truth in src/lib/menu-pricing.ts.
+      const basePrice = resolveBranchPrice(
+        {
+          price: menuItem.price,
+          isActive: menuItem.isActive,
+          deletedAt: menuItem.deletedAt,
+          availabilityMode: menuItem.availabilityMode,
+          branchAssignments: menuItem.branchAssignments,
+        },
+        branchId
+      );
+
       // Handle variant pricing if provided
-      let finalPrice = menuItem.price;
+      let finalPrice = basePrice;
       let variantName = null;
       let variantId = null;
       let customVariantValue = null;
@@ -465,7 +487,7 @@ export async function POST(request: NextRequest) {
             }
             // Round to 3 decimal places for clean display
             const roundedValue = Math.round(customVariantValue * 1000) / 1000;
-            finalPrice = menuItem.price * customVariantValue;
+            finalPrice = basePrice * customVariantValue;
             variantName = `${variant.variantType.name}: ${roundedValue}x`;
             console.log('[Order] Custom variant calculated:', {
               itemName: menuItem.name,
@@ -478,7 +500,8 @@ export async function POST(request: NextRequest) {
             });
           } else {
             // Regular variant with fixed price modifier
-            finalPrice = menuItem.price + variant.priceModifier;
+            // Phase 3.1b: modifier is applied to the branch-resolved base price
+            finalPrice = basePrice + variant.priceModifier;
             variantName = `${variant.variantType.name}: ${variant.variantOption.name}`;
           }
         }
@@ -499,6 +522,10 @@ export async function POST(request: NextRequest) {
         customVariantValue,
         specialInstructions: item.specialInstructions || null,
         requiresCaptainReceipt: menuItem.categoryRel?.requiresCaptainReceipt || false,
+        // Phase 3.1b: Audit field — records that the price was resolved online
+        // (server-side, branch-aware). Historical orders keep NULL. Offline orders
+        // get 'offline' via /api/sync/batch-push.
+        priceSource: 'online',
       });
 
       // Calculate inventory deductions based on recipes

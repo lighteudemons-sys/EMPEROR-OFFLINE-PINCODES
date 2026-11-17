@@ -449,6 +449,9 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
     }
 
     // Queue operation for sync
+    // IDEMPOTENCY FIX: pass the original orderData.idempotencyKey through (if present)
+    // so the server can detect duplicates when an online order was created but the
+    // client lost the response. Falls back to the auto-generated key if absent.
     await indexedDBStorage.addOperation({
       type: 'CREATE_ORDER',
       data: {
@@ -469,6 +472,7 @@ async function createOrderOffline(orderData: any, shift: any, cartItems: CartIte
         updatedAt: newOrder.updatedAt,
       },
       branchId: orderData.branchId,
+      idempotencyKey: orderData.idempotencyKey, // NEW: preserve the original online UUID
     });
     console.log('[Order] Operation queued for sync (IndexedDB)');
 
