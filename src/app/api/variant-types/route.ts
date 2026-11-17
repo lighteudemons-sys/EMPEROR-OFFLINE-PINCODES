@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const active = searchParams.get('active');
     const includeOptions = searchParams.get('includeOptions') === 'true';
+    const includeInactiveOptions = searchParams.get('includeInactiveOptions') === 'true';
 
     const variantTypes = await db.variantType.findMany({
       where: {
@@ -17,7 +18,9 @@ export async function GET(request: NextRequest) {
       include: {
         ...(includeOptions ? {
           options: {
-            where: { isActive: true },
+            // By default only active options are returned. Set ?includeInactiveOptions=true
+            // to also include inactive options (used by the admin UI).
+            where: includeInactiveOptions ? {} : { isActive: true },
             orderBy: { sortOrder: 'asc' },
           },
         } : {}),

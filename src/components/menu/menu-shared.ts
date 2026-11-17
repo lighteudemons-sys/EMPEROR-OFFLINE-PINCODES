@@ -36,6 +36,37 @@ export interface BranchAssignment {
   branch?: Branch;
 }
 
+// ---- Variant types and options ----
+
+export interface VariantOption {
+  id: string;
+  name: string;
+  description?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface VariantType {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  isCustomInput: boolean;
+  options?: VariantOption[];
+}
+
+export interface MenuItemVariant {
+  id: string;
+  menuItemId: string;
+  variantTypeId: string;
+  variantOptionId: string;
+  priceModifier: number;
+  sortOrder: number;
+  isActive: boolean;
+  variantType?: { id: string; name: string; isCustomInput: boolean };
+  variantOption?: { id: string; name: string };
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -53,6 +84,7 @@ export interface MenuItem {
   productCode?: string | null;
   categoryRel?: Category | null;
   branchAssignments?: BranchAssignment[];
+  variants?: MenuItemVariant[];
   _count?: {
     branchAssignments?: number;
     variants?: number;
@@ -203,10 +235,24 @@ export function menuItemToFormData(
 // ---- API client ----
 
 export async function fetchMenuItems(includeInactive = false): Promise<MenuItem[]> {
+  // The admin UI needs to see ALL items (active, inactive, and archived),
+  // PLUS their variants and branch assignments.
+  //
+  // IMPORTANT: we do NOT pass `active=false` because the API interprets
+  // `active=false` as "ONLY return inactive items" (a positive filter).
+  // When we want ALL items, we simply omit the `active` param — the API
+  // returns everything by default.
+  //
+  // `includeArchived=true` tells the API to also return soft-deleted items
+  // (deletedAt IS NOT NULL). Without it, soft-deleted items are excluded.
+  //
+  // `includeVariants=true` tells the API to include variant rows for each item.
   const url = new URL('/api/menu-items', window.location.origin);
+  url.searchParams.set('includeVariants', 'true');
   if (includeInactive) {
-    url.searchParams.set('active', 'false');
     url.searchParams.set('includeArchived', 'true');
+    // NOTE: we intentionally do NOT set 'active' — that would filter to only
+    // inactive items, which is the opposite of what we want.
   }
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error('Failed to fetch menu items');
@@ -299,4 +345,117 @@ export async function saveBranchPrices(
 ): Promise<void> {
   const branchPrices = branchPriceEntriesToPayload(entries, availabilityMode);
   await updateMenuItem(menuItemId, { branchPrices, availabilityMode });
+}
+
+// ---- Variant types and options API ----
+
+export async function fetchVariantTypes(): Promise<VariantType[]> {
+  // includeInactiveOptions=true so the admin UI can show ALL options (active + inactive).
+  const res = await fetch('/api/variant-types?includeOptions=true&includeInactiveOptions=true');
+  if (!res.ok) throw new Error('Failed to fetch variant types');
+  const data = await res.json();
+  return data.variantTypes || data || [];
+}
+
+export async function createVariantType(payload: any): Promise<VariantType> {
+  const res = await fetch('/api/variant-types', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create variant type');
+  return data.variantType || data;
+}
+
+export async function updateVariantType(id: string, payload: any): Promise<VariantType> {
+  const res = await fetch(`/api/variant-types/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update variant type');
+  return data.variantType || data;
+}
+
+export async function deleteVariantType(id: string): Promise<void> {
+  const res = await fetch(`/api/variant-types/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to delete variant type');
+  }
+}
+
+export async function createVariantOption(payload: any): Promise<VariantOption> {
+  const res = await fetch('/api/variant-options', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create variant option');
+  return data.variantOption || data;
+}
+
+export async function updateVariantOption(id: string, payload: any): Promise<VariantOption> {
+  const res = await fetch(`/api/variant-options/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update variant option');
+  return data.variantOption || data;
+}
+
+export async function deleteVariantOption(id: string): Promise<void> {
+  const res = await fetch(`/api/variant-options/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to delete variant option');
+  }
+}
+
+// ---- Menu item variants API (the per-item variant rows) ----
+
+export async function fetchMenuItemVariants(menuItemId: string): Promise<MenuItemVariant[]> {
+  const res = await fetch(`/api/menu-item-variants?menuItemId=${menuItemId}`);
+  if (!res.ok) throw new Error('Failed to fetch menu item variants');
+  const data = await res.json();
+  return data.variants || [];
+}
+
+export async function createMenuItemVariant(payload: any): Promise<MenuItemVariant> {
+  const res = await fetch('/api/menu-item-variants', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to create menu item variant');
+  }
+  return data.variant || data;
+}
+
+export async function updateMenuItemVariant(id: string, payload: any): Promise<MenuItemVariant> {
+  const res = await fetch(`/api/menu-item-variants/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to update menu item variant');
+  }
+  return data.variant || data;
+}
+
+export async function deleteMenuItemVariant(id: string): Promise<void> {
+  const res = await fetch(`/api/menu-item-variants/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to delete menu item variant');
+  }
 }

@@ -12,9 +12,19 @@ set -e
 
 # Load .env if it exists (this is the only place credentials are read from)
 if [ -f /home/z/my-project/.env ]; then
-  set -a
-  . /home/z/my-project/.env
-  set +a
+  # Force-override the DATABASE_URL from .env (use `export VAR=...` explicitly,
+  # not `set -a; . .env; set +a` which respects existing env vars)
+  while IFS='=' read -r key value; do
+    # Skip comments and empty lines
+    [[ "$key" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "$key" ]] && continue
+    # Strip surrounding whitespace and quotes from value
+    value="${value#\"}"
+    value="${value%\"}"
+    value="${value#\'}"
+    value="${value%\'}"
+    export "$key=$value"
+  done < /home/z/my-project/.env
 fi
 
 if [ -z "$DATABASE_URL" ]; then

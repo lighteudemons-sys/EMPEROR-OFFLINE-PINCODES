@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, LayoutDashboard, FolderTree, Coffee, DollarSign } from 'lucide-react';
+import { Loader2, LayoutDashboard, FolderTree, Coffee, DollarSign, Layers } from 'lucide-react';
 import { MenuOverview } from './menu-overview';
 import { MenuCategories } from './menu-categories';
 import { MenuItemsTable } from './menu-items-table';
 import { MenuBranchPricingMatrix } from './menu-branch-pricing-matrix';
+import { MenuVariants } from './menu-variants';
 import { MenuItemDialog } from './menu-item-dialog';
 import {
   type MenuItem,
@@ -101,7 +102,7 @@ export default function MenuManagement({ initialActiveTab = 'overview' }: MenuMa
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 max-w-3xl">
           <TabsTrigger value="overview" className="text-xs sm:text-sm">
             <LayoutDashboard className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Overview</span>
@@ -116,7 +117,11 @@ export default function MenuManagement({ initialActiveTab = 'overview' }: MenuMa
           </TabsTrigger>
           <TabsTrigger value="pricing" className="text-xs sm:text-sm">
             <DollarSign className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Branch Pricing</span>
+            <span className="hidden sm:inline">Pricing</span>
+          </TabsTrigger>
+          <TabsTrigger value="variants" className="text-xs sm:text-sm">
+            <Layers className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Variants</span>
           </TabsTrigger>
         </TabsList>
 
@@ -159,6 +164,10 @@ export default function MenuManagement({ initialActiveTab = 'overview' }: MenuMa
             categories={categories}
             onRefresh={refresh}
           />
+        </TabsContent>
+
+        <TabsContent value="variants" className="mt-6">
+          <MenuVariants onRefresh={refresh} />
         </TabsContent>
       </Tabs>
 
