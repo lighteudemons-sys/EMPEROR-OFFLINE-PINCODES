@@ -97,14 +97,22 @@ export async function GET(request: NextRequest) {
           },
         });
 
-        // Filter by branch: item is available if it has NO assignments OR has assignment to this branch
+        // Phase 3.1b: Filter by branch using the new availabilityMode field.
+        //   - GLOBAL items: always available (unless a row exists with isActive=false for this branch)
+        //   - EXPLICIT items: only available if a row exists for this branch with isActive=true
+        // (This replaces the old broken logic that treated any branch assignment row
+        //  as making the item "EXPLICIT", which hid GLOBAL items from branches that
+        //  didn't have a price override row.)
         return allMenuItems.filter(item => {
-          // If no branch assignments, item is available to all branches
-          if (!item.branchAssignments || item.branchAssignments.length === 0) {
-            return true;
+          if (item.availabilityMode === 'GLOBAL') {
+            // GLOBAL: available unless explicitly disabled for this branch
+            const assignment = item.branchAssignments?.find(ba => ba.branchId === branchId);
+            return !assignment || assignment.isActive;
+          } else {
+            // EXPLICIT: only available if a row exists for this branch AND isActive=true
+            const assignment = item.branchAssignments?.find(ba => ba.branchId === branchId);
+            return !!assignment && assignment.isActive;
           }
-          // If has assignments, check if any is for this branch
-          return item.branchAssignments.some(ba => ba.branchId === branchId);
         });
       } else {
         // No branch filter, return all items (including the new fields)

@@ -42,18 +42,21 @@ export async function GET(request: NextRequest) {
           isActive: true,
           deletedAt: null,
           ...(category && category !== 'all' ? { category } : {}),
-          // Existing availability filter (preserves backward compatibility):
-          //   - Items with no branch assignments are available everywhere (GLOBAL)
-          //   - Items with branch assignments are available only in listed branches (EXPLICIT)
-          // The new per-branch isActive override is applied AFTER the query in JS,
-          // so we still fetch a superset and filter down. This is safe because:
-          //   - EXPLICIT items not in this branch are already filtered by the OR clause
-          //   - GLOBAL items with isActive=false override need to be filtered in JS
-          //     (this is the only NEW behavior we add)
+          // Phase 3.1b: availability filtering respects the new availabilityMode field.
+          //
+          // OLD (broken) behavior: any branch assignment row made the item "EXPLICIT"
+          // (only available in listed branches). This broke GLOBAL items that had price
+          // overrides for some branches — they became invisible to other branches.
+          //
+          // NEW (correct) behavior:
+          //   - GLOBAL items: ALWAYS returned (available everywhere). Per-branch
+          //     isActive=false overrides are applied in JS below via isItemAvailableInBranch().
+          //   - EXPLICIT items: only returned if they have a branch assignment row for
+          //     THIS branch (then isActive is checked in JS).
           ...(branchId ? {
             OR: [
-              { branchAssignments: { none: {} } },
-              { branchAssignments: { some: { branchId } } },
+              { availabilityMode: 'GLOBAL' },
+              { availabilityMode: 'EXPLICIT', branchAssignments: { some: { branchId } } },
             ],
           } : {}),
         },

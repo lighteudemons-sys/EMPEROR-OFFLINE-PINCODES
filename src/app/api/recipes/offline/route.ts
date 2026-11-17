@@ -11,14 +11,18 @@ export async function GET(request: NextRequest) {
     const branchId = searchParams.get('branchId');
 
     // Fetch all menu items for this branch (or all if no branch specified)
+    // Phase 3.1b: use availabilityMode to filter correctly:
+    //   - GLOBAL items are available everywhere (even with price override rows for other branches)
+    //   - EXPLICIT items are only available in branches with a row
     const menuItemIds = branchId
       ? (
           await db.menuItem.findMany({
             where: {
               isActive: true,
+              deletedAt: null,
               OR: [
-                { branchAssignments: { none: {} } },
-                { branchAssignments: { some: { branchId } } },
+                { availabilityMode: 'GLOBAL' },
+                { availabilityMode: 'EXPLICIT', branchAssignments: { some: { branchId } } },
               ],
             },
             select: { id: true },
