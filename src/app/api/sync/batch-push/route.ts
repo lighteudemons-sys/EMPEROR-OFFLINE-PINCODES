@@ -57,6 +57,7 @@ interface SyncOperation {
   data: any;
   timestamp: number;
   idempotencyKey?: string; // Optional: for idempotency checking
+  id?: string; // Optional: client-side operation ID (used for failedIds matching)
 }
 
 interface BatchPushRequest {
@@ -422,7 +423,13 @@ export async function POST(request: NextRequest) {
         addLog(`[BatchPush] Successfully processed operation ${i + 1}: ${operation.type}`);
       } catch (error) {
         results.failed++;
-        results.failedIds.push(`op-${i}`);
+        // CRITICAL FIX: return the REAL operation ID (sent by the client) so the
+        // client can match it against its own operation IDs and keep failed
+        // operations in the queue for retry. Previously this used 'op-${i}' (the
+        // array index after sorting), which never matched the client's IDs —
+        // causing the client to think ALL operations succeeded and remove them
+        // from the queue, even the ones that actually failed. Lost orders.
+        results.failedIds.push(operation.id || `op-${i}`);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         results.errors.push(`${operation.type}: ${errorMessage}`);
         console.error(`[BatchPush] Failed to process operation ${i + 1} (${operation.type}):`, error);

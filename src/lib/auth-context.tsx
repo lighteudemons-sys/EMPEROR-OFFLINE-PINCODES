@@ -483,6 +483,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check for existing session on mount (client-side only)
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // CRITICAL: set isLoading to true while reading from IndexedDB so that
+      // page.tsx doesn't redirect to /login before the cached session is loaded.
+      // Without this, a cashier who reloads the page while offline would be
+      // wrongly redirected to /login (because user is null for a brief moment
+      // during the async IndexedDB read), and then can't log back in offline.
+      setIsLoading(true);
+
       // First check IndexedDB for fallback (needed for preview environments)
       let storedUser = null;
       let isLoggedIn = null;
@@ -614,6 +621,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // User is already set from IndexedDB above, no action needed
           });
         }
+
+        // CRITICAL: set isLoading to false AFTER the IndexedDB read (and optional
+        // server session check) completes. This allows page.tsx to know when it's
+        // safe to check if the user is truly null (and redirect to /login) vs.
+        // still loading from IndexedDB.
+        setIsLoading(false);
       })();
     }
   }, []);

@@ -678,9 +678,11 @@ class OfflineManager {
         body: JSON.stringify({
           branchId: this.branchId,
           operations: operations.map(op => ({
+            id: op.id,               // CRITICAL: send the client-side operation ID so the server can return it in failedIds
             type: op.type,
             data: op.data,
             timestamp: op.timestamp,
+            idempotencyKey: op.idempotencyKey,  // CRITICAL: send the idempotency key for dedup detection
           })),
         }),
         signal: controller.signal,

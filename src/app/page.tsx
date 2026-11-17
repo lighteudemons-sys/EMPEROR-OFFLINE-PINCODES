@@ -54,7 +54,7 @@ const storage = getIndexedDBStorage();
 
 export default function POSDashboard() {
   const router = useRouter();
-  const { user, logout, isOnline } = useAuth();
+  const { user, logout, isOnline, isLoading } = useAuth();
   const { language, setLanguage, currency, t } = useI18n();
   const [activeTab, setActiveTab] = useState<'pos' | string>('pos');
   const [currentShift, setCurrentShift] = useState<any>(null);
@@ -475,11 +475,17 @@ export default function POSDashboard() {
 
   // Check authentication on mount
   useEffect(() => {
-    if (!user) {
+    // CRITICAL: wait for auth-context to finish loading from IndexedDB before
+    // redirecting. Without this check, the redirect fires on initial mount when
+    // user is still null (the IndexedDB read is async), sending the user to /login
+    // even though they have a valid cached session. This breaks the offline workflow
+    // — a cashier who reloads the page while offline would be wrongly redirected
+    // to /login and then can't log back in offline.
+    if (!user && !isLoading) {
       // Redirect to login page (activation check is handled there)
       router.push('/login');
     }
-  }, [user, router]);
+  }, [user, isLoading, router]);
 
   // If no user, show loading
   if (!user) {
