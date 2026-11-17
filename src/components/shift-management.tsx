@@ -12,11 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Clock, DollarSign, ShoppingCart, Play, Square, AlertCircle, Calendar, User, TrendingUp, Store, CreditCard, Wallet, CircleDollarSign, Activity, Smartphone, X, RefreshCw, ChevronLeft, ChevronRight, Trash2, ShoppingBag, Eye } from 'lucide-react';
+import { Clock, DollarSign, ShoppingCart, Play, Square, AlertCircle, Calendar, User, TrendingUp, Store, CreditCard, Wallet, CircleDollarSign, Activity, Smartphone, X, RefreshCw, ChevronLeft, ChevronRight, Trash2, ShoppingBag, Eye, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
 import { formatCurrency } from '@/lib/utils';
 import { canSeeFinancials } from '@/lib/permissions';
+import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
 import { useOfflineData, offlineDataFetchers } from '@/hooks/use-offline-data';
 import { DayClosingReceipt } from './day-closing-receipt';
 import { ShiftClosingReceipt } from './shift-closing-receipt';
@@ -387,6 +388,14 @@ export default function ShiftManagement() {
   const [viewOrdersShift, setViewOrdersShift] = useState<Shift | null>(null);
   const [shiftOrders, setShiftOrders] = useState<any[]>([]);
   const [shiftOrdersLoading, setShiftOrdersLoading] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  // Refund / Void state
+  const [refundTarget, setRefundTarget] = useState<any | null>(null);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundProcessing, setRefundProcessing] = useState(false);
+  const [voidTarget, setVoidTarget] = useState<{ order: any; item: any } | null>(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidProcessing, setVoidProcessing] = useState(false);
   const [openingCash, setOpeningCash] = useState('0');
   const [isOpeningShift, setIsOpeningShift] = useState(false);
   const [closingCash, setClosingCash] = useState('');
@@ -2314,6 +2323,94 @@ export default function ShiftManagement() {
     return [];
   };
 
+  // ---- View Orders: refund and void handlers ----
+
+  const handleRefundOrder = (order: any) => {
+    setRefundTarget(order);
+    setRefundReason('');
+  };
+
+  const confirmRefund = async () => {
+    if (!refundTarget || !refundReason.trim()) return;
+    setRefundProcessing(true);
+    try {
+      const response = await fetch(`/api/orders/${refundTarget.id}/refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: user?.username,
+          password: undefined, // admin doesn't need password for refund via this UI
+          reason: refundReason.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        // Update the local order list to reflect the refund
+        setShiftOrders((prev) =>
+          prev.map((o) => o.id === refundTarget.id ? { ...o, isRefunded: true } : o),
+        );
+        // Refresh shift data so revenue reflects the refund
+        refetchShifts();
+        showSuccessToast('Refund Processed', `Order #${refundTarget.orderNumber} has been refunded.`);
+      } else {
+        showErrorToast('Refund Failed', data.error || 'Could not process refund.');
+      }
+    } catch (e: any) {
+      showErrorToast('Refund Failed', e.message || 'Network error.');
+    } finally {
+      setRefundProcessing(false);
+      setRefundTarget(null);
+      setRefundReason('');
+    }
+  };
+
+  const handleVoidItem = (order: any, item: any) => {
+    setVoidTarget({ order, item });
+    setVoidReason('');
+  };
+
+  const confirmVoid = async () => {
+    if (!voidTarget || !voidReason.trim()) return;
+    setVoidProcessing(true);
+    try {
+      const response = await fetch('/api/orders/void-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderItemId: voidTarget.item.id,
+          quantity: voidTarget.item.quantity,
+          reason: voidReason.trim(),
+          username: user?.username,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        // Update local order to mark the item as voided
+        setShiftOrders((prev) =>
+          prev.map((o) => {
+            if (o.id !== voidTarget.order.id) return o;
+            return {
+              ...o,
+              items: (o.items || []).map((it: any) =>
+                it.id === voidTarget.item.id ? { ...it, isVoided: true } : it,
+              ),
+            };
+          }),
+        );
+        refetchShifts();
+        showSuccessToast('Item Voided', `${voidTarget.item.quantity}× ${voidTarget.item.itemName} has been voided from order #${voidTarget.order.orderNumber}.`);
+      } else {
+        showErrorToast('Void Failed', data.error || 'Could not void item.');
+      }
+    } catch (e: any) {
+      showErrorToast('Void Failed', e.message || 'Network error.');
+    } finally {
+      setVoidProcessing(false);
+      setVoidTarget(null);
+      setVoidReason('');
+    }
+  };
+
   return (
     <div className="space-y-4 md:space-y-6 px-2 md:px-0 pb-safe-bottom">
       {/* Branch Selector */}
@@ -3486,8 +3583,8 @@ export default function ShiftManagement() {
       )}
 
       {/* View Orders dialog — shows all orders linked to a specific shift */}
-      <Dialog open={!!viewOrdersShift} onOpenChange={(v) => !v && setViewOrdersShift(null)}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
+      <Dialog open={!!viewOrdersShift} onOpenChange={(v) => { if (!v) { setViewOrdersShift(null); setExpandedOrderId(null); } }}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 py-4 border-b border-slate-200 bg-white shrink-0">
             <DialogTitle className="flex items-center gap-2 text-lg">
               <Eye className="h-5 w-5 text-emerald-600" />
@@ -3499,6 +3596,32 @@ export default function ShiftManagement() {
               {viewOrdersShift?.endTime ? ` · Closed: ${formatDate(viewOrdersShift.endTime)}` : ' · Open'}
             </p>
           </DialogHeader>
+
+          {/* Summary bar */}
+          {!shiftOrdersLoading && shiftOrders.length > 0 && (
+            <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-4 text-sm">
+                <span className="font-medium text-slate-700">
+                  {shiftOrders.length} order{shiftOrders.length !== 1 ? 's' : ''}
+                </span>
+                <span className="text-slate-300">|</span>
+                <span className="text-green-600 font-medium">
+                  Total: {canSeeFinancials(user) ? formatCurrency(shiftOrders.reduce((s, o) => s + (o.totalAmount || 0), 0), currency) : '••••'}
+                </span>
+                {shiftOrders.filter(o => o.isRefunded).length > 0 && (
+                  <>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-red-500 font-medium">
+                      {shiftOrders.filter(o => o.isRefunded).length} refunded
+                    </span>
+                  </>
+                )}
+              </div>
+              <span className="text-xs text-slate-400">Click an order to view details · refund · void items</span>
+            </div>
+          )}
+
+          {/* Scrollable order list */}
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {shiftOrdersLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -3511,62 +3634,269 @@ export default function ShiftManagement() {
                 <p className="mt-2 text-sm text-slate-500">No orders found for this shift.</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-slate-700">
-                    {shiftOrders.length} order{shiftOrders.length !== 1 ? 's' : ''}
-                  </span>
-                  <span className="text-sm font-medium text-green-600">
-                    Total: {formatCurrency(shiftOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0), currency)}
-                  </span>
-                </div>
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <Table>
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="text-xs">#</TableHead>
-                        <TableHead className="text-xs">Time</TableHead>
-                        <TableHead className="text-xs">Items</TableHead>
-                        <TableHead className="text-xs text-right">Total</TableHead>
-                        <TableHead className="text-xs">Payment</TableHead>
-                        <TableHead className="text-xs">Type</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {shiftOrders.map((order) => (
-                        <TableRow key={order.id} className="hover:bg-slate-50/50">
-                          <TableCell className="text-xs font-mono">#{order.orderNumber}</TableCell>
-                          <TableCell className="text-xs">
-                            {new Date(order.orderTimestamp || order.createdAt).toLocaleTimeString()}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {(order.items || []).map((item: any, idx: number) => (
-                              <span key={idx} className="inline-block mr-2">
-                                {item.quantity}× {item.itemName || item.name}
+              <div className="space-y-2">
+                {shiftOrders.map((order) => {
+                  const isExpanded = expandedOrderId === order.id;
+                  const isRefunded = order.isRefunded;
+                  const orderItems = order.items || [];
+                  const orderTime = new Date(order.orderTimestamp || order.createdAt).toLocaleTimeString();
+
+                  return (
+                    <div
+                      key={order.id}
+                      className={`rounded-lg border transition-all ${
+                        isRefunded ? 'border-red-200 bg-red-50/30' : 'border-slate-200 bg-white'
+                      } ${isExpanded ? 'shadow-sm' : 'hover:shadow-sm hover:border-slate-300'}`}
+                    >
+                      {/* Order summary row — always visible, clickable */}
+                      <button
+                        className="w-full flex items-center gap-4 px-4 py-3 text-left"
+                        onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                      >
+                        {/* Order number + time */}
+                        <div className="flex items-center gap-2 min-w-[100px]">
+                          <span className={`font-mono text-sm font-medium ${isRefunded ? 'text-red-500 line-through' : 'text-slate-900'}`}>
+                            #{order.orderNumber}
+                          </span>
+                        </div>
+
+                        {/* Items summary — truncated for many items */}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-slate-700 truncate">
+                            {orderItems.length === 0 ? (
+                              <span className="text-slate-400">No items</span>
+                            ) : orderItems.length <= 3 ? (
+                              orderItems.map((item: any, i: number) => (
+                                <span key={i} className="mr-2">
+                                  {item.quantity}× {item.itemName || item.name}
+                                </span>
+                              ))
+                            ) : (
+                              <span>
+                                {orderItems.slice(0, 3).map((item: any, i: number) => (
+                                  <span key={i} className="mr-2">
+                                    {item.quantity}× {item.itemName || item.name}
+                                  </span>
+                                ))}
+                                <span className="text-slate-400 text-xs">+{orderItems.length - 3} more item{orderItems.length - 3 !== 1 ? 's' : ''}</span>
                               </span>
-                            ))}
-                            {(order.items || []).length === 0 && (
-                              <span className="text-slate-400">—</span>
                             )}
-                          </TableCell>
-                          <TableCell className="text-xs text-right font-medium">
+                          </div>
+                          <div className="text-xs text-slate-400 mt-0.5">{orderTime} · {order.orderType}</div>
+                        </div>
+
+                        {/* Payment method badge */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {order.paymentMethod}
+                          </Badge>
+                        </div>
+
+                        {/* Total */}
+                        <div className="text-right shrink-0 min-w-[80px]">
+                          <span className={`font-medium text-sm ${isRefunded ? 'text-red-500 line-through' : 'text-slate-900'}`}>
                             {canSeeFinancials(user) ? formatCurrency(order.totalAmount, currency) : '••••'}
-                          </TableCell>
-                          <TableCell className="text-xs">{order.paymentMethod}</TableCell>
-                          <TableCell className="text-xs">{order.orderType}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                          </span>
+                        </div>
+
+                        {/* Status badges */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isRefunded && (
+                            <Badge variant="outline" className="text-xs text-red-600 border-red-300 bg-red-50">Refunded</Badge>
+                          )}
+                        </div>
+
+                        {/* Expand/collapse chevron */}
+                        <div className="shrink-0">
+                          {isExpanded ? (
+                            <ChevronRight className="h-4 w-4 text-slate-400 rotate-90" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-slate-400" />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Expanded order details */}
+                      {isExpanded && (
+                        <div className="border-t border-slate-100 px-4 py-4 bg-slate-50/50">
+                          {/* Items table */}
+                          <div className="mb-4">
+                            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Order Items ({orderItems.length})</h4>
+                            {orderItems.length === 0 ? (
+                              <p className="text-sm text-slate-400 italic">No items in this order.</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {orderItems.map((item: any, idx: number) => (
+                                  <div
+                                    key={item.id || idx}
+                                    className="flex items-center gap-3 px-3 py-2 bg-white rounded border border-slate-100"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium text-slate-900 truncate">
+                                        {item.itemName || item.name}
+                                      </div>
+                                      {item.variantName && (
+                                        <div className="text-xs text-slate-500">{item.variantName}</div>
+                                      )}
+                                      {item.specialInstructions && (
+                                        <div className="text-xs text-amber-600 italic truncate">"{item.specialInstructions}"</div>
+                                      )}
+                                    </div>
+                                    <div className="text-sm text-slate-600 shrink-0">
+                                      {item.quantity}×
+                                    </div>
+                                    <div className="text-sm text-slate-600 shrink-0 font-mono">
+                                      {canSeeFinancials(user) ? formatCurrency(item.unitPrice, currency) : '••••'}
+                                    </div>
+                                    <div className="text-sm font-medium text-slate-900 shrink-0 font-mono min-w-[60px] text-right">
+                                      {canSeeFinancials(user) ? formatCurrency(item.subtotal || item.unitPrice * item.quantity, currency) : '••••'}
+                                    </div>
+                                    {/* Void button per item */}
+                                    {!isRefunded && !item.isVoided && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 text-xs text-red-600 hover:bg-red-50 shrink-0"
+                                        onClick={() => handleVoidItem(order, item)}
+                                        title="Void this item"
+                                      >
+                                        <X className="h-3 w-3 mr-1" />
+                                        Void
+                                      </Button>
+                                    )}
+                                    {item.isVoided && (
+                                      <Badge variant="outline" className="text-xs text-red-500 border-red-200 shrink-0">Voided</Badge>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Order totals */}
+                          <div className="flex justify-end gap-6 mb-4 px-3">
+                            <div className="text-sm text-slate-600">
+                              Subtotal: <span className="font-mono">{canSeeFinancials(user) ? formatCurrency(order.subtotal, currency) : '••••'}</span>
+                            </div>
+                            {order.taxEnabled && order.taxAmount > 0 && (
+                              <div className="text-sm text-slate-600">
+                                Tax: <span className="font-mono">{canSeeFinancials(user) ? formatCurrency(order.taxAmount, currency) : '••••'}</span>
+                              </div>
+                            )}
+                            <div className="text-sm font-semibold text-slate-900">
+                              Total: <span className="font-mono">{canSeeFinancials(user) ? formatCurrency(order.totalAmount, currency) : '••••'}</span>
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          {!isRefunded && (
+                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                onClick={() => handleRefundOrder(order)}
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                Refund Entire Order
+                              </Button>
+                            </div>
+                          )}
+                          {isRefunded && (
+                            <div className="flex justify-end pt-2 border-t border-slate-100">
+                              <span className="text-xs text-red-500">This order has been refunded. No further actions available.</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Pagination / load more indicator for very large lists */}
+                {shiftOrders.length >= 100 && (
+                  <div className="text-center py-4 text-xs text-slate-400">
+                    Showing first 100 orders. Use the orders page for full history.
+                  </div>
+                )}
               </div>
             )}
           </div>
+
           <DialogFooter className="px-6 py-4 border-t border-slate-200 bg-white shrink-0">
-            <Button variant="outline" onClick={() => setViewOrdersShift(null)}>Close</Button>
+            <Button variant="outline" onClick={() => { setViewOrdersShift(null); setExpandedOrderId(null); }}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Refund confirmation dialog */}
+      <AlertDialog open={refundTarget !== null} onOpenChange={(v) => { if (!v) { setRefundTarget(null); setRefundReason(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Refund Order #{refundTarget?.orderNumber}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will refund the entire order ({canSeeFinancials(user) ? formatCurrency(refundTarget?.totalAmount || 0, currency) : '••••'}).
+              {refundTarget?.paymentMethod === 'card' && ' A card refund may require manual processing.'}
+              <br />
+              <br />
+              Please provide a reason for the refund:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Textarea
+              placeholder="e.g. Customer complaint, wrong order, etc."
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+              className="min-h-[60px]"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setRefundTarget(null); setRefundReason(''); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRefund}
+              disabled={refundProcessing || !refundReason.trim()}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {refundProcessing ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Confirm Refund
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Void item confirmation dialog */}
+      <AlertDialog open={voidTarget !== null} onOpenChange={(v) => { if (!v) { setVoidTarget(null); setVoidReason(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void item "{voidTarget?.item.itemName}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will void {voidTarget?.item.quantity}× {voidTarget?.item.itemName} from order #{voidTarget?.order.orderNumber}.
+              <br />
+              <br />
+              Please provide a reason:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Textarea
+              placeholder="e.g. Wrong item, customer cancelled, etc."
+              value={voidReason}
+              onChange={(e) => setVoidReason(e.target.value)}
+              className="min-h-[60px]"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setVoidTarget(null); setVoidReason(''); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmVoid}
+              disabled={voidProcessing || !voidReason.trim()}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {voidProcessing ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Confirm Void
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
