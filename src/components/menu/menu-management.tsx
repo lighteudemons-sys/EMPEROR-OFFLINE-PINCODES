@@ -37,11 +37,17 @@ export default function MenuManagement({ initialActiveTab = 'overview' }: MenuMa
 
   const refresh = useCallback(async () => {
     try {
-      // CRITICAL: invalidate the client-side menuCache so the POS tab gets fresh
-      // data on its next fetch. Without this, the POS shows stale items/prices
+      // CRITICAL: invalidate the client-side caches so the POS tab gets fresh
+      // data on its next access. Without this, the POS shows stale items/prices
       // for up to 5 minutes after an admin change (the menuCache TTL).
       const { menuCache } = await import('@/lib/menu-cache');
       menuCache.invalidate();
+
+      // Dispatch a global event so any mounted useOfflineData hooks (e.g. the POS)
+      // reset their hasFetchedRef and refetch immediately.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('menu-data-changed'));
+      }
 
       const [items, cats, brs] = await Promise.all([
         fetchMenuItems(true), // include inactive

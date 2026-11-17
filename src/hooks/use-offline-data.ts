@@ -254,8 +254,21 @@ export function useOfflineData<T>(
     const handleOnline = () => {
       setIsOffline(false);
       console.log('[useOfflineData] Back online, refetching data');
+      hasFetchedRef.current = false; // allow refetch
       fetchData();
     };
+
+    // Phase 3.1b: listen for admin-side menu data invalidation events.
+    // When the admin UI creates/updates/deletes a menu item, it dispatches
+    // a 'menu-data-changed' window event. We listen for it here and force
+    // a refetch so the POS sees the updated items immediately (instead of
+    // showing stale cached data for up to 5 minutes).
+    const handleMenuDataChanged = () => {
+      console.log('[useOfflineData] menu-data-changed event received, refetching');
+      hasFetchedRef.current = false; // CRITICAL: allow refetch past the skip check
+      fetchData();
+    };
+    window.addEventListener('menu-data-changed', handleMenuDataChanged as EventListener);
 
     const handleOffline = () => {
       setIsOffline(true);
@@ -268,6 +281,7 @@ export function useOfflineData<T>(
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('menu-data-changed', handleMenuDataChanged as EventListener);
     };
   }, [fetchData]);
 
