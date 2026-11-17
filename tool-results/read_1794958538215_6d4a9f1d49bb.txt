@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect } from 'react';
+     4→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+     5→import { Button } from '@/components/ui/button';
+     6→import { Input } from '@/components/ui/input';
+     7→import { Label } from '@/components/ui/label';
+     8→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+     9→import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+    10→import { Badge } from '@/components/ui/badge';
+    11→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+    12→import { Textarea } from '@/components/ui/textarea';
+    13→import { ScrollArea } from '@/components/ui/scroll-area';
+    14→import { Separator } from '@/components/ui/separator';
+    15→import { Clock, DollarSign, ShoppingCart, Play, Square, AlertCircle, Calendar, User, TrendingUp, Store, CreditCard, Wallet, CircleDollarSign, Activity, Smartphone, X, RefreshCw, ChevronLeft, ChevronRight, Trash2, ShoppingBag } from 'lucide-react';
+    16→import { useAuth } from '@/lib/auth-context';
+    17→import { useI18n } from '@/lib/i18n-context';
+    18→import { formatCurrency } from '@/lib/utils';
+    19→import { canSeeFinancials } from '@/lib/permissions';
+    20→import { useOfflineData, offlineDataFetchers } from '@/hooks/use-offline-data';
+    21→import { DayClosingReceipt } from './day-closing-receipt';
+    22→import { ShiftClosingReceipt } from './shift-closing-receipt';
+    23→
+    24→interface Shift {
+    25→  id: string;
+    26→  branchId: string;
+    27→  branch?: {
+    28→    id: string;
+    29→    branchName: string;
+    30→  };
+    31→  cashierId: string;
+    32→  cashier?: {
+    33→    id: string;
+    34→    username: string;
+    35→    name?: string;
+    36→  };
+    37→  startTime: string;
+    38→  endTime?: string;
+    39→  openingCash: number;
+    40→  closingCash?: number;
+    41→  openingOrders: number;
+    42→  closingOrders?: number;
+    43→  openingRevenue: number;
+    44→  closingRevenue?: number;
+    45→  isClosed: boolean;
+    46→  notes?: string;
+    47→  orderCount: number;
+    48→  createdAt: string;
+    49→  updatedAt: string;
+    50→  // For open shifts - calculated at runtime
+    51→  currentRevenue?: number;
+    52→  currentOrders?: number;
+    53→  paymentBreakdown?: {
+    54→    cash?: number;
+    55→    card?: number;
+    56→    instapay?: number;
+    57→    wallet?: number;
+    58→    talabat?: number;
+    59→    other?: number;
+    60→  };
+    61→}
+    62→
+    63→interface Cashier {
+    64→  id: string;
+    65→  username: string;
+    66→  name?: string;
+    67→}
+    68→
+    69→interface PaymentBreakdown {
+    70→  cash: number;
+    71→  card: number;
+    72→  instapay: number;
+    73→  wallet: number;
+    74→  talabat: number;
+    75→  total: number;
+    76→}
+    77→
+    78→// Helper function to create shift offline
+    79→async function createShiftOffline(shiftData: any, user: any): Promise<void> {
+    80→  try {
+    81→    console.log('[Shift] Creating shift offline, shiftData:', shiftData);
+    82→
+    83→    // Import IndexedDB storage
+    84→    const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+    85→    const indexedDBStorage = getIndexedDBStorage();
+    86→    console.log('[Shift] IndexedDB storage imported');
+    87→
+    88→    // Initialize storage if not already initialized
+    89→    await indexedDBStorage.init();
+    90→    console.log('[Shift] IndexedDB storage initialized');
+    91→
+    92→    // Get branches to find branch name
+    93→    const branches = await indexedDBStorage.getAllBranches();
+    94→    const branch = branches.find((b: any) => b.id === shiftData.branchId);
+    95→    const branchName = branch?.branchName || 'Unknown Branch';
+    96→
+    97→    // Create a temporary shift ID (will be replaced on sync)
+    98→    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    99→    console.log('[Shift] Created tempId:', tempId);
+   100→
+   101→    // Create shift object with flattened cashier and branch info
+   102→    const newShift = {
+   103→      id: tempId,
+   104→      branchId: shiftData.branchId,
+   105→      branchName: branchName,
+   106→      cashierId: shiftData.cashierId,
+   107→      cashierName: user.name || user.username,
+   108→      cashierUsername: user.username,
+   109→      dayId: shiftData.dayId,
+   110→      startTime: new Date().toISOString(),
+   111→      openingCash: shiftData.openingCash,
+   112→      openingOrders: 0,
+   113→      openingRevenue: 0,
+   114→      shiftNumber: 1, // Start at 1 for the day
+   115→      isClosed: false,
+   116→      notes: shiftData.notes,
+   117→      createdAt: new Date().toISOString(),
+   118→      updatedAt: new Date().toISOString(),
+   119→      orderCount: 0,
+   120→      currentRevenue: 0,
+   121→      currentOrders: 0,
+   122→    };
+   123→
+   124→    console.log('[Shift] Created shift object:', newShift);
+   125→
+   126→    // Save shift to IndexedDB
+   127→    await indexedDBStorage.put('shifts', newShift);
+   128→    console.log('[Shift] Shift saved to IndexedDB');
+   129→
+   130→    // Queue operation for sync
+   131→    await indexedDBStorage.addOperation({
+   132→      type: 'CREATE_SHIFT',
+   133→      data: {
+   134→        ...shiftData,
+   135→        id: tempId,
+   136→        dayId: shiftData.dayId, // Include dayId to link shift to business day
+   137→        startTime: newShift.startTime,
+   138→        endTime: newShift.endTime || null,
+   139→        isClosed: newShift.isClosed,
+   140→        createdAt: newShift.createdAt,
+   141→        updatedAt: newShift.updatedAt,
+   142→        cashierName: newShift.cashierName,
+   143→        cashierUsername: newShift.cashierUsername,
+   144→        branchName: newShift.branchName,
+   145→      },
+   146→      branchId: shiftData.branchId,
+   147→    });
+   148→    console.log('[Shift] Operation queued for sync (IndexedDB)');
+   149→
+   150→    console.log('[Shift] Shift created offline successfully:', newShift);
+   151→  } catch (error) {
+   152→    console.error('[Shift] Failed to create shift offline, error:', error);
+   153→    throw error;
+   154→  }
+   155→}
+   156→
+   157→// Helper function to open business day offline
+   158→async function openBusinessDayOffline(businessDayData: any, user: any): Promise<any> {
+   159→  try {
+   160→    console.log('[Business Day] Opening business day offline, data:', businessDayData);
+   161→    console.log('[Business Day] User data:', { id: user.id, username: user.username });
+   162→
+   163→    const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+   164→    const indexedDBStorage = getIndexedDBStorage();
+   165→    console.log('[Business Day] IndexedDB storage imported');
+   166→    await indexedDBStorage.init();
+   167→    console.log('[Business Day] IndexedDB storage initialized');
+   168→
+   169→    // Check if there's already an open business day for this branch
+   170→    const existingBusinessDays = await indexedDBStorage.getBusinessDays();
+   171→    console.log('[Business Day] Existing business days:', existingBusinessDays);
+   172→
+   173→    const existingOpenDay = existingBusinessDays.find(
+   174→      (bd: any) => bd.branchId === businessDayData.branchId && bd.isOpen
+   175→    );
+   176→
+   177→    if (existingOpenDay) {
+   178→      console.log('[Business Day] Business day already open for this branch:', existingOpenDay);
+   179→      return existingOpenDay;
+   180→    }
+   181→
+   182→    // Create a temporary business day ID
+   183→    const tempId = `temp-day-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+   184→    console.log('[Business Day] Creating new business day with ID:', tempId);
+   185→
+   186→    const newBusinessDay = {
+   187→      id: tempId,
+   188→      branchId: businessDayData.branchId,
+   189→      openedBy: user.id,
+   190→      openedAt: new Date().toISOString(),
+   191→      isOpen: true,
+   192→      openingCash: 0,
+   193→      notes: businessDayData.notes,
+   194→      totalOrders: 0,
+   195→      totalSales: 0,
+   196→      shifts: [],
+   197→    };
+   198→
+   199→    console.log('[Business Day] New business day object:', newBusinessDay);
+   200→
+   201→    // Save business day to IndexedDB
+   202→    await indexedDBStorage.saveBusinessDay(newBusinessDay);
+   203→    console.log('[Business Day] Business day saved to IndexedDB with ID:', tempId);
+   204→
+   205→    // Verify it was saved
+   206→    const verifyBusinessDays = await indexedDBStorage.getBusinessDays();
+   207→    const savedDay = verifyBusinessDays.find((bd: any) => bd.id === tempId);
+   208→    console.log('[Business Day] Verification - found saved day:', savedDay);
+   209→
+   210→    // Queue operation for sync - use IndexedDB for operations
+   211→    await indexedDBStorage.addOperation({
+   212→      type: 'OPEN_BUSINESS_DAY',
+   213→      data: {
+   214→        ...businessDayData,
+   215→        id: tempId,
+   216→        openedAt: newBusinessDay.openedAt,
+   217→        openedBy: newBusinessDay.openedBy,
+   218→      },
+   219→      branchId: businessDayData.branchId,
+   220→    });
+   221→    console.log('[Business Day] Operation queued for sync (IndexedDB)');
+   222→
+   223→    console.log('[Business Day] Returning new business day:', newBusinessDay);
+   224→    return newBusinessDay;
+   225→  } catch (error) {
+   226→    console.error('[Business Day] Failed to open business day offline, error:', error);
+   227→    console.error('[Business Day] Error stack:', error instanceof Error ? error.stack : 'No stack');
+   228→    throw error;
+   229→  }
+   230→}
+   231→
+   232→// Helper function to close shift offline
+   233→async function closeShiftOffline(
+   234→  shift: any,
+   235→  closingCash: number,
+   236→  notes: string,
+   237→  paymentBreakdown: PaymentBreakdown
+   238→): Promise<any> {
+   239→  try {
+   240→    console.log('[Shift] Closing shift offline, shift:', shift);
+   241→
+   242→    // Import IndexedDB storage
+   243→    const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+   244→    const indexedDBStorage = getIndexedDBStorage();
+   245→    console.log('[Shift] IndexedDB storage imported');
+   246→
+   247→    // Initialize storage if not already initialized
+   248→    await indexedDBStorage.init();
+   249→    console.log('[Shift] IndexedDB storage initialized');
+   250→
+   251→    // Get all orders for this shift to calculate actual revenue
+   252→    // Revenue should exclude delivery fees (courier takes them)
+   253→    const allOrders = await indexedDBStorage.getAllOrders();
+   254→    const shiftOrders = allOrders.filter((order: any) => order.shiftId === shift.id);
+   255→
+   256→    console.log('[Shift] Found orders for shift:', shiftOrders.length);
+   257→
+   258→    // Debug: Log each order to see what fields we have
+   259→    shiftOrders.forEach((order: any, idx: number) => {
+   260→      console.log(`[Shift] Order ${idx + 1}:`, {
+   261→        id: order.id,
+   262→        orderNumber: order.orderNumber,
+   263→        subtotal: order.subtotal,
+   264→        totalAmount: order.totalAmount,
+   265→        deliveryFee: order.deliveryFee,
+   266→      });
+   267→    });
+   268→
+   269→    // Calculate revenue excluding delivery fees
+   270→    const subtotal = shiftOrders.reduce((sum: number, order: any) => sum + (order.subtotal || 0), 0);
+   271→    const deliveryFees = shiftOrders.reduce((sum: number, order: any) => sum + (order.deliveryFee || 0), 0);
+   272→    const cashierRevenue = subtotal; // Subtotal excludes delivery fees
+   273→
+   274→    // Calculate all discounts from orders
+   275→    const totalLoyaltyDiscounts = shiftOrders.reduce((sum: number, order: any) => sum + (order.loyaltyDiscount || 0), 0);
+   276→    const totalPromoDiscounts = shiftOrders.reduce((sum: number, order: any) => sum + (order.promoDiscount || 0), 0);
+   277→    const totalManualDiscounts = shiftOrders.reduce((sum: number, order: any) => sum + (order.manualDiscountAmount || 0), 0);
+   278→    const totalDiscounts = totalLoyaltyDiscounts + totalPromoDiscounts + totalManualDiscounts;
+   279→
+   280→    // Calculate daily expenses for this shift
+   281→    const allDailyExpenses = await indexedDBStorage.getAllDailyExpenses();
+   282→    const shiftDailyExpenses = allDailyExpenses.filter((exp: any) => exp.shiftId === shift.id);
+   283→    const totalDailyExpenses = shiftDailyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+   284→
+   285→    console.log('[closeShiftOffline] Daily expenses:', {
+   286→      shiftId: shift.id,
+   287→      totalExpensesInDB: allDailyExpenses.length,
+   288→      shiftExpensesCount: shiftDailyExpenses.length,
+   289→      shiftExpenses: shiftDailyExpenses,
+   290→      totalDailyExpenses,
+   291→    });
+   292→
+   293→    console.log('[Shift] Calculated closing revenue:', {
+   294→      orderCount: shiftOrders.length,
+   295→      subtotal,
+   296→      deliveryFees,
+   297→      cashierRevenue,
+   298→      totalLoyaltyDiscounts,
+   299→      totalPromoDiscounts,
+   300→      totalManualDiscounts,
+   301→      totalDiscounts,
+   302→      totalDailyExpenses,
+   303→      openingCash: shift.openingCash || 0,
+   304→    });
+   305→
+   306→    // Update shift object with calculated closing data, preserving cashier and branch info
+   307→    const updatedShift = {
+   308→      ...shift,
+   309→      endTime: new Date().toISOString(),
+   310→      closingCash: closingCash,
+   311→      closingOrders: shiftOrders.length,
+   312→      closingRevenue: cashierRevenue, // Use calculated revenue (subtotal only, no delivery fees)
+   313→      closingLoyaltyDiscounts: totalLoyaltyDiscounts,
+   314→      closingPromoDiscounts: totalPromoDiscounts,
+   315→      closingDailyExpenses: totalDailyExpenses, // Use calculated daily expenses
+   316→      closingVoidedItems: 0, // Would need to track voided items
+   317→      closingRefunds: 0, // Would need to track refunds
+   318→      isClosed: true,
+   319→      notes: notes || shift.notes,
+   320→      paymentBreakdown: paymentBreakdown || shift.paymentBreakdown,
+   321→      updatedAt: new Date().toISOString(),
+   322→      // Preserve cashier and branch info for receipt display
+   323→      cashierName: shift.cashierName || shift.cashier?.name,
+   324→      cashierUsername: shift.cashierUsername || shift.cashier?.username,
+   325→      branchName: shift.branchName || shift.branch?.branchName,
+   326→      branchId: shift.branchId,
+   327→      shiftNumber: shift.shiftNumber || shift.openingOrders || shiftOrders.length,
+   328→      startTime: shift.startTime || new Date().toISOString(),
+   329→    };
+   330→
+   331→    console.log('[Shift] Updated shift object:', updatedShift);
+   332→
+   333→    // Save updated shift to IndexedDB
+   334→    await indexedDBStorage.put('shifts', updatedShift);
+   335→    console.log('[Shift] Shift updated in IndexedDB');
+   336→
+   337→    // Queue operation for sync
+   338→    await indexedDBStorage.addOperation({
+   339→      type: 'CLOSE_SHIFT',
+   340→      data: {
+   341→        id: shift.id,
+   342→        branchId: shift.branchId,
+   343→        cashierId: shift.cashierId,
+   344→        startTime: shift.startTime, // Include startTime to find the shift during sync
+   345→        closingCash: closingCash,
+   346→        notes: notes || shift.notes,
+   347→        paymentBreakdown: paymentBreakdown || shift.paymentBreakdown,
+   348→        endTime: updatedShift.endTime,
+   349→        // Include cashier and branch info for database creation
+   350→        cashierName: updatedShift.cashierName,
+   351→        cashierUsername: updatedShift.cashierUsername,
+   352→        branchName: updatedShift.branchName,
+   353→      },
+   354→      branchId: shift.branchId,
+   355→    });
+   356→    console.log('[Shift] Close operation queued for sync (IndexedDB)');
+   357→
+   358→    console.log('[Shift] Shift closed offline successfully:', updatedShift);
+   359→
+   360→    // Return the updated shift for receipt generation
+   361→    return updatedShift;
+   362→  } catch (error) {
+   363→    console.error('[Shift] Failed to close shift offline, error:', error);
+   364→    throw error;
+   365→  }
+   366→}
+   367→
+   368→export default function ShiftManagement() {
+   369→  const { user } = useAuth();
+   370→  const { t, currency } = useI18n();
+   371→  const [shifts, setShifts] = useState<Shift[]>([]);
+   372→  const [cashiers, setCashiers] = useState<Cashier[]>([]);
+   373→  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
+   374→  const [selectedBranch, setSelectedBranch] = useState<string>('');
+   375→  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+   376→  const [selectedCashier, setSelectedCashier] = useState<string>('');
+   377→  // Pagination state for managers/admins
+   378→  const [shiftsPage, setShiftsPage] = useState(1);
+   379→  const [deletingShiftId, setDeletingShiftId] = useState<string | null>(null);
+   380→  const [shiftsTotalPages, setShiftsTotalPages] = useState(1);
+   381→  const [shiftsPerPage] = useState(user?.role === 'CASHIER' ? 5 : 5);
+   382→  const [loading, setLoading] = useState(false);
+   383→  const [openDialogOpen, setOpenDialogOpen] = useState(false);
+   384→  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+   385→  const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+   386→  const [openingCash, setOpeningCash] = useState('0');
+   387→  const [isOpeningShift, setIsOpeningShift] = useState(false);
+   388→  const [closingCash, setClosingCash] = useState('');
+   389→  const [shiftNotes, setShiftNotes] = useState('');
+   390→  const [paymentBreakdown, setPaymentBreakdown] = useState<PaymentBreakdown>({
+   391→    cash: 0,
+   392→    card: 0,
+   393→    instapay: 0,
+   394→    wallet: 0,
+   395→    talabat: 0,
+   396→    total: 0,
+   397→  });
+   398→  // Business Day states
+   399→  const [businessDayStatus, setBusinessDayStatus] = useState<{
+   400→    isOpen: boolean;
+   401→    businessDayId?: string;
+   402→  }>({ isOpen: false });
+   403→  const [openDayDialogOpen, setOpenDayDialogOpen] = useState(false);
+   404→  const [closeDayDialogOpen, setCloseDayDialogOpen] = useState(false);
+   405→  const [dayOpeningNotes, setDayOpeningNotes] = useState('');
+   406→  const [dayClosingNotes, setDayClosingNotes] = useState('');
+   407→  const [closingReport, setClosingReport] = useState<any>(null);
+   408→  const [closingReportOpen, setClosingReportOpen] = useState(false);
+   409→  // Shift Closing Receipt state
+   410→  const [shiftClosingReceiptOpen, setShiftClosingReceiptOpen] = useState(false);
+   411→  const [shiftForReceipt, setShiftForReceipt] = useState<Shift | null>(null);
+   412→  // Cash-only revenue for expected cash calculation
+   413→  const [shiftCashRevenue, setShiftCashRevenue] = useState(0);
+   414→  
+   415→  // Daily Expenses for current shift
+   416→  const [currentDailyExpenses, setCurrentDailyExpenses] = useState(0);
+   417→  const [loadingExpenses, setLoadingExpenses] = useState(false);
+   418→
+   419→  // Voided items and refunds for current shift
+   420→  const [currentVoidedItems, setCurrentVoidedItems] = useState(0);
+   421→  const [currentRefunds, setCurrentRefunds] = useState(0);
+   422→
+   423→
+   424→  // Offline-capable data fetching for branches
+   425→  const { data: branchesData } = useOfflineData(
+   426→    '/api/branches',
+   427→    {
+   428→      fetchFromDB: offlineDataFetchers.branches,
+   429→    }
+   430→  );
+   431→
+   432→  // Offline-capable data fetching for shifts
+   433→  const { data: shiftsData, refetch: refetchShifts } = useOfflineData(
+   434→    '/api/shifts',
+   435→    {
+   436→      branchId: selectedBranch,
+   437→      fetchFromDB: offlineDataFetchers.shifts,
+   438→      enabled: !!selectedBranch,
+   439→      deps: [selectedBranch, selectedStatus, selectedCashier],
+   440→    }
+   441→  );
+   442→
+   443→  // Log when selectedBranch changes
+   444→  useEffect(() => {
+   445→    console.log('[Shift Management] selectedBranch changed to:', selectedBranch);
+   446→    if (selectedBranch) {
+   447→      console.log('[Shift Management] Shift fetching is now enabled');
+   448→    }
+   449→  }, [selectedBranch]);
+   450→
+   451→  // Update branches from offline data
+   452→  useEffect(() => {
+   453→    console.log('[Shift Management] branchesData changed:', branchesData);
+   454→    if (branchesData) {
+   455→      const branchesList = Array.isArray(branchesData)
+   456→        ? branchesData.map((branch: any) => ({
+   457→            id: branch.id,
+   458→            name: branch.branchName,
+   459→          }))
+   460→        : (branchesData.branches || []).map((branch: any) => ({
+   461→            id: branch.id,
+   462→            name: branch.branchName,
+   463→          }));
+   464→      console.log('[Shift Management] branchesList:', branchesList);
+   465→      setBranches(branchesList);
+   466→    }
+   467→  }, [branchesData]);
+   468→
+   469→  // Update shifts from offline data
+   470→  useEffect(() => {
+   471→    console.log('[Shift Management] shiftsData changed:', shiftsData);
+   472→    console.log('[Shift Management] selectedBranch:', selectedBranch);
+   473→
+   474→    if (shiftsData && selectedBranch) {
+   475→      const apiShifts = Array.isArray(shiftsData) ? shiftsData : (shiftsData.shifts || []);
+   476→      console.log('[Shift Management] API shifts:', apiShifts);
+   477→
+   478→      // Also fetch offline shifts from IndexedDB to merge with API shifts
+   479→      const mergeShifts = async () => {
+   480→        try {
+   481→          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+   482→          const indexedDBStorage = getIndexedDBStorage();
+   483→          await indexedDBStorage.init();
+   484→          const offlineShifts = await indexedDBStorage.getAllShifts();
+   485→          console.log('[Shift Management] Offline shifts:', offlineShifts);
+   486→
+   487→          // Helper function to check if two shifts are duplicates (same cashier, same startTime within 1 minute)
+   488→          const isDuplicateShift = (shift1: any, shift2: any): boolean => {
+   489→            if (shift1.id === shift2.id) return true; // Same ID is definitely a duplicate
+   490→            if (shift1.cashierId !== shift2.cashierId) return false;
+   491→            if (shift1.branchId !== shift2.branchId) return false;
+   492→
+   493→            // Compare start times (within 1 minute = 60000ms)
+   494→            const time1 = new Date(shift1.startTime).getTime();
+   495→            const time2 = new Date(shift2.startTime).getTime();
+   496→            const timeDiff = Math.abs(time1 - time2);
+   497→
+   498→            return timeDiff <= 60000; // 1 minute window
+   499→          };
+   500→
+   501→          // Combine API shifts and offline shifts, avoiding duplicates
+   502→          const apiShiftIds = new Set(apiShifts.map((s: any) => s.id));
+   503→          const uniqueOfflineShifts = offlineShifts.filter((offlineShift: any) => {
+   504→            // First, check if ID matches (exact duplicate)
+   505→            if (apiShiftIds.has(offlineShift.id)) return false;
+   506→
+   507→            // Then, check if it's a semantic duplicate (same cashier, similar startTime)
+   508→            const hasDuplicateInAPI = apiShifts.some((apiShift: any) =>
+   509→              isDuplicateShift(offlineShift, apiShift)
+   510→            );
+   511→
+   512→            // If it's a duplicate of an API shift, don't include it
+   513→            // (API shift takes precedence as it's the synced version)
+   514→            if (hasDuplicateInAPI) {
+   515→              console.log('[Shift Management] Found duplicate shift, skipping offline shift:', {
+   516→                offlineId: offlineShift.id,
+   517→                duplicateWith: apiShifts.find((apiShift: any) => isDuplicateShift(offlineShift, apiShift))?.id
+   518→              });
+   519→              return false;
+   520→            }
+   521→
+   522→            return true;
+   523→          });
+   524→
+   525→          const allShifts = [...apiShifts, ...uniqueOfflineShifts];
+   526→          console.log('[Shift Management] Combined shifts:', allShifts);
+   527→
+   528→          // Filter shifts by branch and status
+   529→          const filtered = allShifts.filter((shift: any) => {
+   530→            console.log('[Shift Management] Checking shift:', { id: shift.id, branchId: shift.branchId, selectedBranch });
+   531→
+   532→            if (shift.branchId !== selectedBranch) return false;
+   533→            if (selectedStatus && selectedStatus !== 'all') {
+   534→              const isOpen = !shift.isClosed;
+   535→              if (selectedStatus === 'open' && !isOpen) return false;
+   536→              if (selectedStatus === 'closed' && isOpen) return false;
+   537→            }
+   538→            if (selectedCashier && selectedCashier !== 'all' && shift.cashierId !== selectedCashier) {
+   539→              return false;
+   540→            }
+   541→            return true;
+   542→          });
+   543→
+   544→          console.log('[Shift Management] Filtered shifts:', filtered);
+   545→          setShifts(filtered);
+   546→          setLoading(false);
+   547→        } catch (error) {
+   548→          console.error('[Shift Management] Failed to merge offline shifts:', error);
+   549→          // Fallback to just API shifts if offline merge fails
+   550→          const filtered = apiShifts.filter((shift: any) => {
+   551→            if (shift.branchId !== selectedBranch) return false;
+   552→            if (selectedStatus && selectedStatus !== 'all') {
+   553→              const isOpen = !shift.isClosed;
+   554→              if (selectedStatus === 'open' && !isOpen) return false;
+   555→              if (selectedStatus === 'closed' && isOpen) return false;
+   556→            }
+   557→            if (selectedCashier && selectedCashier !== 'all' && shift.cashierId !== selectedCashier) {
+   558→              return false;
+   559→            }
+   560→            return true;
+   561→          });
+   562→          setShifts(filtered);
+   563→          setLoading(false);
+   564→        }
+   565→      };
+   566→
+   567→      mergeShifts();
+   568→    }
+   569→  }, [shiftsData, selectedBranch, selectedStatus, selectedCashier]);
+   570→
+   571→  // Fetch branches (fallback if offline data not available)
+   572→  useEffect(() => {
+   573→    if (branchesData) return;
+   574→
+   575→    const fetchBranches = async () => {
+   576→      try {
+   577→        const response = await fetch('/api/branches');
+   578→        const data = await response.json();
+   579→
+   580→        if (response.ok && data.branches) {
+   581→          const branchesList = data.branches.map((branch: any) => ({
+   582→            id: branch.id,
+   583→            name: branch.branchName,
+   584→          }));
+   585→          setBranches(branchesList);
+   586→        }
+   587→      } catch (error) {
+   588→        console.error('Failed to fetch branches:', error);
+   589→      }
+   590→    };
+   591→
+   592→    fetchBranches();
+   593→  }, [branchesData]);
+   594→
+   595→  // Fetch cashiers (users with CASHIER role)
+   596→  useEffect(() => {
+   597→    const fetchCashiers = async () => {
+   598→      if (!selectedBranch) return;
+   599→
+   600→      try {
+   601→        const response = await fetch(`/api/users?currentUserBranchId=${selectedBranch}&currentUserRole=BRANCH_MANAGER`);
+   602→        const data = await response.json();
+   603→
+   604→        if (response.ok && data.users) {
+   605→          // Filter for CASHIER role users on client side
+   606→          const cashiers = data.users.filter((user: any) => user.role === 'CASHIER');
+   607→          setCashiers(cashiers);
+   608→        }
+   609→      } catch (error) {
+   610→        console.error('Failed to fetch cashiers:', error);
+   611→      }
+   612→    };
+   613→    fetchCashiers();
+   614→  }, [selectedBranch]);
+   615→
+   616→  // Load user on mount and set default branch
+   617→  useEffect(() => {
+   618→    console.log('[Shift Management] User or branches changed:', {
+   619→      user: user ? { id: user.id, username: user.username, role: user.role, branchId: user.branchId } : 'no user',
+   620→      branches,
+   621→      branchesLength: branches.length
+   622→    });
+   623→
+   624→    if (user) {
+   625→      if (user.role === 'ADMIN' && branches.length > 0) {
+   626→        // For admins, check if there are cached shifts in IndexedDB
+   627→        // to find which branch has shifts, otherwise default to first branch
+   628→        import('@/lib/storage/indexeddb-storage').then(({ getIndexedDBStorage }) => {
+   629→          const indexedDBStorage = getIndexedDBStorage();
+   630→          return indexedDBStorage.init().then(() => indexedDBStorage.getAllShifts());
+   631→        }).then((cachedShifts) => {
+   632→          console.log('[Shift Management] Cached shifts for admin branch selection:', cachedShifts.length);
+   633→
+   634→          if (cachedShifts.length > 0) {
+   635→            // Find branches that have shifts
+   636→            const branchesWithShifts = cachedShifts.reduce((acc: Set<string>, shift: any) => {
+   637→              if (shift.branchId && branches.some((b: any) => b.id === shift.branchId)) {
+   638→                acc.add(shift.branchId);
+   639→              }
+   640→              return acc;
+   641→            }, new Set());
+   642→
+   643→            console.log('[Shift Management] Branches with shifts:', Array.from(branchesWithShifts));
+   644→
+   645→            // Find the first branch (from the branches list) that has shifts
+   646→            const branchWithShifts = branches.find((b: any) => branchesWithShifts.has(b.id));
+   647→
+   648→            if (branchWithShifts) {
+   649→              console.log('[Shift Management] Selecting branch with shifts for admin:', branchWithShifts);
+   650→              setSelectedBranch(branchWithShifts.id);
+   651→            } else {
+   652→              console.log('[Shift Management] No cached shifts, selecting first branch for admin:', branches[0]);
+   653→              setSelectedBranch(branches[0].id);
+   654→            }
+   655→          } else {
+   656→            console.log('[Shift Management] No cached shifts, selecting first branch for admin:', branches[0]);
+   657→            setSelectedBranch(branches[0].id);
+   658→          }
+   659→        }).catch((err) => {
+   660→          console.error('[Shift Management] Failed to check cached shifts:', err);
+   661→          // Fallback to first branch
+   662→          console.log('[Shift Management] Error fallback, selecting first branch for admin:', branches[0]);
+   663→          setSelectedBranch(branches[0].id);
+   664→        });
+   665→      } else if (user.branchId) {
+   666→        console.log('[Shift Management] Setting user branch:', user.branchId);
+   667→        setSelectedBranch(user.branchId);
+   668→      }
+   669→    }
+   670→  }, [user, branches]);
+   671→
+   672→  // Clear selectedShift if shifts array becomes empty
+   673→  useEffect(() => {
+   674→    if (shifts.length === 0 && selectedShift) {
+   675→      setSelectedShift(null);
+   676→      setClosingCash('');
+   677→      setShiftNotes('');
+   678→      setCloseDialogOpen(false);
+   679→    }
+   680→  }, [shifts, selectedShift]);
+   681→
+   682→  // Fetch current shift for cashiers
+   683→  useEffect(() => {
+   684→    if (user && user.role === 'CASHIER') {
+   685→      const fetchCurrentShift = async () => {
+   686→        try {
+   687→          const params = new URLSearchParams({
+   688→            cashierId: user.id,
+   689→            branchId: user.branchId,
+   690→            status: 'open',
+   691→          });
+   692→
+   693→          const response = await fetch(`/api/shifts?${params.toString()}`);
+   694→          const data = await response.json();
+   695→
+   696→          if (response.ok && data.shifts && data.shifts.length > 0) {
+   697→            setSelectedShift(data.shifts[0]);
+   698→          } else {
+   699→            setSelectedShift(null);
+   700→          }
+   701→        } catch (error) {
+   702→          console.error('Failed to fetch current shift:', error);
+   703→        }
+   704→      };
+   705→
+   706→      fetchCurrentShift();
+   707→    }
+   708→  }, [user]);
+   709→
+   710→  // Fetch current shift for cashiers (helper)
+   711→  const fetchCurrentShift = async () => {
+   712→    if (user?.role !== 'CASHIER' || !user?.branchId) return;
+   713→
+   714→    try {
+   715→      const params = new URLSearchParams({
+   716→        cashierId: user.id,
+   717→        branchId: user.branchId,
+   718→        status: 'open',
+   719→      });
+   720→      const response = await fetch(`/api/shifts?${params.toString()}`);
+   721→      const data = await response.json();
+   722→
+   723→      if (response.ok && data.shifts && data.shifts.length > 0) {
+   724→        setSelectedShift(data.shifts[0]);
+   725→      } else {
+   726→        // API failed or no shift found - check IndexedDB for offline shift
+   727→        const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+   728→        const indexedDBStorage = getIndexedDBStorage();
+   729→        await indexedDBStorage.init();
+   730→        const allShifts = await indexedDBStorage.getAllShifts();
+   731→
+   732→        // Find open shift for this cashier and branch
+   733→        const offlineShift = allShifts.find(
+   734→          (s: any) =>
+   735→            s.cashierId === user.id &&
+   736→            s.branchId === user.branchId &&
+   737→            !s.isClosed
+   738→        );
+   739→
+   740→        if (offlineShift) {
+   741→          console.log('[Shift] Using offline shift:', offlineShift);
+   742→          setSelectedShift(offlineShift as Shift);
+   743→        } else {
+   744→          setSelectedShift(null);
+   745→        }
+   746→      }
+   747→    } catch (error) {
+   748→      console.error('Failed to fetch current shift, trying offline:', error);
+   749→
+   750→      // On error, check IndexedDB
+   751→      try {
+   752→        const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+   753→        const indexedDBStorage = getIndexedDBStorage();
+   754→        await indexedDBStorage.init();
+   755→        const allShifts = await indexedDBStorage.getAllShifts();
+   756→
+   757→        const offlineShift = allShifts.find(
+   758→          (s: any) =>
+   759→            s.cashierId === user.id &&
+   760→            s.branchId === user.branchId &&
+   761→            !s.isClosed
+   762→        );
+   763→
+   764→        if (offlineShift) {
+   765→          setSelectedShift(offlineShift as Shift);
+   766→        } else {
+   767→          setSelectedShift(null);
+   768→        }
+   769→      } catch (dbError) {
+   770→        console.error('Failed to fetch offline shift:', dbError);
+   771→        setSelectedShift(null);
+   772→      }
+   773→    }
+   774→  };
+   775→
+   776→  // Fetch business day status when branch changes
+   777→  const fetchBusinessDayStatus = async () => {
+   778→    if (!selectedBranch) return;
+   779→
+   780→    console.log('[Shift Management] fetchBusinessDayStatus called for branch:', selectedBranch);
+   781→
+   782→    try {
+   783→      const response = await fetch(`/api/business-days/status?branchId=${selectedBranch}`);
+   784→      const data = await response.json();
+   785→
+   786→      console.log('[Shift Management] API response for business day status:', data);
+   787→
+   788→      if (response.ok) {
+   789→        if (data.status === 'OPEN' && data.businessDay) {
+   790→          setBusinessDayStatus({
+   791→            isOpen: true,
+   792→            businessDayId: data.businessDay.id,
+   793→          });
+   794→          return; // Successfully got open business day from API
+   795→        } else {
+   796→          console.log('[Shift Management] API returned no open business day, checking IndexedDB');
+   797→        }
+   798→      } else {
+   799→        console.log('[Shift Management] API returned error:', response.status, 'checking IndexedDB');
+   800→      }
+   801→    } catch (error) {
+   802→      console.error('[Shift Management] Failed to fetch business day status from API:', error);
+   803→    }
+   804→
+   805→    // Always check IndexedDB as fallback
+   806→    try {
+   807→      const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+   808→      const indexedDBStorage = getIndexedDBStorage();
+   809→      await indexedDBStorage.init();
+   810→
+   811→      const businessDays = await indexedDBStorage.getBusinessDays();
+   812→      console.log('[Shift Management] All business days in IndexedDB:', businessDays);
+   813→
+   814→      const openBusinessDay = businessDays.find(
+   815→        (bd: any) => bd.branchId === selectedBranch && bd.isOpen
+   816→      );
+   817→
+   818→      if (openBusinessDay) {
+   819→        console.log('[Shift Management] Found open business day in IndexedDB:', openBusinessDay);
+   820→        setBusinessDayStatus({
+   821→          isOpen: true,
+   822→          businessDayId: openBusinessDay.id,
+   823→        });
+   824→      } else {
+   825→        console.log('[Shift Management] No open business day found in IndexedDB for branch:', selectedBranch);
+   826→        setBusinessDayStatus({
+   827→          isOpen: false,
+   828→        });
+   829→      }
+   830→    } catch (dbError) {
+   831→      console.error('[Shift Management] Failed to check local storage for business day:', dbError);
+   832→      setBusinessDayStatus({
+   833→        isOpen: false,
+   834→      });
+   835→    }
+   836→  };
+   837→
+   838→  // Fetch business day status when branch is selected
+   839→  useEffect(() => {
+   840→    if (selectedBranch) {
+   841→      fetchBusinessDayStatus();
+   842→    }
+   843→  }, [selectedBranch]);
+   844→
+   845→  // Fetch daily expenses for the selected shift
+   846→  useEffect(() => {
+   847→    const fetchDailyExpenses = async () => {
+   848→      if (!selectedShift?.id) {
+   849→        setCurrentDailyExpenses(0);
+   850→        return;
+   851→      }
+   852→
+   853→      setLoadingExpenses(true);
+   854→      try {
+   855→        const response = await fetch(`/api/daily-expenses?shiftId=${selectedShift.id}`);
+   856→        const data = await response.json();
+   857→        if (response.ok && data.expenses) {
+   858→          // ALL daily expenses affect expected cash (money taken from drawer)
+   859→          // INVENTORY expenses are included because the cashier used cash to buy inventory
+   860→          const total = data.expenses.reduce((sum: number, exp: any) => sum + exp.amount, 0);
+   861→          console.log('[Shift Management] Daily expenses from API:', {
+   862→            shiftId: selectedShift.id,
+   863→            totalExpenses: data.expenses.length,
+   864→            total,
+   865→            categories: data.expenses.map((e: any) => e.category),
+   866→          });
+   867→          setCurrentDailyExpenses(total);
+   868→        } else {
+   869→          // API returned no data or error, try IndexedDB
+   870→          console.log('[Shift Management] API returned no data, checking IndexedDB');
+   871→          throw new Error('No expenses from API');
+   872→        }
+   873→      } catch (error) {
+   874→        console.error('[Shift Management] Failed to fetch daily expenses from API, checking IndexedDB:', error);
+   875→        // Try to fetch from IndexedDB for offline support
+   876→        try {
+   877→          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+   878→          const indexedDBStorage = getIndexedDBStorage();
+   879→          await indexedDBStorage.init();
+   880→
+   881→          const allExpenses = await indexedDBStorage.getAllDailyExpenses();
+   882→          console.log('[Shift Management] All expenses from IndexedDB:', allExpenses.length);
+   883→
+   884→          const shiftExpenses = allExpenses.filter((exp: any) => {
+   885→            console.log('[Shift Management] Checking expense:', {
+   886→              expShiftId: exp.shiftId,
+   887→              selectedShiftId: selectedShift.id,
+   888→              match: exp.shiftId === selectedShift.id,
+   889→            });
+   890→            return exp.shiftId === selectedShift.id;
+   891→          });
+   892→
+   893→          console.log('[Shift Management] Shift expenses from IndexedDB:', {
+   894→            shiftId: selectedShift.id,
+   895→            expensesCount: shiftExpenses.length,
+   896→            expenses: shiftExpenses.map((e: any) => ({ id: e.id, category: e.category, amount: e.amount })),
+   897→          });
+   898→
+   899→          // ALL daily expenses affect expected cash (money taken from drawer)
+   900→          const total = shiftExpenses.reduce((sum: number, exp: any) => sum + exp.amount, 0);
+   901→
+   902→          console.log('[Shift Management] Daily expenses from IndexedDB:', {
+   903→            shiftId: selectedShift.id,
+   904→            totalExpenses: shiftExpenses.length,
+   905→            total,
+   906→          });
+   907→
+   908→          setCurrentDailyExpenses(total);
+   909→        } catch (dbError) {
+   910→          console.error('[Shift Management] Failed to fetch daily expenses from IndexedDB:', dbError);
+   911→          setCurrentDailyExpenses(0);
+   912→        }
+   913→      } finally {
+   914→        setLoadingExpenses(false);
+   915→      }
+   916→    };
+   917→
+   918→    fetchDailyExpenses();
+   919→  }, [selectedShift?.id]);
+   920→
+   921→
+   922→  // Business Day handlers
+   923→  const handleOpenBusinessDay = async () => {
+   924→    if (!selectedBranch) {
+   925→      alert(t('alert.select.branch'));
+   926→      return;
+   927→    }
+   928→
+   929→    if (!user?.id) {
+   930→      alert(t('alert.user.not.authenticated'));
+   931→      return;
+   932→    }
+   933→
+   934→    const businessDayData = {
+   935→      branchId: selectedBranch,
+   936→      userId: user.id,
+   937→      notes: dayOpeningNotes || undefined,
+   938→    };
+   939→
+   940→    try {
+   941→      // Check actual network connectivity
+   942→      let isActuallyOnline = navigator.onLine;
+   943→
+   944→      if (navigator.onLine) {
+   945→        // Verify with actual network request
+   946→        try {
+   947→          const controller = new AbortController();
+   948→          const timeoutId = setTimeout(() => controller.abort(), 3000);
+   949→          await fetch('/api/branches', {
+   950→            method: 'HEAD',
+   951→            signal: controller.signal,
+   952→            cache: 'no-store',
+   953→          });
+   954→          clearTimeout(timeoutId);
+   955→          isActuallyOnline = true;
+   956→          console.log('[Business Day] Network check passed, trying API...');
+   957→        } catch (netError) {
+   958→          console.log('[Business Day] Network check failed, assuming offline:', netError.message);
+   959→          isActuallyOnline = false;
+   960→        }
+   961→      }
+   962→
+   963→      if (isActuallyOnline) {
+   964→        // Try API first
+   965→        const response = await fetch('/api/business-days/open', {
+   966→          method: 'POST',
+   967→          headers: { 'Content-Type': 'application/json' },
+   968→          body: JSON.stringify(businessDayData),
+   969→        });
+   970→
+   971→        const data = await response.json();
+   972→
+   973→        if (response.ok && data.success) {
+   974→          alert(t('alert.business.day.opened'));
+   975→          setOpenDayDialogOpen(false);
+   976→          setDayOpeningNotes('');
+   977→          setBusinessDayStatus({
+   978→            isOpen: true,
+   979→            businessDayId: data.businessDay.id,
+   980→          });
+   981→          // Notify parent component to refresh business day status (for POS tab visibility)
+   982→          // Small delay to ensure state is updated
+   983→          setTimeout(() => {
+   984→            window.dispatchEvent(new CustomEvent('refreshBusinessDayStatus'));
+   985→          }, 100);
+   986→          return;
+   987→        } else {
+   988→          // API failed - check if it's a network error
+   989→          const isNetworkError = !response.ok && (
+   990→            response.status === 0 ||
+   991→            response.type === 'error' ||
+   992→            response.statusText === 'Failed to fetch' ||
+   993→            data.error?.includes('Failed to fetch') ||
+   994→            data.error?.includes('network') ||
+   995→            data.error?.includes('ENOTFOUND') ||
+   996→            data.error?.includes('ERR_NAME_NOT_RESOLVED') ||
+   997→            data.error?.includes('TypeError') ||
+   998→            data.error?.includes('Failed to fetch\n')
+   999→          );
+  1000→
+  1001→          if (isNetworkError) {
+  1002→            console.log('[Business Day] Network error detected, trying offline mode');
+  1003→            // Fall through to offline mode
+  1004→          } else {
+  1005→            alert(data.error || 'Failed to open business day');
+  1006→            return;
+  1007→          }
+  1008→        }
+  1009→      }
+  1010→
+  1011→      // Offline mode - create business day locally
+  1012→      console.log('[Business Day] Offline mode detected, creating business day locally');
+  1013→      const offlineBusinessDay = await openBusinessDayOffline(businessDayData, user);
+  1014→      console.log('[Business Day] Offline business day created:', offlineBusinessDay);
+  1015→      alert(t('alert.business.day.opened.offline'));
+  1016→      setOpenDayDialogOpen(false);
+  1017→      setDayOpeningNotes('');
+  1018→      setBusinessDayStatus({
+  1019→        isOpen: true,
+  1020→        businessDayId: offlineBusinessDay.id,
+  1021→      });
+  1022→      // Refresh business day status to ensure it's updated
+  1023→      await fetchBusinessDayStatus();
+  1024→      // Notify parent component to refresh business day status (for POS tab visibility)
+  1025→      // Small delay to ensure localStorage is updated
+  1026→      setTimeout(() => {
+  1027→        window.dispatchEvent(new CustomEvent('refreshBusinessDayStatus'));
+  1028→      }, 100);
+  1029→    } catch (error) {
+  1030→      console.error('[Shift Management] Failed to open business day:', error);
+  1031→      
+  1032→      // Check if it's a network error and try offline fallback
+  1033→      const isNetworkError = error instanceof Error && (
+  1034→        error.message.includes('Failed to fetch') ||
+  1035→        error.message.includes('network') ||
+  1036→        error.name === 'TypeError' &&
+  1037→        error.message.includes('Failed to fetch')
+  1038→      );
+  1039→
+  1040→      if (isNetworkError) {
+  1041→        console.log('[Business Day] Network error detected, trying to create business day locally');
+  1042→        try {
+  1043→          const offlineBusinessDay = await openBusinessDayOffline(businessDayData, user);
+  1044→          console.log('[Business Day] Offline business day created (network error fallback):', offlineBusinessDay);
+  1045→          alert(t('alert.business.day.opened.offline'));
+  1046→          setOpenDayDialogOpen(false);
+  1047→          setDayOpeningNotes('');
+  1048→          setBusinessDayStatus({
+  1049→            isOpen: true,
+  1050→            businessDayId: offlineBusinessDay.id,
+  1051→          });
+  1052→          // Refresh business day status to ensure it's updated
+  1053→          await fetchBusinessDayStatus();
+  1054→          // Notify parent component to refresh business day status (for POS tab visibility)
+  1055→          // Small delay to ensure localStorage is updated
+  1056→          setTimeout(() => {
+  1057→            window.dispatchEvent(new CustomEvent('refreshBusinessDayStatus'));
+  1058→          }, 100);
+  1059→        } catch (offlineError) {
+  1060→          console.error('[Business Day] Offline business day creation also failed:', offlineError);
+  1061→          alert(t('alert.failed.open.shift') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1062→        }
+  1063→      }
+  1064→
+  1065→      alert(`Failed to open business day: ${error instanceof Error ? error.message : String(error)}`);
+  1066→    }
+  1067→  };
+  1068→
+  1069→  const handleCloseBusinessDay = async () => {
+  1070→    if (!businessDayStatus.businessDayId) {
+  1071→      alert(t('alert.business.day.not.found'));
+  1072→      return;
+  1073→    }
+  1074→
+  1075→    if (!user?.id) {
+  1076→      alert(t('alert.user.not.authenticated'));
+  1077→      return;
+  1078→    }
+  1079→
+  1080→    // Check if all shifts are closed
+  1081→    const hasOpenShifts = shifts.some(s => !s.isClosed);
+  1082→    if (hasOpenShifts) {
+  1083→      alert(t('alert.close.shifts.first'));
+  1084→      return;
+  1085→    }
+  1086→
+  1087→    // Check for active staff before allowing day close
+  1088→    const activeStaff = await checkActiveStaff(selectedBranch);
+  1089→    if (activeStaff.length > 0) {
+  1090→      const staffNames = activeStaff.map(s => `• ${s.userName} (since ${new Date(s.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`).join('\n');
+  1091→      alert(`⚠️ Cannot close business day - The following cashier(s) are still clocked in:\n\n${staffNames}\n\nPlease clock them out from the POS tab before closing the day.`);
+  1092→      return;
+  1093→    }
+  1094→
+  1095→    // Check if business day ID is temporary (created offline)
+  1096→    const isTempBusinessDay = businessDayStatus.businessDayId.startsWith('temp-');
+  1097→
+  1098→    try {
+  1099→      // Check actual network connectivity before trying API
+  1100→      let isActuallyOnline = navigator.onLine;
+  1101→
+  1102→      if (navigator.onLine) {
+  1103→        // Verify with actual network request
+  1104→        try {
+  1105→          const controller = new AbortController();
+  1106→          const timeoutId = setTimeout(() => controller.abort(), 3000);
+  1107→          await fetch('/api/branches', {
+  1108→            method: 'HEAD',
+  1109→            signal: controller.signal,
+  1110→            cache: 'no-store',
+  1111→          });
+  1112→          clearTimeout(timeoutId);
+  1113→          isActuallyOnline = true;
+  1114→        } catch (netError) {
+  1115→          console.log('[Day Closing] Network check failed, assuming offline:', netError);
+  1116→          isActuallyOnline = false;
+  1117→        }
+  1118→      }
+  1119→
+  1120→      // If it's a temporary business day, close it offline (it needs to sync first)
+  1121→      if (isTempBusinessDay) {
+  1122→        console.log('[Day Closing] Temporary business day detected, closing offline');
+  1123→        try {
+  1124→          await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
+  1125→          alert(t('alert.business.day.closed.offline'));
+  1126→          setCloseDayDialogOpen(false);
+  1127→          setDayClosingNotes('');
+  1128→          setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
+  1129→          refetchShifts();
+  1130→        } catch (offlineError) {
+  1131→          console.error('[Day Closing] Offline business day closing failed:', offlineError);
+  1132→          alert(`Failed to close business day: ${offlineError instanceof Error ? offlineError.message : String(offlineError)}`);
+  1133→        }
+  1134→        return;
+  1135→      }
+  1136→
+  1137→      if (isActuallyOnline) {
+  1138→        const response = await fetch('/api/business-days/close', {
+  1139→          method: 'POST',
+  1140→          headers: { 'Content-Type': 'application/json' },
+  1141→          body: JSON.stringify({
+  1142→            businessDayId: businessDayStatus.businessDayId,
+  1143→            userId: user.id,
+  1144→            closingCash: 0, // Cash is handled per shift, not per day
+  1145→            notes: dayClosingNotes || undefined,
+  1146→          }),
+  1147→        });
+  1148→
+  1149→        const data = await response.json();
+  1150→
+  1151→        if (response.ok && data.success) {
+  1152→          console.log('[Day Closing] Business day closed successfully');
+  1153→          console.log('[Day Closing] Fetching closing report for businessDayId:', businessDayStatus.businessDayId);
+  1154→          
+  1155→          // Fetch closing report
+  1156→          try {
+  1157→            const reportResponse = await fetch(`/api/business-days/closing-report?businessDayId=${businessDayStatus.businessDayId}`);
+  1158→            const reportData = await reportResponse.json();
+  1159→
+  1160→            console.log('[Day Closing] Report response status:', reportResponse.status);
+  1161→            console.log('[Day Closing] Report data:', reportData);
+  1162→
+  1163→            if (reportResponse.ok && reportData.success) {
+  1164→              console.log('[Day Closing] Setting closing report and opening dialog');
+  1165→              setClosingReport(reportData.report);
+  1166→              setClosingReportOpen(true);
+  1167→            } else {
+  1168→              console.error('[Day Closing] Report fetch failed:', reportData.error);
+  1169→              alert(t('alert.business.day.closed') + ' - ' + t('msg.error'));
+  1170→            }
+  1171→          } catch (reportError) {
+  1172→            console.error('[Shift Management] Failed to fetch closing report:', reportError);
+  1173→            alert(t('alert.business.day.closed') + ' - ' + t('msg.error'));
+  1174→          }
+  1175→
+  1176→          alert(t('alert.business.day.closed'));
+  1177→          setCloseDayDialogOpen(false);
+  1178→          setDayClosingNotes('');
+  1179→          // Preserve businessDayId for the closing receipt dialog
+  1180→          setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
+  1181→          refetchShifts();
+  1182→        } else {
+  1183→          console.error('[Day Closing] Close API failed:', data);
+  1184→          // Check if it's a network error or "not found" error and try offline fallback
+  1185→          const isNetworkError = !response.ok && (
+  1186→            response.status === 0 || // Network error
+  1187→            response.status === 404 || // Not found - could be temp ID not synced
+  1188→            response.type === 'error' ||
+  1189→            response.statusText === 'Failed to fetch' ||
+  1190→            data.error?.includes('Failed to fetch') ||
+  1191→            data.error?.includes('network') ||
+  1192→            data.error?.includes('ENOTFOUND') ||
+  1193→            data.error?.includes('ERR_NAME_NOT_RESOLVED') ||
+  1194→            data.error?.includes('TypeError') ||
+  1195→            data.error?.includes('net::ERR_NAME_NOT_RESOLVED') ||
+  1196→            data.error?.includes('Business day not found')
+  1197→          );
+  1198→
+  1199→          if (isNetworkError) {
+  1200→            console.log('[Day Closing] Network/Not found error detected, trying offline mode');
+  1201→            try {
+  1202→              await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
+  1203→              alert(t('alert.business.day.closed.offline'));
+  1204→              setCloseDayDialogOpen(false);
+  1205→              setDayClosingNotes('');
+  1206→              setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
+  1207→              refetchShifts();
+  1208→            } catch (offlineError) {
+  1209→              console.error('[Day Closing] Offline business day closing failed:', offlineError);
+  1210→              alert(t('alert.failed.close.day.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1211→            }
+  1212→          } else {
+  1213→            alert(data.error || 'Failed to close business day');
+  1214→          }
+  1215→        }
+  1216→      } else {
+  1217→        // Offline mode - close business day locally
+  1218→        console.log('[Day Closing] Offline mode detected, closing business day locally');
+  1219→        try {
+  1220→          await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
+  1221→          alert(t('alert.business.day.closed.offline'));
+  1222→          setCloseDayDialogOpen(false);
+  1223→          setDayClosingNotes('');
+  1224→          setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
+  1225→          refetchShifts();
+  1226→        } catch (offlineError) {
+  1227→          console.error('[Day Closing] Offline business day closing failed:', offlineError);
+  1228→          alert(t('alert.failed.close.day.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1229→        }
+  1230→      }
+  1231→    } catch (error) {
+  1232→      console.error('[Shift Management] Failed to close business day:', error);
+  1233→      
+  1234→      // Check if it's a network error and try offline fallback
+  1235→      const isNetworkError = error instanceof Error && (
+  1236→        error.message.includes('Failed to fetch') ||
+  1237→        error.message.includes('network') ||
+  1238→        error.message.includes('ERR_NAME_NOT_RESOLVED') ||
+  1239→        error.name === 'TypeError'
+  1240→      );
+  1241→
+  1242→      if (isNetworkError) {
+  1243→        console.log('[Day Closing] Network error detected, trying to close business day locally');
+  1244→        try {
+  1245→          await closeBusinessDayOffline(businessDayStatus.businessDayId, user.id, dayClosingNotes);
+  1246→          alert(t('alert.business.day.closed.offline'));
+  1247→          setCloseDayDialogOpen(false);
+  1248→          setDayClosingNotes('');
+  1249→          setBusinessDayStatus(prev => ({ ...prev, isOpen: false }));
+  1250→          refetchShifts();
+  1251→          return;
+  1252→        } catch (offlineError) {
+  1253→          console.error('[Day Closing] Offline business day closing also failed:', offlineError);
+  1254→          alert(t('alert.failed.close.day.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1255→        }
+  1256→      }
+  1257→
+  1258→      alert(`Failed to close business day: ${error instanceof Error ? error.message : String(error)}`);
+  1259→    }
+  1260→  };
+  1261→
+  1262→  // Helper function to close business day offline
+  1263→  async function closeBusinessDayOffline(
+  1264→    businessDayId: string,
+  1265→    userId: string,
+  1266→    notes: string
+  1267→  ): Promise<void> {
+  1268→    try {
+  1269→      console.log('[Day Closing] Closing business day offline, businessDayId:', businessDayId);
+  1270→
+  1271→      // Import IndexedDB storage for orders and shifts
+  1272→      const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+  1273→      const indexedDBStorage = getIndexedDBStorage();
+  1274→      console.log('[Day Closing] IndexedDB storage imported');
+  1275→
+  1276→      await indexedDBStorage.init();
+  1277→      console.log('[Day Closing] IndexedDB storage initialized');
+  1278→
+  1279→      // Get the business day from IndexedDB
+  1280→      const businessDays = await indexedDBStorage.getBusinessDays();
+  1281→      const businessDay = businessDays.find((bd: any) => bd.id === businessDayId);
+  1282→
+  1283→      if (!businessDay) {
+  1284→        throw new Error('Business day not found in IndexedDB');
+  1285→      }
+  1286→
+  1287→      console.log('[Day Closing] Found business day:', businessDay);
+  1288→
+  1289→      // Get all orders for this business day from IndexedDB
+  1290→      const allOrders = await indexedDBStorage.getAllOrders();
+  1291→      const allShifts = await indexedDBStorage.getAllShifts();
+  1292→
+  1293→      // Get shift IDs for this business day
+  1294→      const dayShiftIds = allShifts
+  1295→        .filter((shift: any) => shift.dayId === businessDayId)
+  1296→        .map((shift: any) => shift.id);
+  1297→
+  1298→      console.log('[Day Closing] Shifts for this business day:', dayShiftIds);
+  1299→
+  1300→      // Get orders for all shifts in this business day
+  1301→      const dayOrders = allOrders.filter((order: any) => dayShiftIds.includes(order.shiftId));
+  1302→
+  1303→      console.log('[Day Closing] Orders for this business day:', dayOrders.length);
+  1304→
+  1305→      // Calculate totals
+  1306→      const totalOrders = dayOrders.length;
+  1307→      const subtotal = dayOrders.reduce((sum: number, order: any) => sum + (order.subtotal || 0), 0);
+  1308→      const deliveryFees = dayOrders.reduce((sum: number, order: any) => sum + (order.deliveryFee || 0), 0);
+  1309→      const totalSales = dayOrders.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0);
+  1310→      const taxAmount = dayOrders.reduce((sum: number, order: any) => sum + ((order.totalAmount || 0) - (order.subtotal || 0)), 0);
+  1311→
+  1312→      // Count orders by type
+  1313→      const dineInOrders = dayOrders.filter((order: any) => order.orderType === 'dine-in').length;
+  1314→      const takeAwayOrders = dayOrders.filter((order: any) => order.orderType === 'take-away').length;
+  1315→      const deliveryOrders = dayOrders.filter((order: any) => order.orderType === 'delivery').length;
+  1316→
+  1317→      // Calculate sales by type
+  1318→      const dineInSales = dayOrders
+  1319→        .filter((order: any) => order.orderType === 'dine-in')
+  1320→        .reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0);
+  1321→      const takeAwaySales = dayOrders
+  1322→        .filter((order: any) => order.orderType === 'take-away')
+  1323→        .reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0);
+  1324→      const deliverySales = dayOrders
+  1325→        .filter((order: any) => order.orderType === 'delivery')
+  1326→        .reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0);
+  1327→
+  1328→      // Count total shifts
+  1329→      const totalShifts = dayShiftIds.length;
+  1330→
+  1331→      console.log('[Day Closing] Calculated totals:', {
+  1332→        totalOrders,
+  1333→        subtotal,
+  1334→        deliveryFees,
+  1335→        totalSales,
+  1336→        taxAmount,
+  1337→        dineInOrders,
+  1338→        takeAwayOrders,
+  1339→        deliveryOrders,
+  1340→        dineInSales,
+  1341→        takeAwaySales,
+  1342→        deliverySales,
+  1343→        totalShifts,
+  1344→      });
+  1345→
+  1346→      // Update business day object
+  1347→      const updatedBusinessDay = {
+  1348→        ...businessDay,
+  1349→        closedBy: userId,
+  1350→        closedAt: new Date().toISOString(),
+  1351→        isOpen: false,
+  1352→        totalOrders,
+  1353→        totalSales,
+  1354→        subtotal,
+  1355→        taxAmount,
+  1356→        deliveryFees,
+  1357→        dineInOrders,
+  1358→        takeAwayOrders,
+  1359→        deliveryOrders,
+  1360→        dineInSales,
+  1361→        takeAwaySales,
+  1362→        deliverySales,
+  1363→        totalShifts,
+  1364→        notes: notes || businessDay.notes,
+  1365→        updatedAt: new Date().toISOString(),
+  1366→      };
+  1367→
+  1368→      console.log('[Day Closing] Updated business day object:', updatedBusinessDay);
+  1369→
+  1370→      // Save updated business day to IndexedDB
+  1371→      await indexedDBStorage.saveBusinessDay(updatedBusinessDay);
+  1372→      console.log('[Day Closing] Business day updated in IndexedDB');
+  1373→
+  1374→      // Queue operation for sync
+  1375→      await indexedDBStorage.addOperation({
+  1376→        type: 'CLOSE_BUSINESS_DAY',
+  1377→        data: {
+  1378→          id: businessDayId,
+  1379→          branchId: businessDay.branchId,
+  1380→          closedBy: userId,
+  1381→          closedAt: updatedBusinessDay.closedAt,
+  1382→          notes: notes || undefined,
+  1383→          totals: {
+  1384→            totalOrders,
+  1385→            totalSales,
+  1386→            subtotal,
+  1387→            taxAmount,
+  1388→            deliveryFees,
+  1389→            dineInOrders,
+  1390→            takeAwayOrders,
+  1391→            deliveryOrders,
+  1392→            dineInSales,
+  1393→            takeAwaySales,
+  1394→            deliverySales,
+  1395→            totalShifts,
+  1396→          },
+  1397→        },
+  1398→        branchId: businessDay.branchId,
+  1399→      });
+  1400→      console.log('[Day Closing] Close operation queued for sync (IndexedDB)');
+  1401→    } catch (error) {
+  1402→      console.error('[Day Closing] Failed to close business day offline:', error);
+  1403→      console.error('[Day Closing] Error stack:', error instanceof Error ? error.stack : 'No stack');
+  1404→      throw error;
+  1405→    }
+  1406→  }
+  1407→
+  1408→  const handleOpenShift = async () => {
+  1409→    console.log('[Shift Management] handleOpenShift called');
+  1410→    console.log('[Shift Management] Current business day status:', businessDayStatus);
+  1411→    console.log('[Shift Management] Is opening shift:', isOpeningShift);
+  1412→    console.log('[Shift Management] Selected shift:', selectedShift);
+  1413→
+  1414→    // Prevent multiple simultaneous shift openings
+  1415→    if (isOpeningShift) {
+  1416→      console.log('[Shift Management] Shift opening already in progress, ignoring request');
+  1417→      return;
+  1418→    }
+  1419→
+  1420→    // Check if there's already an open shift for this cashier
+  1421→    if (selectedShift) {
+  1422→      console.log('[Shift Management] Cashier already has an open shift, preventing new shift');
+  1423→      alert(t('alert.shift.already.open') || 'You already have an open shift. Please close it first before opening a new one.');
+  1424→      return;
+  1425→    }
+  1426→
+  1427→    // Check if business day is open
+  1428→    if (!businessDayStatus.isOpen) {
+  1429→      console.log('[Shift Management] Business day is not open, preventing shift opening');
+  1430→      alert(t('alert.must.open.day.first'));
+  1431→      return;
+  1432→    }
+  1433→
+  1434→    console.log('[Shift Management] Business day is open, proceeding to open shift');
+  1435→    console.log('[Shift Management] user:', user);
+  1436→    setIsOpeningShift(true); // Set loading state to prevent multiple clicks
+  1437→
+  1438→    if (user?.role === 'CASHIER') {
+  1439→      if (!user?.branchId) {
+  1440→        alert(t('alert.account.not.assigned.branch'));
+  1441→        return;
+  1442→      }
+  1443→
+  1444→      const cashierId = user.id;
+  1445→      const branchId = user.branchId;
+  1446→      const shiftData = {
+  1447→        branchId,
+  1448→        cashierId,
+  1449→        dayId: businessDayStatus.businessDayId,
+  1450→        openingCash: parseFloat(openingCash) || 0,
+  1451→        notes: shiftNotes,
+  1452→      };
+  1453→
+  1454→      console.log('[Shift Management] Shift data to send:', shiftData);
+  1455→
+  1456→      try {
+  1457→        // Check actual network connectivity before trying API
+  1458→        let isActuallyOnline = navigator.onLine;
+  1459→
+  1460→        if (navigator.onLine) {
+  1461→          // Verify with actual network request
+  1462→          try {
+  1463→            const controller = new AbortController();
+  1464→            const timeoutId = setTimeout(() => controller.abort(), 3000);
+  1465→            await fetch('/api/branches', {
+  1466→              method: 'HEAD',
+  1467→              signal: controller.signal,
+  1468→              cache: 'no-store',
+  1469→            });
+  1470→            clearTimeout(timeoutId);
+  1471→            isActuallyOnline = true;
+  1472→            console.log('[Shift] Network check passed, trying API...');
+  1473→          } catch (netError) {
+  1474→            console.log('[Shift] Network check failed, assuming offline:', netError.message);
+  1475→            isActuallyOnline = false;
+  1476→          }
+  1477→        }
+  1478→
+  1479→        if (isActuallyOnline) {
+  1480→          // Try API first
+  1481→          const response = await fetch('/api/shifts', {
+  1482→            method: 'POST',
+  1483→            headers: { 'Content-Type': 'application/json' },
+  1484→            body: JSON.stringify(shiftData),
+  1485→          });
+  1486→
+  1487→          const data = await response.json();
+  1488→
+  1489→          if (response.ok && data.success) {
+  1490→            alert(t('alert.shift.opened'));
+  1491→            setOpenDialogOpen(false);
+  1492→            setOpeningCash('0');
+  1493→            setShiftNotes('');
+  1494→            refetchShifts();
+  1495→            fetchCurrentShift();
+  1496→            setIsOpeningShift(false);
+  1497→            // Notify parent component to refresh shift status (for POS tab visibility)
+  1498→            // Small delay to ensure state is updated
+  1499→            setTimeout(() => {
+  1500→              window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
+  1501→            }, 100);
+  1502→          } else {
+  1503→            // API failed - check if it's a network error
+  1504→            const isNetworkError = !response.ok && (
+  1505→              response.status === 0 || // Network error
+  1506→              response.type === 'error' ||
+  1507→              response.statusText === 'Failed to fetch' ||
+  1508→              data.error?.includes('Failed to fetch') ||
+  1509→              data.error?.includes('network') ||
+  1510→              data.error?.includes('ENOTFOUND') ||
+  1511→              data.error?.includes('ERR_NAME_NOT_RESOLVED') ||
+  1512→              data.error?.includes('TypeError') ||
+  1513→              data.error?.includes('Failed to fetch\n') ||
+  1514→              data.error?.includes('net::ERR_NAME_NOT_RESOLVED')
+  1515→            );
+  1516→            
+  1517→            if (isNetworkError) {
+  1518→              console.log('[Shift] Network error detected (API), trying offline mode');
+  1519→              try {
+  1520→                await createShiftOffline(shiftData, user);
+  1521→                alert(t('alert.shift.opened.offline'));
+  1522→                setOpenDialogOpen(false);
+  1523→                setOpeningCash('0');
+  1524→                setShiftNotes('');
+  1525→                fetchCurrentShift();
+  1526→                // Notify parent component to refresh shift status (for POS tab visibility)
+  1527→                // Small delay to ensure localStorage is updated
+  1528→            setIsOpeningShift(false);
+  1529→                setTimeout(() => {
+  1530→                  window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
+  1531→                }, 100);
+  1532→              } catch (offlineError) {
+  1533→                console.error('[Shift] Offline shift creation failed:', offlineError);
+  1534→                alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1535→              }
+  1536→            } else {
+  1537→              // API error response - show error and return
+  1538→              console.error('[Shift] API returned error:', data.error);
+  1539→              alert(data.error || 'Failed to open shift');
+  1540→              return;
+  1541→            }
+  1542→          }
+  1543→        } else {
+  1544→          // Offline mode - check for existing shift first
+  1545→          console.log('[Shift] Offline mode detected, checking for existing shift...');
+  1546→
+  1547→          if (selectedShift) {
+  1548→            console.log('[Shift] Cashier already has an open shift in offline mode, preventing new shift');
+  1549→            alert(t('alert.shift.already.open') || 'You already have an open shift. Please close it first before opening a new one.');
+  1550→            return;
+  1551→          }
+  1552→
+  1553→          console.log('[Shift] No open shift found, proceeding to create shift locally');
+  1554→          try {
+  1555→            await createShiftOffline(shiftData, user);
+  1556→            alert(t('alert.shift.opened.offline'));
+  1557→            setOpenDialogOpen(false);
+  1558→            setOpeningCash('0');
+  1559→            setShiftNotes('');
+  1560→            fetchCurrentShift();
+  1561→            // Notify parent component to refresh shift status (for POS tab visibility)
+  1562→            // Small delay to ensure localStorage is updated
+  1563→            setTimeout(() => {
+  1564→              window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
+  1565→            }, 100);
+  1566→          } catch (offlineError) {
+  1567→            console.error('[Shift] Offline shift creation failed:', offlineError);
+  1568→            alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1569→          }
+  1570→        }
+  1571→      } catch (error) {
+  1572→        console.error('[Shift] Failed to open shift, error:', error);
+  1573→        console.error('[Shift] Error details:', {
+  1574→          message: error instanceof Error ? error.message : String(error),
+  1575→          name: error instanceof Error ? error.name : 'Unknown',
+  1576→          stack: error instanceof Error ? error.stack : undefined,
+  1577→          user: user ? { id: user.id, username: user.username, branchId: user.branchId } : 'no user',
+  1578→          shiftData,
+  1579→          isOffline: !navigator.onLine,
+  1580→          isNetworkError: error instanceof Error && (
+  1581→            error.message.includes('Failed to fetch') ||
+  1582→            error.message.includes('network') ||
+  1583→            error.name === 'TypeError' &&
+  1584→            error.message.includes('Failed to fetch')
+  1585→          ),
+  1586→        });
+  1587→        
+  1588→        // Network error or fetch failure - try offline fallback
+  1589→        const isNetworkError = error instanceof Error && (
+  1590→          error.message.includes('Failed to fetch') ||
+  1591→          error.message.includes('network') ||
+  1592→          error.name === 'TypeError' &&
+  1593→          error.message.includes('Failed to fetch')
+  1594→        );
+  1595→        
+  1596→        if (isNetworkError) {
+  1597→          console.log('[Shift] Network error detected, trying to create shift locally');
+  1598→          try {
+  1599→            await createShiftOffline(shiftData, user);
+  1600→            alert(t('alert.shift.opened.offline'));
+  1601→            setOpenDialogOpen(false);
+  1602→            setOpeningCash('0');
+  1603→            setShiftNotes('');
+  1604→            fetchCurrentShift();
+  1605→            // Notify parent component to refresh shift status (for POS tab visibility)
+  1606→            // Small delay to ensure localStorage is updated
+  1607→            setTimeout(() => {
+  1608→              window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
+  1609→            }, 100);
+  1610→            return;
+  1611→          } catch (offlineError) {
+  1612→            console.error('[Shift] Offline shift creation also failed:', offlineError);
+  1613→            alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1614→            setIsOpeningShift(false);
+  1615→          }
+  1616→        }
+  1617→        
+  1618→        alert(t('alert.failed.open.shift') + ' - ' + (error instanceof Error ? error.message : String(error)));
+  1619→      }
+  1620→      return;
+  1621→    }
+  1622→
+  1623→    if (!selectedBranch) {
+  1624→      alert(t('alert.select.branch.view'));
+  1625→      return;
+  1626→    }
+  1627→
+  1628→    // Determine cashier ID
+  1629→    let cashierId: string;
+  1630→    if (user?.role === 'BRANCH_MANAGER') {
+  1631→      // For branch managers, allow them to open shift for themselves
+  1632→      cashierId = user.id;
+  1633→    } else {
+  1634→      // For admins, use selected cashier but validate it's not "all"
+  1635→      cashierId = selectedCashier;
+  1636→    }
+  1637→
+  1638→    // Validate cashierId is set and not "all"
+  1639→    if (!cashierId || cashierId === 'all' || cashierId === '') {
+  1640→      alert(t('alert.select.cashier.valid'));
+  1641→      return;
+  1642→    }
+  1643→
+  1644→    const shiftData = {
+  1645→      branchId: selectedBranch,
+  1646→      cashierId,
+  1647→      dayId: businessDayStatus.businessDayId,
+  1648→      openingCash: parseFloat(openingCash) || 0,
+  1649→      notes: shiftNotes,
+  1650→    };
+  1651→
+  1652→    try {
+  1653→      // Check actual network connectivity before trying API
+  1654→      let isActuallyOnline = navigator.onLine;
+  1655→
+  1656→      if (navigator.onLine) {
+  1657→        // Verify with actual network request
+  1658→        try {
+  1659→          const controller = new AbortController();
+  1660→          const timeoutId = setTimeout(() => controller.abort(), 3000);
+  1661→          await fetch('/api/branches', {
+  1662→            method: 'HEAD',
+  1663→            signal: controller.signal,
+  1664→            cache: 'no-store',
+  1665→          });
+  1666→          clearTimeout(timeoutId);
+  1667→          isActuallyOnline = true;
+  1668→          console.log('[Shift - Manager] Network check passed, trying API...');
+  1669→        } catch (netError) {
+  1670→          console.log('[Shift - Manager] Network check failed, assuming offline:', netError.message);
+  1671→          isActuallyOnline = false;
+  1672→        }
+  1673→      }
+  1674→
+  1675→      if (isActuallyOnline) {
+  1676→        const response = await fetch('/api/shifts', {
+  1677→          method: 'POST',
+  1678→          headers: { 'Content-Type': 'application/json' },
+  1679→          body: JSON.stringify(shiftData),
+  1680→        });
+  1681→
+  1682→        const data = await response.json();
+  1683→
+  1684→        if (response.ok && data.success) {
+  1685→          alert(t('alert.shift.opened'));
+  1686→          setOpenDialogOpen(false);
+  1687→          setOpeningCash('0');
+  1688→          setShiftNotes('');
+  1689→          refetchShifts();
+  1690→        } else {
+  1691→          // API failed - try offline fallback
+  1692→          if (!navigator.onLine || !response.ok) {
+  1693→            console.log('[Shift - Manager] Offline mode, creating shift locally');
+  1694→            await createShiftOffline(shiftData, user);
+  1695→            alert(t('alert.shift.opened.offline'));
+  1696→            setOpenDialogOpen(false);
+  1697→            setOpeningCash('0');
+  1698→            setShiftNotes('');
+  1699→            refetchShifts();
+  1700→          } else {
+  1701→            alert(data.error || 'Failed to open shift');
+  1702→          }
+  1703→        }
+  1704→      } else {
+  1705→        // Offline mode - create shift locally
+  1706→        console.log('[Shift - Manager] Offline mode detected, creating shift locally');
+  1707→        try {
+  1708→          await createShiftOffline(shiftData, user);
+  1709→          alert(t('alert.shift.opened.offline'));
+  1710→          setOpenDialogOpen(false);
+  1711→          setOpeningCash('0');
+  1712→          setShiftNotes('');
+  1713→          refetchShifts();
+  1714→        } catch (offlineError) {
+  1715→          console.error('[Shift - Manager] Offline shift creation failed:', offlineError);
+  1716→          alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1717→        }
+  1718→      }
+  1719→    } catch (error) {
+  1720→      console.error('[Shift - Manager] Failed to open shift, error:', error);
+  1721→      console.error('[Shift - Manager] Error details:', {
+  1722→        message: error instanceof Error ? error.message : String(error),
+  1723→        stack: error instanceof Error ? error.stack : undefined,
+  1724→        user: user ? { id: user.id, username: user.username, role: user.role, branchId: user.branchId } : 'no user',
+  1725→        selectedBranch,
+  1726→        shiftData,
+  1727→        isOffline: !navigator.onLine,
+  1728→      });
+  1729→
+  1730→      // Network error - try offline fallback
+  1731→      if (!navigator.onLine || (error instanceof Error && error.message.includes('Failed to fetch'))) {
+  1732→        console.log('[Shift - Manager] Offline mode, trying to create shift locally');
+  1733→        try {
+  1734→          await createShiftOffline(shiftData, user);
+  1735→          alert(t('alert.shift.opened.offline'));
+  1736→          setOpenDialogOpen(false);
+  1737→          setOpeningCash('0');
+  1738→          setShiftNotes('');
+  1739→          refetchShifts();
+  1740→          return;
+  1741→        } catch (offlineError) {
+  1742→          console.error('[Shift - Manager] Offline shift creation also failed:', offlineError);
+  1743→          alert(t('alert.failed.create.shift.offline') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1744→        }
+  1745→      }
+  1746→
+  1747→      alert(t('alert.failed.open.shift') + ' - ' + (error instanceof Error ? error.message : String(error)));
+  1748→    }
+  1749→  };
+  1750→
+  1751→  // Helper function to check for active staff (clocked in but not clocked out)
+  1752→  const checkActiveStaff = async (branchId: string): Promise<any[]> => {
+  1753→    try {
+  1754→      const activeStaff: any[] = [];
+  1755→
+  1756→      // Check API first if online - ONLY trust API when online, ignore IndexedDB
+  1757→      if (navigator.onLine) {
+  1758→        try {
+  1759→          const response = await fetch(`/api/attendance/active-staff?branchId=${branchId}&currentUserId=${user.id}`);
+  1760→          if (response.ok) {
+  1761→            const data = await response.json();
+  1762→            if (data.activeStaff) {
+  1763→              activeStaff.push(...data.activeStaff);
+  1764→              console.log('[Active Staff Check] Found', data.activeStaff.length, 'active staff from API (online mode - ignoring IndexedDB)');
+  1765→            }
+  1766→            return activeStaff; // Return API results directly when online
+  1767→          }
+  1768→        } catch (error) {
+  1769→          console.error('[Active Staff Check] API error:', error);
+  1770→        }
+  1771→      }
+  1772→
+  1773→      // Only check IndexedDB when OFFLINE
+  1774→      if (!navigator.onLine) {
+  1775→        try {
+  1776→          const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+  1777→          const indexedDBStorage = getIndexedDBStorage();
+  1778→          await indexedDBStorage.init();
+  1779→          const offlineAttendance = await indexedDBStorage.getAllAttendances();
+  1780→
+  1781→          if (offlineAttendance && offlineAttendance.length > 0) {
+  1782→            // For branches that operate past midnight, check last 24 hours
+  1783→            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  1784→
+  1785→            const offlineActive = offlineAttendance
+  1786→              .filter((a: any) => {
+  1787→                const clockInDate = new Date(a.clockIn);
+  1788→                return clockInDate >= twentyFourHoursAgo && !a.clockOut;
+  1789→              })
+  1790→              .map((a: any) => ({
+  1791→                id: a.id,
+  1792→                userId: a.userId,
+  1793→                userName: a.userName || a.username,
+  1794→                clockIn: a.clockIn,
+  1795→              }));
+  1796→
+  1797→            activeStaff.push(...offlineActive);
+  1798→            console.log('[Active Staff Check] Found', offlineActive.length, 'active staff from IndexedDB (offline mode)');
+  1799→          }
+  1800→        } catch (error) {
+  1801→          console.error('[Active Staff Check] IndexedDB error:', error);
+  1802→        }
+  1803→      }
+  1804→
+  1805→      console.log('[Active Staff Check] Total active staff:', activeStaff.length);
+  1806→      return activeStaff;
+  1807→    } catch (error) {
+  1808→      console.error('[Active Staff Check] Failed:', error);
+  1809→      return [];
+  1810→    }
+  1811→  };
+  1812→
+  1813→  const handleCloseShift = async () => {
+  1814→    if (!selectedShift) {
+  1815→      alert(t('alert.select.shift.close'));
+  1816→      return;
+  1817→    }
+  1818→
+  1819→    if (!selectedBranch) {
+  1820→      alert(t('alert.select.branch.view'));
+  1821→      return;
+  1822→    }
+  1823→
+  1824→    // Check for active staff before allowing shift close
+  1825→    const activeStaff = await checkActiveStaff(selectedBranch);
+  1826→    if (activeStaff.length > 0) {
+  1827→      const staffNames = activeStaff.map(s => `• ${s.userName} (since ${new Date(s.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`).join('\n');
+  1828→      alert(`⚠️ Cannot close shift - The following cashier(s) are still clocked in:\n\n${staffNames}\n\nPlease clock them out from the POS tab before closing the shift.`);
+  1829→      return;
+  1830→    }
+  1831→
+  1832→    try {
+  1833→      // Check actual network connectivity before trying API
+  1834→      let isActuallyOnline = navigator.onLine;
+  1835→
+  1836→      if (navigator.onLine) {
+  1837→        // Verify with actual network request
+  1838→        try {
+  1839→          const controller = new AbortController();
+  1840→          const timeoutId = setTimeout(() => controller.abort(), 3000);
+  1841→          await fetch('/api/branches', {
+  1842→            method: 'HEAD',
+  1843→            signal: controller.signal,
+  1844→            cache: 'no-store',
+  1845→          });
+  1846→          clearTimeout(timeoutId);
+  1847→          isActuallyOnline = true;
+  1848→          console.log('[Shift] Network check passed, trying API to close shift...');
+  1849→        } catch (netError) {
+  1850→          console.log('[Shift] Network check failed, assuming offline:', netError.message);
+  1851→          isActuallyOnline = false;
+  1852→        }
+  1853→      }
+  1854→
+  1855→      if (isActuallyOnline) {
+  1856→        // Try API first
+  1857→        const response = await fetch(`/api/shifts/${selectedShift.id}`, {
+  1858→          method: 'POST',
+  1859→          headers: { 'Content-Type': 'application/json' },
+  1860→          body: JSON.stringify({
+  1861→            _method: 'PATCH',
+  1862→            closingCash: parseFloat(closingCash) || 0,
+  1863→            notes: shiftNotes,
+  1864→            paymentBreakdown,
+  1865→          }),
+  1866→        });
+  1867→
+  1868→        const data = await response.json();
+  1869→
+  1870→        console.log('[handleCloseShift] Response status:', response.status);
+  1871→        console.log('[handleCloseShift] Response data:', data);
+  1872→
+  1873→        if (response.ok && data.success) {
+  1874→          // Set the shift for receipt and open the receipt dialog to auto-print
+  1875→          const closedShift = { ...selectedShift, isClosed: true };
+  1876→          setShiftForReceipt(closedShift);
+  1877→          setShiftClosingReceiptOpen(true);
+  1878→
+  1879→          alert(t('alert.shift.closed'));
+  1880→          setCloseDialogOpen(false);
+  1881→          setClosingCash('');
+  1882→          setShiftNotes('');
+  1883→          setPaymentBreakdown({ cash: 0, card: 0, instapay: 0, wallet: 0, total: 0 });
+  1884→          setSelectedShift(null);
+  1885→          refetchShifts();
+  1886→          if (user?.role === 'CASHIER') {
+  1887→            fetchCurrentShift();
+  1888→          }
+  1889→          // Notify parent component to refresh shift status (for POS tab visibility)
+  1890→          window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
+  1891→        } else {
+  1892→          // API failed - check if it's a network error
+  1893→          const isNetworkError = !response.ok && (
+  1894→            response.status === 0 || // Network error
+  1895→            response.type === 'error' ||
+  1896→            response.statusText === 'Failed to fetch' ||
+  1897→            data.error?.includes('Failed to fetch') ||
+  1898→            data.error?.includes('network') ||
+  1899→            data.error?.includes('ENOTFOUND') ||
+  1900→            data.error?.includes('ERR_NAME_NOT_RESOLVED') ||
+  1901→            data.error?.includes('TypeError') ||
+  1902→            data.error?.includes('Failed to fetch\n') ||
+  1903→            data.error?.includes('net::ERR_NAME_NOT_RESOLVED')
+  1904→          );
+  1905→
+  1906→          if (isNetworkError) {
+  1907→            console.log('[Shift] Network error detected (API), trying offline mode to close shift');
+  1908→            try {
+  1909→              const closedShift = await closeShiftOffline(
+  1910→                selectedShift,
+  1911→                parseFloat(closingCash) || 0,
+  1912→                shiftNotes,
+  1913→                paymentBreakdown
+  1914→              );
+  1915→              // Set the shift for receipt and open the receipt dialog to auto-print
+  1916→              setShiftForReceipt(closedShift);
+  1917→              setShiftClosingReceiptOpen(true);
+  1918→
+  1919→              alert(t('alert.shift.closed.offline'));
+  1920→              setCloseDialogOpen(false);
+  1921→              setClosingCash('');
+  1922→              setShiftNotes('');
+  1923→              setPaymentBreakdown({ cash: 0, card: 0, instapay: 0, wallet: 0, total: 0 });
+  1924→              setSelectedShift(null);
+  1925→              refetchShifts();
+  1926→              if (user?.role === 'CASHIER') {
+  1927→                fetchCurrentShift();
+  1928→              }
+  1929→              // Notify parent component to refresh shift status (for POS tab visibility)
+  1930→              window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
+  1931→            } catch (offlineError) {
+  1932→              console.error('[Shift] Offline shift closing failed:', offlineError);
+  1933→              alert(t('alert.failed.close.shift') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1934→            }
+  1935→          } else {
+  1936→            const errorMsg = data.error || data.details || 'Failed to close shift';
+  1937→            alert(`${errorMsg}\nStatus: ${response.status}`);
+  1938→          }
+  1939→        }
+  1940→      } else {
+  1941→        // Offline mode - close shift locally
+  1942→        console.log('[Shift] Offline mode detected, closing shift locally');
+  1943→        try {
+  1944→          const closedShift = await closeShiftOffline(
+  1945→            selectedShift,
+  1946→            parseFloat(closingCash) || 0,
+  1947→            shiftNotes,
+  1948→            paymentBreakdown
+  1949→          );
+  1950→          // Set the shift for receipt and open the receipt dialog to auto-print
+  1951→          setShiftForReceipt(closedShift);
+  1952→          setShiftClosingReceiptOpen(true);
+  1953→
+  1954→          alert(t('alert.shift.closed.offline'));
+  1955→          setCloseDialogOpen(false);
+  1956→          setClosingCash('');
+  1957→          setShiftNotes('');
+  1958→          setPaymentBreakdown({ cash: 0, card: 0, instapay: 0, wallet: 0, total: 0 });
+  1959→          setSelectedShift(null);
+  1960→          refetchShifts();
+  1961→          if (user?.role === 'CASHIER') {
+  1962→            fetchCurrentShift();
+  1963→          }
+  1964→          // Notify parent component to refresh shift status (for POS tab visibility)
+  1965→          window.dispatchEvent(new CustomEvent('refreshShiftStatus'));
+  1966→        } catch (offlineError) {
+  1967→          console.error('[Shift] Offline shift closing failed:', offlineError);
+  1968→          alert(t('alert.failed.close.shift') + ' - ' + (offlineError instanceof Error ? offlineError.message : String(offlineError)));
+  1969→        }
+  1970→      }
+  1971→    } catch (error) {
+  1972→      console.error('[handleCloseShift] Failed to close shift:', error);
+  1973→      console.error('[handleCloseShift] Error details:', {
+  1974→        message: error instanceof Error ? error.message : String(error),
+  1975→        name: error instanceof Error ? error.name : 'Unknown',
+  1976→        stack: error instanceof Error ? error.stack : undefined,
+  1977→        selectedShift: selectedShift ? { id: selectedShift.id } : 'no shift',
+  1978→        isOffline: !navigator.onLine,
+  1979→      });
+  1980→
+  1981→      // Network error or fetch failure - try offline fallback
+  1982→      const isNetworkError = error instanceof Error && (
+  1983→        error.message.includes('Failed to fetch') ||
+  1984→        error.message.includes('network') ||
+  1985→        error.message.includes('ERR_NAME_NOT_RESOLVED') ||
+  1986→        error.name === 'TypeError' &&
+  1987→        error.message.includes('Failed to fetch')
+  1988→      );
+  1989→
+  1990→      if (isNetworkError) {
+  1991→        console.log('[Shift] Network error detected, trying to close shift locally');
+  1992→        try {
+  1993→          const closedShift = await closeShiftOffline(
+  1994→            selectedShift,
+  1995→            parseFloat(closingCash) || 0,
+  1996→            shiftNotes,
+  1997→            paymentBreakdown
+  1998→          );
+  1999→          // Set the shift for receipt and open the receipt dialog to auto-print
+  2000→          setShiftForReceipt(closedShift);
+
+[showing lines 1-2000 of 3441; use offset=2001 with limit to continue reading]

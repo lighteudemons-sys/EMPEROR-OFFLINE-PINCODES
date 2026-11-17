@@ -823,46 +823,58 @@ async function createOrder(data: any, branchId: string): Promise<void> {
   // Get the order timestamp
   const orderTimestamp = data.orderTimestamp ? new Date(data.orderTimestamp) : new Date(data.createdAt);
 
-  // Check for duplicate order using the MAPPED shiftId
-  // This prevents violating the unique constraint (branchId, shiftId, orderNumber)
+  // Phase 3.1c+: orderNumber collision handling.
+  //
+  // The OLD code silently skipped creation when the orderNumber already existed
+  // for this branch+shift. This caused data loss: offline orders whose locally-
+  // computed order numbers happened to collide with existing online orders were
+  // silently dropped (return; without throw), and the sync loop counted them
+  // as "processed" (success). The cashier saw "sync succeeded" but the order
+  // was never created.
+  //
+  // The NEW approach: if the orderNumber collides, assign a NEW order number
+  // (the next available one for this branch+shift) instead of skipping. This
+  // ensures the order is always created. The transactionHash dedup (below)
+  // handles true duplicate detection (same order pushed twice).
+  let effectiveOrderNumber = data.orderNumber;
   if (shiftId) {
-    const duplicateOrder = await db.order.findFirst({
-      where: {
-        branchId,
-        shiftId,
-        orderNumber: data.orderNumber
-      }
+    const existingWithSameNumber = await db.order.findFirst({
+      where: { branchId, shiftId, orderNumber: data.orderNumber },
+      select: { id: true },
     });
-
-    if (duplicateOrder) {
-      addLog(`[BatchPush] Order ${data.orderNumber} already exists in database for shift ${shiftId} with ID ${duplicateOrder.id}, skipping creation`);
-      addLog(`[BatchPush] Existing order: timestamp=${duplicateOrder.orderTimestamp.toISOString()}, shiftId=${duplicateOrder.shiftId}`);
-      return; // Skip creation if true duplicate
+    if (existingWithSameNumber) {
+      // Assign the next available order number for this shift
+      const maxOrder = await db.order.findFirst({
+        where: { branchId, shiftId },
+        orderBy: { orderNumber: 'desc' },
+        select: { orderNumber: true },
+      });
+      effectiveOrderNumber = (maxOrder?.orderNumber || 0) + 1;
+      addLog(`[BatchPush] Order number ${data.orderNumber} already exists for shift ${shiftId}. Reassigning to ${effectiveOrderNumber}`);
     }
   } else {
-    // No shiftId - check by branchId and orderNumber only
+    // No shiftId - check by branchId and orderNumber with timestamp tolerance
     const duplicateOrder = await db.order.findFirst({
-      where: {
-        branchId,
-        orderNumber: data.orderNumber
-      }
+      where: { branchId, orderNumber: data.orderNumber },
+      select: { orderTimestamp: true, shiftId: true, id: true },
     });
 
     if (duplicateOrder) {
-      // Check if this is truly a duplicate or just an order number from a different shift/day
-      // If the timestamps are very different (more than 1 hour), it's likely a new shift starting fresh
       const timeDiff = Math.abs(duplicateOrder.orderTimestamp.getTime() - orderTimestamp.getTime());
-      const oneHourInMs = 60 * 60 * 1000; // 1 hour in milliseconds
+      const oneHourInMs = 60 * 60 * 1000;
 
-      if (timeDiff > oneHourInMs) {
-        addLog(`[BatchPush] Order ${data.orderNumber} exists in DB but timestamp is ${Math.floor(timeDiff / 1000 / 60)} minutes apart - treating as new order from different shift`);
-        addLog(`[BatchPush] Existing order: timestamp=${duplicateOrder.orderTimestamp.toISOString()}, shiftId=${duplicateOrder.shiftId}`);
-        addLog(`[BatchPush] New order: timestamp=${orderTimestamp.toISOString()}`);
-        // Don't return - continue with creation
+      if (timeDiff <= oneHourInMs) {
+        // Likely a true duplicate (same order number, within 1 hour) — reassign
+        const maxOrder = await db.order.findFirst({
+          where: { branchId },
+          orderBy: { orderNumber: 'desc' },
+          select: { orderNumber: true },
+        });
+        effectiveOrderNumber = (maxOrder?.orderNumber || 0) + 1;
+        addLog(`[BatchPush] Order number ${data.orderNumber} already exists (${Math.floor(timeDiff / 1000)}s apart). Reassigning to ${effectiveOrderNumber}`);
       } else {
-        addLog(`[BatchPush] Order ${data.orderNumber} already exists in database with ID ${duplicateOrder.id} (${Math.floor(timeDiff / 1000)}s difference), skipping creation`);
-        addLog(`[BatchPush] Existing order details: shiftId=${duplicateOrder.shiftId}, orderTimestamp=${duplicateOrder.orderTimestamp.toISOString()}`);
-        return; // Skip creation if true duplicate
+        // Different day/shift — keep the original order number
+        addLog(`[BatchPush] Order ${data.orderNumber} exists but ${Math.floor(timeDiff / 1000 / 60)} minutes apart — treating as new order from different shift`);
       }
     }
   }
@@ -884,7 +896,7 @@ async function createOrder(data: any, branchId: string): Promise<void> {
   // Prepare order data - only include fields that exist in the Order model
   const orderData: any = {
     branchId,
-    orderNumber: data.orderNumber,
+    orderNumber: effectiveOrderNumber, // Use the (possibly reassigned) order number
     cashierId: data.cashierId, // cashierId is required
     customerId: customerId, // Use mapped customerId (or null if temp ID not mapped yet)
     orderType: data.orderType,

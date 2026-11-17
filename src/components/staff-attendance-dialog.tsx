@@ -256,6 +256,16 @@ export default function StaffAttendanceDialog({
               const data = await response.json();
               const attendance = data.attendance;
 
+              // CRITICAL: mirror the attendance record to IndexedDB so it's available
+              // offline. Without this, reloading the page while offline loses the
+              // clock-in state and the cashier is forced to clock in again.
+              try {
+                await storage.saveAttendance(attendance);
+                console.log('[Attendance] Mirrored clock-in to IndexedDB for offline access');
+              } catch (idbErr) {
+                console.warn('[Attendance] Could not mirror to IndexedDB:', idbErr);
+              }
+
               // Update local state with the server response
               setTodayAttendance((prev) => ({
                 ...prev,

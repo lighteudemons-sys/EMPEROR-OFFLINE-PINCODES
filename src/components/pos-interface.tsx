@@ -5056,6 +5056,22 @@ export default function POSInterface() {
         const data = await response.json();
 
         if (response.ok && data.success) {
+          // CRITICAL: cache the online order in IndexedDB so that:
+          // 1. The offline orderNumber computation (lastOrderNum + 1) is accurate
+          //    when the cashier later goes offline. Without this, offline orders
+          //    get order numbers that collide with online orders, causing the
+          //    server's duplicate check to silently drop them during sync.
+          // 2. The orders list shows online orders even when offline.
+          try {
+            await indexedDBStorage.put('orders', {
+              ...data.order,
+              branchId: orderData.branchId,
+              items: data.order.items || [],
+            });
+          } catch (idbErr) {
+            console.warn('[Order] Could not cache online order in IndexedDB:', idbErr);
+          }
+
           setReceiptData(data.order);
           setIsDuplicateReceipt(false);
           setLastOrderNumber(data.order.orderNumber);

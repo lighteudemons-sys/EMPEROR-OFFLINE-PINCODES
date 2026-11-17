@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Clock, DollarSign, ShoppingCart, Play, Square, AlertCircle, Calendar, User, TrendingUp, Store, CreditCard, Wallet, CircleDollarSign, Activity, Smartphone, X, RefreshCw, ChevronLeft, ChevronRight, Trash2, ShoppingBag } from 'lucide-react';
+import { Clock, DollarSign, ShoppingCart, Play, Square, AlertCircle, Calendar, User, TrendingUp, Store, CreditCard, Wallet, CircleDollarSign, Activity, Smartphone, X, RefreshCw, ChevronLeft, ChevronRight, Trash2, ShoppingBag, Eye } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
 import { formatCurrency } from '@/lib/utils';
@@ -383,6 +383,10 @@ export default function ShiftManagement() {
   const [openDialogOpen, setOpenDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+  // View Orders dialog state
+  const [viewOrdersShift, setViewOrdersShift] = useState<Shift | null>(null);
+  const [shiftOrders, setShiftOrders] = useState<any[]>([]);
+  const [shiftOrdersLoading, setShiftOrdersLoading] = useState(false);
   const [openingCash, setOpeningCash] = useState('0');
   const [isOpeningShift, setIsOpeningShift] = useState(false);
   const [closingCash, setClosingCash] = useState('');
@@ -971,6 +975,23 @@ export default function ShiftManagement() {
         const data = await response.json();
 
         if (response.ok && data.success) {
+          // CRITICAL: mirror the business day to IndexedDB so it's available offline.
+          // Without this, reloading the page while offline shows the day as CLOSED
+          // (the offline fallback reads from IndexedDB, which has no record).
+          try {
+            const { getIndexedDBStorage } = await import('@/lib/storage/indexeddb-storage');
+            const indexedDBStorage = getIndexedDBStorage();
+            await indexedDBStorage.init();
+            await indexedDBStorage.saveBusinessDay({
+              ...data.businessDay,
+              branchId: selectedBranch,
+              isOpen: true,
+            });
+            console.log('[BusinessDay] Mirrored open business day to IndexedDB for offline access');
+          } catch (idbErr) {
+            console.warn('[BusinessDay] Could not mirror to IndexedDB:', idbErr);
+          }
+
           alert(t('alert.business.day.opened'));
           setOpenDayDialogOpen(false);
           setDayOpeningNotes('');
@@ -2864,6 +2885,34 @@ export default function ShiftManagement() {
                               )}
                             </TableCell>
                             <TableCell className="text-right whitespacenowrap">
+                              {/* View Orders button — for admins and branch managers */}
+                              {(user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER') && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-9 min-h-[36px] mr-1"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    setViewOrdersShift(shift);
+                                    setShiftOrdersLoading(true);
+                                    try {
+                                      const branchId = user?.role === 'ADMIN' ? selectedBranch : user?.branchId;
+                                      const res = await fetch(`/api/orders?shiftId=${shift.id}&branchId=${branchId}&limit=500`);
+                                      const data = await res.json();
+                                      setShiftOrders(data.orders || []);
+                                    } catch (err) {
+                                      console.error('Failed to fetch shift orders:', err);
+                                      setShiftOrders([]);
+                                    } finally {
+                                      setShiftOrdersLoading(false);
+                                    }
+                                  }}
+                                  title="View all orders in this shift"
+                                >
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  Orders
+                                </Button>
+                              )}
                               {user?.role === 'ADMIN' && (
                                 <Button
                                   size="sm"
@@ -3435,6 +3484,89 @@ export default function ShiftManagement() {
           }}
         />
       )}
+
+      {/* View Orders dialog — shows all orders linked to a specific shift */}
+      <Dialog open={!!viewOrdersShift} onOpenChange={(v) => !v && setViewOrdersShift(null)}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 py-4 border-b border-slate-200 bg-white shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Eye className="h-5 w-5 text-emerald-600" />
+              Orders for Shift #{viewOrdersShift?.orderNumber || viewOrdersShift?.id?.substring(0, 8)}
+            </DialogTitle>
+            <p className="text-sm text-slate-500 mt-1">
+              Cashier: {viewOrdersShift?.cashier?.name || viewOrdersShift?.cashier?.username || '—'} ·
+              Started: {viewOrdersShift ? formatDate(viewOrdersShift.startTime) : ''}
+              {viewOrdersShift?.endTime ? ` · Closed: ${formatDate(viewOrdersShift.endTime)}` : ' · Open'}
+            </p>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {shiftOrdersLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw className="h-5 w-5 animate-spin text-slate-400" />
+                <span className="ml-2 text-sm text-slate-500">Loading orders...</span>
+              </div>
+            ) : shiftOrders.length === 0 ? (
+              <div className="text-center py-12">
+                <ShoppingBag className="h-10 w-10 text-slate-300 mx-auto" />
+                <p className="mt-2 text-sm text-slate-500">No orders found for this shift.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    {shiftOrders.length} order{shiftOrders.length !== 1 ? 's' : ''}
+                  </span>
+                  <span className="text-sm font-medium text-green-600">
+                    Total: {formatCurrency(shiftOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0), currency)}
+                  </span>
+                </div>
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="text-xs">#</TableHead>
+                        <TableHead className="text-xs">Time</TableHead>
+                        <TableHead className="text-xs">Items</TableHead>
+                        <TableHead className="text-xs text-right">Total</TableHead>
+                        <TableHead className="text-xs">Payment</TableHead>
+                        <TableHead className="text-xs">Type</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {shiftOrders.map((order) => (
+                        <TableRow key={order.id} className="hover:bg-slate-50/50">
+                          <TableCell className="text-xs font-mono">#{order.orderNumber}</TableCell>
+                          <TableCell className="text-xs">
+                            {new Date(order.orderTimestamp || order.createdAt).toLocaleTimeString()}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {(order.items || []).map((item: any, idx: number) => (
+                              <span key={idx} className="inline-block mr-2">
+                                {item.quantity}× {item.itemName || item.name}
+                              </span>
+                            ))}
+                            {(order.items || []).length === 0 && (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-right font-medium">
+                            {canSeeFinancials(user) ? formatCurrency(order.totalAmount, currency) : '••••'}
+                          </TableCell>
+                          <TableCell className="text-xs">{order.paymentMethod}</TableCell>
+                          <TableCell className="text-xs">{order.orderType}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="px-6 py-4 border-t border-slate-200 bg-white shrink-0">
+            <Button variant="outline" onClick={() => setViewOrdersShift(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
