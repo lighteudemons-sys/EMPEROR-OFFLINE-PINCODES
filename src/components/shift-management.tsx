@@ -394,9 +394,19 @@ export default function ShiftManagement() {
   const [refundTarget, setRefundTarget] = useState<any | null>(null);
   const [refundReason, setRefundReason] = useState('');
   const [refundProcessing, setRefundProcessing] = useState(false);
+  const [refundAuthMethod, setRefundAuthMethod] = useState<'password' | 'pin'>('password');
+  const [refundUsername, setRefundUsername] = useState('');
+  const [refundPassword, setRefundPassword] = useState('');
+  const [refundUserCode, setRefundUserCode] = useState('');
+  const [refundPin, setRefundPin] = useState('');
   const [voidTarget, setVoidTarget] = useState<{ order: any; item: any } | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const [voidProcessing, setVoidProcessing] = useState(false);
+  const [voidAuthMethod, setVoidAuthMethod] = useState<'password' | 'pin'>('password');
+  const [voidUsername, setVoidUsername] = useState('');
+  const [voidPassword, setVoidPassword] = useState('');
+  const [voidUserCode, setVoidUserCode] = useState('');
+  const [voidPin, setVoidPin] = useState('');
   const [openingCash, setOpeningCash] = useState('0');
   const [isOpeningShift, setIsOpeningShift] = useState(false);
   const [closingCash, setClosingCash] = useState('');
@@ -2333,24 +2343,27 @@ export default function ShiftManagement() {
 
   const confirmRefund = async () => {
     if (!refundTarget || !refundReason.trim()) return;
+    // Validate auth credentials
+    if (refundAuthMethod === 'password' && (!refundUsername.trim() || !refundPassword.trim())) return;
+    if (refundAuthMethod === 'pin' && (!refundUserCode.trim() || !refundPin.trim())) return;
     setRefundProcessing(true);
     try {
+      const authBody = refundAuthMethod === 'password'
+        ? { username: refundUsername.trim(), password: refundPassword }
+        : { userCode: refundUserCode.trim(), pin: refundPin };
       const response = await fetch(`/api/orders/${refundTarget.id}/refund`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: user?.username,
-          password: undefined, // admin doesn't need password for refund via this UI
+          ...authBody,
           reason: refundReason.trim(),
         }),
       });
       const data = await response.json();
       if (response.ok && data.success) {
-        // Update the local order list to reflect the refund
         setShiftOrders((prev) =>
           prev.map((o) => o.id === refundTarget.id ? { ...o, isRefunded: true } : o),
         );
-        // Refresh shift data so revenue reflects the refund
         refetchShifts();
         showSuccessToast('Refund Processed', `Order #${refundTarget.orderNumber} has been refunded.`);
       } else {
@@ -2362,6 +2375,8 @@ export default function ShiftManagement() {
       setRefundProcessing(false);
       setRefundTarget(null);
       setRefundReason('');
+      setRefundUsername(''); setRefundPassword('');
+      setRefundUserCode(''); setRefundPin('');
     }
   };
 
@@ -2372,8 +2387,14 @@ export default function ShiftManagement() {
 
   const confirmVoid = async () => {
     if (!voidTarget || !voidReason.trim()) return;
+    // Validate auth credentials
+    if (voidAuthMethod === 'password' && (!voidUsername.trim() || !voidPassword.trim())) return;
+    if (voidAuthMethod === 'pin' && (!voidUserCode.trim() || !voidPin.trim())) return;
     setVoidProcessing(true);
     try {
+      const authBody = voidAuthMethod === 'password'
+        ? { username: voidUsername.trim(), password: voidPassword }
+        : { userCode: voidUserCode.trim(), pin: voidPin };
       const response = await fetch('/api/orders/void-item', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2381,12 +2402,11 @@ export default function ShiftManagement() {
           orderItemId: voidTarget.item.id,
           quantity: voidTarget.item.quantity,
           reason: voidReason.trim(),
-          username: user?.username,
+          ...authBody,
         }),
       });
       const data = await response.json();
       if (response.ok && data.success) {
-        // Update local order to mark the item as voided
         setShiftOrders((prev) =>
           prev.map((o) => {
             if (o.id !== voidTarget.order.id) return o;
@@ -2409,6 +2429,8 @@ export default function ShiftManagement() {
       setVoidProcessing(false);
       setVoidTarget(null);
       setVoidReason('');
+      setVoidUsername(''); setVoidPassword('');
+      setVoidUserCode(''); setVoidPin('');
     }
   };
 
@@ -3831,73 +3853,235 @@ export default function ShiftManagement() {
       </Dialog>
 
       {/* Refund confirmation dialog */}
-      <AlertDialog open={refundTarget !== null} onOpenChange={(v) => { if (!v) { setRefundTarget(null); setRefundReason(''); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Refund Order #{refundTarget?.orderNumber}?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Dialog open={refundTarget !== null} onOpenChange={(v) => { if (!v) { setRefundTarget(null); setRefundReason(''); setRefundUsername(''); setRefundPassword(''); setRefundUserCode(''); setRefundPin(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-red-600" />
+              Refund Order #{refundTarget?.orderNumber}
+            </DialogTitle>
+            <DialogDescription>
               This will refund the entire order ({canSeeFinancials(user) ? formatCurrency(refundTarget?.totalAmount || 0, currency) : '••••'}).
               {refundTarget?.paymentMethod === 'card' && ' A card refund may require manual processing.'}
-              <br />
-              <br />
-              Please provide a reason for the refund:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-2">
-            <Textarea
-              placeholder="e.g. Customer complaint, wrong order, etc."
-              value={refundReason}
-              onChange={(e) => setRefundReason(e.target.value)}
-              className="min-h-[60px]"
-            />
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Reason */}
+            <div className="space-y-2">
+              <Label>Reason for refund *</Label>
+              <Textarea
+                placeholder="e.g. Customer complaint, wrong order, etc."
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                className="min-h-[60px]"
+              />
+            </div>
+
+            {/* Authentication */}
+            <div className="space-y-3 border-t pt-3">
+              <Label className="text-sm font-semibold">Authorization required</Label>
+              <p className="text-xs text-slate-500">Re-enter your credentials to authorize this refund.</p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={refundAuthMethod === 'password' ? 'default' : 'outline'}
+                  onClick={() => setRefundAuthMethod('password')}
+                  className="h-8"
+                >
+                  Username + Password
+                </Button>
+                <Button
+                  size="sm"
+                  variant={refundAuthMethod === 'pin' ? 'default' : 'outline'}
+                  onClick={() => setRefundAuthMethod('pin')}
+                  className="h-8"
+                >
+                  User Code + PIN
+                </Button>
+              </div>
+              {refundAuthMethod === 'password' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Username</Label>
+                    <Input
+                      value={refundUsername}
+                      onChange={(e) => setRefundUsername(e.target.value)}
+                      placeholder="username"
+                      className="h-9"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Password</Label>
+                    <Input
+                      type="password"
+                      value={refundPassword}
+                      onChange={(e) => setRefundPassword(e.target.value)}
+                      placeholder="••••••"
+                      className="h-9"
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">User Code</Label>
+                    <Input
+                      value={refundUserCode}
+                      onChange={(e) => setRefundUserCode(e.target.value)}
+                      placeholder="e.g. 001"
+                      className="h-9"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">PIN</Label>
+                    <Input
+                      type="password"
+                      value={refundPin}
+                      onChange={(e) => setRefundPin(e.target.value)}
+                      placeholder="••••"
+                      className="h-9"
+                      autoComplete="off"
+                      maxLength={8}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setRefundTarget(null); setRefundReason(''); }}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRefundTarget(null); setRefundReason(''); setRefundUsername(''); setRefundPassword(''); setRefundUserCode(''); setRefundPin(''); }}>Cancel</Button>
+            <Button
               onClick={confirmRefund}
-              disabled={refundProcessing || !refundReason.trim()}
+              disabled={refundProcessing || !refundReason.trim() ||
+                (refundAuthMethod === 'password' ? (!refundUsername.trim() || !refundPassword.trim()) : (!refundUserCode.trim() || !refundPin.trim()))}
               className="bg-red-600 hover:bg-red-700"
             >
-              {refundProcessing ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {refundProcessing ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
               Confirm Refund
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Void item confirmation dialog */}
-      <AlertDialog open={voidTarget !== null} onOpenChange={(v) => { if (!v) { setVoidTarget(null); setVoidReason(''); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Void item "{voidTarget?.item.itemName}"?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Dialog open={voidTarget !== null} onOpenChange={(v) => { if (!v) { setVoidTarget(null); setVoidReason(''); setVoidUsername(''); setVoidPassword(''); setVoidUserCode(''); setVoidPin(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="h-5 w-5 text-red-600" />
+              Void item "{voidTarget?.item.itemName}"
+            </DialogTitle>
+            <DialogDescription>
               This will void {voidTarget?.item.quantity}× {voidTarget?.item.itemName} from order #{voidTarget?.order.orderNumber}.
-              <br />
-              <br />
-              Please provide a reason:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-2">
-            <Textarea
-              placeholder="e.g. Wrong item, customer cancelled, etc."
-              value={voidReason}
-              onChange={(e) => setVoidReason(e.target.value)}
-              className="min-h-[60px]"
-            />
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Reason */}
+            <div className="space-y-2">
+              <Label>Reason for void *</Label>
+              <Textarea
+                placeholder="e.g. Wrong item, customer cancelled, etc."
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                className="min-h-[60px]"
+              />
+            </div>
+
+            {/* Authentication */}
+            <div className="space-y-3 border-t pt-3">
+              <Label className="text-sm font-semibold">Authorization required</Label>
+              <p className="text-xs text-slate-500">Re-enter your credentials to authorize this void.</p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={voidAuthMethod === 'password' ? 'default' : 'outline'}
+                  onClick={() => setVoidAuthMethod('password')}
+                  className="h-8"
+                >
+                  Username + Password
+                </Button>
+                <Button
+                  size="sm"
+                  variant={voidAuthMethod === 'pin' ? 'default' : 'outline'}
+                  onClick={() => setVoidAuthMethod('pin')}
+                  className="h-8"
+                >
+                  User Code + PIN
+                </Button>
+              </div>
+              {voidAuthMethod === 'password' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Username</Label>
+                    <Input
+                      value={voidUsername}
+                      onChange={(e) => setVoidUsername(e.target.value)}
+                      placeholder="username"
+                      className="h-9"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Password</Label>
+                    <Input
+                      type="password"
+                      value={voidPassword}
+                      onChange={(e) => setVoidPassword(e.target.value)}
+                      placeholder="••••••"
+                      className="h-9"
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">User Code</Label>
+                    <Input
+                      value={voidUserCode}
+                      onChange={(e) => setVoidUserCode(e.target.value)}
+                      placeholder="e.g. 001"
+                      className="h-9"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">PIN</Label>
+                    <Input
+                      type="password"
+                      value={voidPin}
+                      onChange={(e) => setVoidPin(e.target.value)}
+                      placeholder="••••"
+                      className="h-9"
+                      autoComplete="off"
+                      maxLength={8}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setVoidTarget(null); setVoidReason(''); }}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setVoidTarget(null); setVoidReason(''); setVoidUsername(''); setVoidPassword(''); setVoidUserCode(''); setVoidPin(''); }}>Cancel</Button>
+            <Button
               onClick={confirmVoid}
-              disabled={voidProcessing || !voidReason.trim()}
+              disabled={voidProcessing || !voidReason.trim() ||
+                (voidAuthMethod === 'password' ? (!voidUsername.trim() || !voidPassword.trim()) : (!voidUserCode.trim() || !voidPin.trim()))}
               className="bg-red-600 hover:bg-red-700"
             >
-              {voidProcessing ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {voidProcessing ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}
               Confirm Void
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
