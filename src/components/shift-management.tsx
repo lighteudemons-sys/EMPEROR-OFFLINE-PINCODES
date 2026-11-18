@@ -3629,7 +3629,12 @@ export default function ShiftManagement() {
                 </span>
                 <span className="text-slate-300">|</span>
                 <span className="text-green-600 font-medium">
-                  Total: {canSeeFinancials(user) ? formatCurrency(shiftOrders.reduce((s, o) => s + (o.totalAmount || 0), 0), currency) : '••••'}
+                  Total: {canSeeFinancials(user) ? formatCurrency(shiftOrders.reduce((s, o) => s + (o.isRefunded ? 0 : (o.totalAmount || 0)), 0), currency) : '••••'}
+                  {shiftOrders.filter(o => o.isRefunded).length > 0 && (
+                    <span className="text-slate-400 text-xs ml-1">
+                      (of {formatCurrency(shiftOrders.reduce((s, o) => s + (o.totalAmount || 0), 0), currency)} gross)
+                    </span>
+                  )}
                 </span>
                 {shiftOrders.filter(o => o.isRefunded).length > 0 && (
                   <>
