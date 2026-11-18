@@ -460,6 +460,9 @@ model BranchCost {
   amount         Float
   period         String
   notes          String?
+  isReversal     Boolean        @default(false)
+  reversedBy     String?
+  reverses       String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -550,6 +553,8 @@ model Order {
   tableId               String?
   cardReferenceNumber   String?
   paymentMethodDetail   String?
+  loyaltyPointsRedeemed  Float?  @default(0)
+  loyaltyDiscount        Float?  @default(0)
   inventoryTxns         InventoryTransaction[]
   branch                Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
   cashier               User                   @relation(fields: [cashierId], references: [id])
@@ -1051,6 +1056,7 @@ model LoyaltyTransaction {
   orderId    String?
   amount     Float?
   notes      String?
+  createdBy  String?
   createdAt  DateTime               @default(now())
   customer   Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
@@ -1231,6 +1237,9 @@ model PromotionUsageLog {
   orderSubtotal  Float
   cashierId      String
   usedAt         DateTime      @default(now())
+  isReversed     Boolean       @default(false)
+  reversedAt     DateTime?
+  reversedBy     String?
   codeEntity     PromotionCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
   promotion      Promotion     @relation(fields: [promotionId], references: [id], onDelete: Cascade)
 
@@ -1341,6 +1350,7 @@ enum LoyaltyTransactionType {
   REDEEMED
   ADJUSTMENT
   BONUS
+  REFUND
 }
 
 enum NotificationType {

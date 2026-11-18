@@ -351,8 +351,19 @@ export async function POST(request: NextRequest) {
 
       // Update customer statistics (deduct points and total spent)
       if (order.customerId) {
-        // Calculate points to deduct (1 point per 1 EGP spent)
-        const pointsToDeduct = Math.floor(order.subtotal);
+        // CRITICAL FIX: The original earning was Math.floor(subtotal / 10) — 1 point per 10 EGP.
+        // The refund was deducting Math.floor(subtotal) — 10× too much.
+        // Now we look up the original EARNED LoyaltyTransaction to get the exact points awarded.
+        const originalEarnedTxn = await tx.loyaltyTransaction.findFirst({
+          where: {
+            customerId: order.customerId,
+            orderId: order.id,
+            type: 'EARNED',
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        const pointsToDeduct = originalEarnedTxn ? originalEarnedTxn.points : Math.floor(order.subtotal / 10);
 
         await tx.customer.update({
           where: { id: order.customerId },
@@ -374,26 +385,26 @@ export async function POST(request: NextRequest) {
           data: {
             customerId: order.customerId,
             points: -pointsToDeduct,
-            type: 'REDEEMED',
+            type: 'REFUND',
             orderId: order.id,
             amount: order.subtotal,
             notes: `Refund for order #${order.orderNumber}`,
+            createdBy: user.id,
           },
         });
 
-        // Update customer tier based on new total spent
+        // Update customer tier based on loyaltyPoints (standardized thresholds: 200/500/1000)
         const updatedCustomer = await tx.customer.findUnique({
           where: { id: order.customerId },
         });
 
         if (updatedCustomer) {
           let newTier = 'BRONZE';
-          // Update tier thresholds based on total spent (in EGP)
-          if (updatedCustomer.totalSpent >= 1000) {
+          if (updatedCustomer.loyaltyPoints >= 1000) {
             newTier = 'PLATINUM';
-          } else if (updatedCustomer.totalSpent >= 500) {
+          } else if (updatedCustomer.loyaltyPoints >= 500) {
             newTier = 'GOLD';
-          } else if (updatedCustomer.totalSpent >= 200) {
+          } else if (updatedCustomer.loyaltyPoints >= 200) {
             newTier = 'SILVER';
           }
 

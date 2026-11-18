@@ -862,19 +862,18 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Update customer tier based on total spent
+        // Update customer tier based on loyaltyPoints (standardized: 200/500/1000)
         const updatedCustomer = await db.customer.findUnique({
           where: { id: customerId },
         });
 
         if (updatedCustomer) {
           let newTier = 'BRONZE';
-          // Update tier thresholds based on total spent (in EGP)
-          if (updatedCustomer.totalSpent >= 10000) {
+          if (updatedCustomer.loyaltyPoints >= 1000) {
             newTier = 'PLATINUM';
-          } else if (updatedCustomer.totalSpent >= 5000) {
+          } else if (updatedCustomer.loyaltyPoints >= 500) {
             newTier = 'GOLD';
-          } else if (updatedCustomer.totalSpent >= 2000) {
+          } else if (updatedCustomer.loyaltyPoints >= 200) {
             newTier = 'SILVER';
           }
 
@@ -886,7 +885,6 @@ export async function POST(request: NextRequest) {
               });
             } catch (tierError) {
               console.error('Failed to update customer tier:', tierError);
-              // Don't fail the order if tier update fails
             }
           }
         }

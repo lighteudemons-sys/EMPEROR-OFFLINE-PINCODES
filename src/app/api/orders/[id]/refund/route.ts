@@ -399,7 +399,19 @@ export async function POST(
 
       // Update customer statistics (deduct points and total spent)
       if (order.customerId) {
-        const pointsToDeduct = Math.floor(order.subtotal);
+        // CRITICAL FIX: The original earning was Math.floor(subtotal / 10) — 1 point per 10 EGP.
+        // The refund was deducting Math.floor(subtotal) — 10× too much.
+        // Now we look up the original EARNED LoyaltyTransaction to get the exact points awarded.
+        const originalEarnedTxn = await tx.loyaltyTransaction.findFirst({
+          where: {
+            customerId: order.customerId,
+            orderId: order.id,
+            type: 'EARNED',
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        const pointsToDeduct = originalEarnedTxn ? originalEarnedTxn.points : Math.floor(order.subtotal / 10);
 
         await tx.customer.update({
           where: { id: order.customerId },
@@ -421,26 +433,26 @@ export async function POST(
           data: {
             customerId: order.customerId,
             points: -pointsToDeduct,
-            type: 'REDEEMED',
+            type: 'REFUND',
             orderId: order.id,
             amount: order.subtotal,
             notes: `Refund for order #${order.orderNumber}`,
+            createdBy: user.id,
           },
         });
 
-        // Update customer tier based on new total spent
+        // Update customer tier based on loyaltyPoints (standardized thresholds: 200/500/1000)
         const updatedCustomer = await tx.customer.findUnique({
           where: { id: order.customerId },
         });
 
         if (updatedCustomer) {
           let newTier = 'BRONZE';
-          // Update tier thresholds based on total spent (in EGP) - must match order creation
-          if (updatedCustomer.totalSpent >= 10000) {
+          if (updatedCustomer.loyaltyPoints >= 1000) {
             newTier = 'PLATINUM';
-          } else if (updatedCustomer.totalSpent >= 5000) {
+          } else if (updatedCustomer.loyaltyPoints >= 500) {
             newTier = 'GOLD';
-          } else if (updatedCustomer.totalSpent >= 2000) {
+          } else if (updatedCustomer.loyaltyPoints >= 200) {
             newTier = 'SILVER';
           }
 
@@ -450,6 +462,97 @@ export async function POST(
               data: { tier: newTier },
             });
           }
+        }
+      }
+
+      // Reverse promo code usage (if any)
+      if (order.promoCodeId) {
+        const promoUsageLog = await tx.promotionUsageLog.findFirst({
+          where: { orderId: order.id },
+        });
+
+        if (promoUsageLog && !promoUsageLog.isReversed) {
+          // Mark the usage log as reversed
+          await tx.promotionUsageLog.update({
+            where: { id: promoUsageLog.id },
+            data: {
+              isReversed: true,
+              reversedAt: new Date(),
+              reversedBy: user.id,
+            },
+          });
+
+          // Decrement the promo code usage count
+          await tx.promotionCode.update({
+            where: { id: promoUsageLog.codeId },
+            data: {
+              usageCount: { decrement: 1 },
+            },
+          });
+
+          // Create a reversal BranchCost for the promo discount
+          const promoCostCategory = await tx.costCategory.findFirst({
+            where: {
+              name: 'Promo Codes',
+              branchId: order.branchId,
+            },
+          });
+
+          if (promoCostCategory) {
+            await tx.branchCost.create({
+              data: {
+                branchId: order.branchId,
+                costCategoryId: promoCostCategory.id,
+                shiftId: order.shiftId,
+                amount: -promoUsageLog.discountAmount, // negative = reversal
+                period: new Date().toISOString().slice(0, 7),
+                notes: `Reversal: Promo code discount for refunded order #${order.orderNumber}`,
+                isReversal: true,
+              },
+            });
+          }
+        }
+      }
+
+      // Reverse loyalty discount BranchCost (if any)
+      // Find the original BranchCost for loyalty discount on this order
+      const loyaltyCostCategory = await tx.costCategory.findFirst({
+        where: {
+          name: 'Loyalty Discounts',
+          branchId: order.branchId,
+        },
+      });
+
+      if (loyaltyCostCategory) {
+        const originalLoyaltyCost = await tx.branchCost.findFirst({
+          where: {
+            branchId: order.branchId,
+            costCategoryId: loyaltyCostCategory.id,
+            notes: { contains: order.orderNumber.toString() },
+            isReversal: false,
+          },
+        });
+
+        if (originalLoyaltyCost && !originalLoyaltyCost.reversedBy) {
+          // Create a reversal entry
+          await tx.branchCost.create({
+            data: {
+              branchId: order.branchId,
+              costCategoryId: loyaltyCostCategory.id,
+              shiftId: order.shiftId,
+              amount: -originalLoyaltyCost.amount, // negative = reversal
+              period: new Date().toISOString().slice(0, 7),
+              notes: `Reversal: Loyalty discount for refunded order #${order.orderNumber}`,
+              isReversal: true,
+              reverses: originalLoyaltyCost.id,
+            },
+          });
+
+          // Mark the original as reversed
+          await tx.branchCost.update({
+            where: { id: originalLoyaltyCost.id },
+            data: { reversedBy: 'reversed' },
+          });
         }
       }
 

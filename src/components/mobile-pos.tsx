@@ -4150,21 +4150,29 @@ export function MobilePOS() {
                           setValidatingPromo(true);
                           try {
                             const branchId = user?.role === 'CASHIER' ? user?.branchId : selectedBranch;
+                            const orderItemsForPromo = cart.map((item: any) => ({
+                              menuItemId: item.menuItemId,
+                              categoryId: item.categoryId,
+                              price: item.price,
+                              quantity: item.quantity,
+                            }));
+
                             const response = await fetch('/api/promo-codes/validate', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
                                 code: promoCode.toUpperCase(),
                                 branchId,
-                                subtotal,
+                                orderSubtotal: subtotal,
+                                orderItems: orderItemsForPromo,
                               }),
                             });
                             const data = await response.json();
 
                             if (response.ok && data.valid) {
-                              setPromoCodeId(data.promoCode.id);
-                              setPromoDiscount(data.discountAmount);
-                              setPromoMessage(data.message || 'Promo code applied successfully!');
+                              setPromoCodeId(data.promo.id);
+                              setPromoDiscount(data.promo.discountAmount);
+                              setPromoMessage(data.promo.message || data.message || 'Promo code applied successfully!');
                             } else {
                               setPromoMessage(data.error || 'Invalid promo code');
                             }
