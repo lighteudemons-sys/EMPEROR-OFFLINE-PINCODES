@@ -91,6 +91,8 @@ model Branch {
   licenses                BranchLicense[]
   attendances             Attendance[]
   cashTransactions        CashTransaction[]
+  loyaltyPromoEarnBranches  LoyaltyPromotionEarnBranch[]
+  loyaltyPromoRedeemBranches LoyaltyPromotionRedeemBranch[]
 
   @@index([licenseKey])
   @@index([isActive])
@@ -875,6 +877,7 @@ model Customer {
   paymentTerms           String?              // e.g., "NET 30", "COD"
   creditLimit            Float?               // Credit limit for B2B customers
   creditBalance          Float                @default(0) // Current outstanding credit balance
+  membershipCode         String?              @unique      // Permanent loyalty membership code (e.g. EMP-A7K3M9)
   
   branch                 Branch?              @relation(fields: [branchId], references: [id])
   addresses              CustomerAddress[]
@@ -882,6 +885,7 @@ model Customer {
   creditTransactions     CreditTransaction[]  // Credit transaction history
   orders                 Order[]
   tables                 Table[]
+  loyaltyEnrollments    CustomerPromotionEnrollment[]
 
   @@index([phone])
   @@index([branchId])
@@ -890,6 +894,7 @@ model Customer {
   @@index([taxRegistrationNumber])
   @@index([customerType])
   @@index([isVatRegistered])
+  @@index([membershipCode])
 }
 
 model CustomerAddress {
@@ -1422,4 +1427,320 @@ model CashTransaction {
   @@index([createdAt])
   @@index([shiftId])
   @@index([transactionDate])
+}
+
+// ============================================================
+// LOYALTY UPGRADE — Phase 1 Schema (additive, no breaking changes)
+// ============================================================
+
+// --- New Enums ---
+
+enum LoyaltyEarningMethod {
+  PER_VISIT       // 1 stamp per qualifying visit (regardless of item count)
+  PER_ITEM        // 1 stamp per qualifying OrderItem line (not per quantity)
+  PER_QUANTITY    // earningValue × quantity per qualifying OrderItem
+  PER_AMOUNT      // floor(orderItem.subtotal × earningValue) per qualifying OrderItem
+}
+
+enum LoyaltyRewardType {
+  FREE_ITEM         // a specific menu item is free
+  DISCOUNT_PERCENT  // percentage off the order
+  DISCOUNT_FIXED    // fixed amount off the order
+  FREE_PRODUCT      // any item from a category is free
+  POINTS_BONUS      // bonus points added to legacy balance
+}
+
+enum LoyaltyPromotionStatus {
+  ACTIVE
+  PAUSED
+  SCHEDULED        // future start date, not yet active
+  EXPIRED          // past end date
+  ARCHIVED         // manually retired
+}
+
+enum StampTransactionType {
+  EARNED              // Stamps earned from a qualifying purchase (positive stamps)
+  THRESHOLD_CONSUMED  // Stamps consumed to issue a reward (negative stamps)
+  REWARD_REDEEMED     // A reward instance was redeemed at checkout (zero stamps — audit only)
+  REWARD_EXPIRED      // A reward instance expired (zero stamps — audit only)
+  REFUND_REVERSED     // Earning reversed due to order refund (negative stamps)
+  ADJUSTED            // Manual correction by admin/manager (positive or negative)
+  STAMPS_EXPIRED      // Raw stamps expired when promotion ends (negative stamps)
+}
+
+enum LoyaltyOverlapRule {
+  EXCLUSIVE         // only this promotion earns for these products (no others)
+  SHARED            // multiple promotions can earn from the same product
+  PRIORITY          // only the highest-priority promotion earns
+}
+
+enum RewardInstanceStatus {
+  AVAILABLE
+  PENDING_REDEMPTION
+  REDEEMED
+  EXPIRED
+}
+
+// --- New Models ---
+
+model LoyaltyGlobalSettings {
+  id                          String   @id @default("singleton")
+  // Legacy system (backward compat)
+  legacyPointsPerCurrency     Decimal  @db.Decimal(10,4) @default(0.1)
+  legacyPointsValue           Decimal  @db.Decimal(10,4) @default(0.1)
+  legacyBronzeThreshold       Int      @default(0)
+  legacySilverThreshold       Int      @default(200)
+  legacyGoldThreshold         Int      @default(500)
+  legacyPlatinumThreshold     Int      @default(1000)
+  legacyEarningEnabled        Boolean  @default(true)
+  legacyRedemptionEnabled     Boolean  @default(true)
+  // Membership
+  membershipCodePrefix        String   @default("EMP")
+  membershipCodeLength        Int      @default(6)
+  // Rewards
+  defaultRewardExpiryDays     Int?     // null = never expires
+  // Notifications
+  enableLoyaltyNotifications  Boolean  @default(true)
+  notifyOnTierUpgrade         Boolean  @default(true)
+  notifyOnRewardEarned        Boolean  @default(true)
+  notifyOnRewardExpiring      Boolean  @default(true)
+  rewardExpiryWarningDays     Int      @default(3)
+  // Limits
+  maxActivePromotionsPerCustomer Int?  // null = unlimited
+  pendingRedemptionTimeoutMinutes Int  @default(15)
+  // Metadata
+  updatedAt                   DateTime @updatedAt
+  updatedBy                   String?
+}
+
+model LoyaltyPromotion {
+  id                    String   @id @default(cuid())
+  name                  String
+  description           String?
+
+  // Status & Schedule
+  status                LoyaltyPromotionStatus @default(SCHEDULED)
+  startDate             DateTime
+  endDate               DateTime?
+
+  // Earning Configuration
+  earningMethod         LoyaltyEarningMethod
+  earningValue          Decimal  @db.Decimal(10,4)   // stamps per unit / points per currency
+  stampsRequired        Int                          // stamps needed to earn one reward
+  maxEarnPerOrder       Int?                         // cap per order (null = unlimited)
+  maxEarnPerDay         Int?                         // cap per customer per day (null = unlimited)
+
+  // Reward Configuration
+  rewardType            LoyaltyRewardType
+  rewardValue           Decimal? @db.Decimal(10,2)   // for DISCOUNT_PERCENT: %, DISCOUNT_FIXED: amount
+  rewardProductId       String?                      // for FREE_ITEM: which menu item is free
+  rewardCategoryId      String?                      // for FREE_PRODUCT: which category
+  rewardExpiresInDays   Int?                         // days until earned reward expires (null = never)
+
+  // Eligibility
+  minPurchaseAmount     Decimal? @db.Decimal(10,2)   // minimum order subtotal to earn
+  eligibleCustomerTiers String?                      // comma-separated: "BRONZE,SILVER" (null = all)
+  eligibleCustomerTypes String?                      // comma-separated: "B2C,B2B" (null = all)
+  isNewCustomerOnly     Boolean  @default(false)      // only first-time customers
+  isExistingCustomerOnly Boolean @default(false)      // only customers with prior orders
+
+  // Overlap & Stacking
+  overlapRule           LoyaltyOverlapRule @default(SHARED)
+  priority              Int     @default(0)            // higher = evaluated first
+  allowSimultaneousRewards Boolean @default(true)       // can customer hold multiple unredeemed rewards?
+
+  // Metadata
+  isActive              Boolean @default(true)          // soft toggle (separate from status for quick pause)
+  currentVersion        Int      @default(1)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdBy             String?
+
+  // Relations
+  versions              LoyaltyPromotionVersion[]
+  earnBranches          LoyaltyPromotionEarnBranch[]
+  redeemBranches        LoyaltyPromotionRedeemBranch[]
+  productRestrictions   LoyaltyPromotionProduct[]
+  categoryRestrictions  LoyaltyPromotionCategory[]
+  enrollments           CustomerPromotionEnrollment[]
+
+  @@index([status, isActive, startDate, endDate])
+  @@index([earningMethod])
+  @@index([priority])
+}
+
+model LoyaltyPromotionVersion {
+  id                String   @id @default(cuid())
+  promotionId       String
+  versionNumber     Int
+  config            Json     // immutable snapshot of ALL promotion fields at this version
+  validFrom         DateTime @default(now())
+  validUntil        DateTime?  // when the next version replaced this one (null = current)
+  createdAt         DateTime @default(now())
+  createdBy         String?
+
+  promotion         LoyaltyPromotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, versionNumber])
+  @@index([promotionId])
+  @@index([validFrom, validUntil])
+}
+
+model LoyaltyPromotionEarnBranch {
+  id           String   @id @default(cuid())
+  promotionId  String
+  branchId     String
+  promotion    LoyaltyPromotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  branch       Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, branchId])
+  @@index([promotionId])
+  @@index([branchId])
+}
+
+model LoyaltyPromotionRedeemBranch {
+  id           String   @id @default(cuid())
+  promotionId  String
+  branchId     String
+  promotion    LoyaltyPromotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  branch       Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, branchId])
+  @@index([promotionId])
+  @@index([branchId])
+}
+
+model LoyaltyPromotionProduct {
+  id           String   @id @default(cuid())
+  promotionId  String
+  menuItemId   String
+  promotion    LoyaltyPromotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, menuItemId])
+  @@index([promotionId])
+}
+
+model LoyaltyPromotionCategory {
+  id           String   @id @default(cuid())
+  promotionId  String
+  categoryId   String
+  promotion    LoyaltyPromotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, categoryId])
+  @@index([promotionId])
+}
+
+model CustomerPromotionEnrollment {
+  id                String   @id @default(cuid())
+  customerId        String
+  promotionId       String
+
+  // Progress (denormalized cache — source of truth is LoyaltyStampTransaction sum)
+  availableStamps   Int      @default(0)
+  rewardsClaimed    Int      @default(0)
+
+  // Lifecycle
+  enrolledAt        DateTime @default(now())
+  lastEarnedAt      DateTime?
+  lastRedeemedAt    DateTime?
+  isActive          Boolean  @default(true)
+
+  // Relations
+  customer          Customer          @relation(fields: [customerId], references: [id])
+  promotion         LoyaltyPromotion   @relation(fields: [promotionId], references: [id])
+  stampTransactions LoyaltyStampTransaction[]
+  rewardInstances    LoyaltyRewardInstance[]
+
+  @@unique([customerId, promotionId])
+  @@index([customerId])
+  @@index([promotionId])
+  @@index([isActive])
+}
+
+model LoyaltyStampTransaction {
+  id                    String   @id @default(cuid())
+  enrollmentId          String
+  customerId            String
+  promotionId           String
+
+  // Transaction details
+  type                  StampTransactionType
+  stamps                Int       // signed: positive=earned, negative=consumed/reversed/expired
+
+  // Linking
+  orderId               String?   // which order triggered this earning
+  orderItemId           String?   // which specific OrderItem earned these stamps
+  eligibleQuantity      Int?      // how many qualifying units (for partial void calculation)
+  voidedItemId          String?   // which VoidedItem caused this reversal
+  rewardInstanceId      String?   // which reward instance was issued/redeemed/expired
+  promotionVersionId    String?   // which version of the promotion config was used
+  refundOrderId         String?   // which refund order reversed this earning
+  reversesTransactionId String?   // FK to the original EARNED transaction being reversed
+
+  // Audit
+  createdBy             String?   // user ID who triggered this
+  reason                String?   // for ADJUSTED: explanation; for REFUND_REVERSED: refund reason
+  createdAt             DateTime @default(now())
+
+  // Offline sync
+  syncId                String?  @unique  // client-generated UUID for idempotency
+  syncedAt              DateTime?
+
+  // Relations
+  enrollment            CustomerPromotionEnrollment @relation(fields: [enrollmentId], references: [id])
+  rewardInstance        LoyaltyRewardInstance?       @relation("RewardFundingTransactions", fields: [rewardInstanceId], references: [id])
+
+  @@index([enrollmentId])
+  @@index([customerId])
+  @@index([promotionId])
+  @@index([orderId])
+  @@index([orderItemId])
+  @@index([voidedItemId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([syncId])
+  @@index([reversesTransactionId])
+}
+
+model LoyaltyRewardInstance {
+  id                String   @id @default(cuid())
+  enrollmentId      String
+  customerId        String
+  promotionId       String
+
+  // Reward details (snapshot from promotion version at time of earning)
+  rewardType        LoyaltyRewardType
+  rewardValue       Decimal? @db.Decimal(10,2)
+  rewardProductId   String?
+  rewardCategoryId  String?
+  promotionVersionId String?
+
+  // Lifecycle
+  status            RewardInstanceStatus @default(AVAILABLE)
+  earnedAt          DateTime @default(now())
+  expiresAt         DateTime?
+  redeemedAt        DateTime?
+  redeemedOrderId   String?    // which order used this reward
+  redeemedBy        String?    // cashier ID who processed the redemption
+
+  // Reservation tracking (for atomic checkout)
+  reservedAt        DateTime?
+  reservedBy        String?     // cashier userId who reserved it
+  reservedOrderId   String?     // the order being processed with this reward
+  reservedBranchId  String?     // branch where reservation was made
+  reservedExpiresAt DateTime?   // when the reservation auto-expires
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  enrollment        CustomerPromotionEnrollment @relation(fields: [enrollmentId], references: [id])
+  stampTransactions LoyaltyStampTransaction[]    @relation("RewardFundingTransactions")
+
+  @@index([enrollmentId])
+  @@index([customerId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([redeemedOrderId])
+  @@index([reservedOrderId])
 }
