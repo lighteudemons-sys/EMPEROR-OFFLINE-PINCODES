@@ -3621,33 +3621,145 @@ export default function ShiftManagement() {
           </DialogHeader>
 
           {/* Summary bar */}
-          {!shiftOrdersLoading && shiftOrders.length > 0 && (
-            <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-4 text-sm">
-                <span className="font-medium text-slate-700">
-                  {shiftOrders.length} order{shiftOrders.length !== 1 ? 's' : ''}
-                </span>
-                <span className="text-slate-300">|</span>
-                <span className="text-green-600 font-medium">
-                  Total: {canSeeFinancials(user) ? formatCurrency(shiftOrders.reduce((s, o) => s + (o.isRefunded ? 0 : (o.totalAmount || 0)), 0), currency) : '••••'}
-                  {shiftOrders.filter(o => o.isRefunded).length > 0 && (
-                    <span className="text-slate-400 text-xs ml-1">
-                      (of {formatCurrency(shiftOrders.reduce((s, o) => s + (o.totalAmount || 0), 0), currency)} gross)
+          {!shiftOrdersLoading && shiftOrders.length > 0 && (() => {
+            const validOrders = shiftOrders.filter(o => !o.isRefunded);
+            const grossTotal = shiftOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+            const netTotal = validOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+            const refundedCount = shiftOrders.filter(o => o.isRefunded).length;
+            const refundedAmount = shiftOrders.filter(o => o.isRefunded).reduce((s, o) => s + (o.totalAmount || 0), 0);
+
+            // Payment method breakdown
+            const byMethod = {
+              cash: { count: 0, total: 0 },
+              card: { count: 0, total: 0 },
+              instapay: { count: 0, total: 0 },
+              wallet: { count: 0, total: 0 },
+              talabat: { count: 0, total: 0 },
+              credit: { count: 0, total: 0 },
+            };
+            validOrders.forEach(o => {
+              const method = (o.paymentMethod || 'cash').toLowerCase();
+              const detail = (o.paymentMethodDetail || '').toUpperCase();
+              const amount = o.totalAmount || 0;
+              if (method === 'card') {
+                if (detail === 'INSTAPAY') { byMethod.instapay.count++; byMethod.instapay.total += amount; }
+                else if (detail === 'MOBILE_WALLET') { byMethod.wallet.count++; byMethod.wallet.total += amount; }
+                else if (detail === 'TALABAT') { byMethod.talabat.count++; byMethod.talabat.total += amount; }
+                else { byMethod.card.count++; byMethod.card.total += amount; }
+              } else if (method === 'credit') {
+                byMethod.credit.count++; byMethod.credit.total += amount;
+              } else {
+                byMethod.cash.count++; byMethod.cash.total += amount;
+              }
+            });
+
+            // Discounts
+            const totalPromoDiscount = validOrders.reduce((s, o) => s + (o.promoDiscount || 0), 0);
+            const totalLoyaltyDiscount = validOrders.reduce((s, o) => s + (o.loyaltyDiscount || 0), 0);
+            const totalManualDiscount = validOrders.reduce((s, o) => s + (o.manualDiscountAmount || 0), 0);
+            const totalDiscounts = totalPromoDiscount + totalLoyaltyDiscount + totalManualDiscount;
+            const hasDiscounts = totalDiscounts > 0;
+
+            // Subtotal and tax
+            const totalSubtotal = validOrders.reduce((s, o) => s + (o.subtotal || 0), 0);
+            const totalTax = validOrders.reduce((s, o) => s + (o.taxAmount || 0), 0);
+            const totalDeliveryFee = validOrders.reduce((s, o) => s + (o.deliveryFee || 0), 0);
+
+            return (
+              <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 shrink-0 space-y-2">
+                {/* Top row: order count + total + hint */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4 text-sm flex-wrap">
+                    <span className="font-medium text-slate-700">
+                      {shiftOrders.length} order{shiftOrders.length !== 1 ? 's' : ''}
                     </span>
-                  )}
-                </span>
-                {shiftOrders.filter(o => o.isRefunded).length > 0 && (
-                  <>
                     <span className="text-slate-300">|</span>
-                    <span className="text-red-500 font-medium">
-                      {shiftOrders.filter(o => o.isRefunded).length} refunded
+                    <span className="text-green-600 font-semibold text-base">
+                      Net: {canSeeFinancials(user) ? formatCurrency(netTotal, currency) : '••••'}
                     </span>
-                  </>
+                    {refundedCount > 0 && (
+                      <span className="text-slate-400 text-xs">
+                        (gross {formatCurrency(grossTotal, currency)} · refunded {formatCurrency(refundedAmount, currency)})
+                      </span>
+                    )}
+                    {refundedCount > 0 && (
+                      <span className="text-red-500 font-medium text-xs">{refundedCount} refunded</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-400">Click an order for details · refund · void</span>
+                </div>
+
+                {/* Payment method breakdown */}
+                {canSeeFinancials(user) && (
+                  <div className="flex items-center gap-3 flex-wrap text-xs">
+                    {byMethod.cash.count > 0 && (
+                      <div className="flex items-center gap-1 bg-green-50 border border-green-200 rounded px-2 py-1">
+                        <span className="text-green-700 font-medium">Cash</span>
+                        <span className="text-green-600 font-semibold">{formatCurrency(byMethod.cash.total, currency)}</span>
+                        <span className="text-green-500">{byMethod.cash.count}× orders</span>
+                      </div>
+                    )}
+                    {byMethod.card.count > 0 && (
+                      <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                        <span className="text-blue-700 font-medium">Card</span>
+                        <span className="text-blue-600 font-semibold">{formatCurrency(byMethod.card.total, currency)}</span>
+                        <span className="text-blue-500">{byMethod.card.count}× orders</span>
+                      </div>
+                    )}
+                    {byMethod.instapay.count > 0 && (
+                      <div className="flex items-center gap-1 bg-purple-50 border border-purple-200 rounded px-2 py-1">
+                        <span className="text-purple-700 font-medium">InstaPay</span>
+                        <span className="text-purple-600 font-semibold">{formatCurrency(byMethod.instapay.total, currency)}</span>
+                        <span className="text-purple-500">{byMethod.instapay.count}× orders</span>
+                      </div>
+                    )}
+                    {byMethod.wallet.count > 0 && (
+                      <div className="flex items-center gap-1 bg-orange-50 border border-orange-200 rounded px-2 py-1">
+                        <span className="text-orange-700 font-medium">Wallet</span>
+                        <span className="text-orange-600 font-semibold">{formatCurrency(byMethod.wallet.total, currency)}</span>
+                        <span className="text-orange-500">{byMethod.wallet.count}× orders</span>
+                      </div>
+                    )}
+                    {byMethod.talabat.count > 0 && (
+                      <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 rounded px-2 py-1">
+                        <span className="text-rose-700 font-medium">Talabat</span>
+                        <span className="text-rose-600 font-semibold">{formatCurrency(byMethod.talabat.total, currency)}</span>
+                        <span className="text-rose-500">{byMethod.talabat.count}× orders</span>
+                      </div>
+                    )}
+                    {byMethod.credit.count > 0 && (
+                      <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                        <span className="text-amber-700 font-medium">Credit</span>
+                        <span className="text-amber-600 font-semibold">{formatCurrency(byMethod.credit.total, currency)}</span>
+                        <span className="text-amber-500">{byMethod.credit.count}× orders</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Financial breakdown: subtotal, tax, delivery, discounts */}
+                {canSeeFinancials(user) && (
+                  <div className="flex items-center gap-4 flex-wrap text-xs text-slate-500">
+                    <span>Subtotal: <span className="font-mono font-medium text-slate-700">{formatCurrency(totalSubtotal, currency)}</span></span>
+                    {totalTax > 0 && (
+                      <span>Tax: <span className="font-mono font-medium text-slate-700">{formatCurrency(totalTax, currency)}</span></span>
+                    )}
+                    {totalDeliveryFee > 0 && (
+                      <span>Delivery: <span className="font-mono font-medium text-slate-700">{formatCurrency(totalDeliveryFee, currency)}</span></span>
+                    )}
+                    {hasDiscounts && (
+                      <span className="text-red-500">Discounts: <span className="font-mono font-medium">-{formatCurrency(totalDiscounts, currency)}</span></span>
+                    )}
+                    {hasDiscounts && (
+                      <span className="text-slate-400">
+                        ({totalPromoDiscount > 0 ? `promo ${formatCurrency(totalPromoDiscount, currency)}` : ''}{totalLoyaltyDiscount > 0 ? `${totalPromoDiscount > 0 ? ' · ' : ''}loyalty ${formatCurrency(totalLoyaltyDiscount, currency)}` : ''}{totalManualDiscount > 0 ? `${(totalPromoDiscount > 0 || totalLoyaltyDiscount > 0) ? ' · ' : ''}manual ${formatCurrency(totalManualDiscount, currency)}` : ''})
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
-              <span className="text-xs text-slate-400">Click an order to view details · refund · void items</span>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Scrollable order list */}
           <div className="flex-1 overflow-y-auto px-6 py-4">
