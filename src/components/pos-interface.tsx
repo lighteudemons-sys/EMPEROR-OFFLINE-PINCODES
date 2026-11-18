@@ -4963,9 +4963,16 @@ export default function POSInterface() {
         idempotencyKey,
       };
 
-      // Add card reference number if provided
-      if (paymentMethod === 'card' && cardRefNumber) {
-        orderData.cardReferenceNumber = cardRefNumber;
+      // Add card reference number and payment method detail if provided
+      // CRITICAL: For TALABAT, cardRefNumber may be empty (no reference number needed),
+      // but paymentMethodDetail MUST still be set. The previous condition
+      // `paymentMethod === 'card' && cardRefNumber` was false when cardRefNumber
+      // was empty (TALABAT case), so paymentMethodDetail was never stored.
+      // This caused TALABAT orders to be counted as regular CARD orders in reports.
+      if (paymentMethod === 'card') {
+        if (cardRefNumber) {
+          orderData.cardReferenceNumber = cardRefNumber;
+        }
         orderData.paymentMethodDetail = paymentMethodDetailParam || 'CARD';
       }
 

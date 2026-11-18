@@ -35,6 +35,10 @@ import {
   Eye,
   Printer,
   XCircle,
+  CreditCard,
+  Smartphone,
+  Wallet,
+  ShoppingBag,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n-context';
@@ -858,6 +862,58 @@ export function MobileReports() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment Methods — 5 Cards (same as desktop) */}
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-emerald-600" />
+                  Payment Methods
+                </CardTitle>
+                <CardDescription className="text-xs">Revenue by payment method</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const methods = kpiData?.paymentMethods || {};
+                  const cards = [
+                    { key: 'cash', label: 'Cash', Icon: DollarSign, color: 'text-green-600', bg: 'bg-green-50' },
+                    { key: 'card', label: 'Credit', Icon: CreditCard, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { key: 'instapay', label: 'InstaPay', Icon: Smartphone, color: 'text-purple-600', bg: 'bg-purple-50' },
+                    { key: 'mobile_wallet', label: 'Mobile Wallet', Icon: Wallet, color: 'text-orange-600', bg: 'bg-orange-50' },
+                    { key: 'talabat', label: 'Talabat', Icon: ShoppingBag, color: 'text-rose-600', bg: 'bg-rose-50' },
+                  ];
+                  const hasAnyData = cards.some(c => methods[c.key]?.count > 0);
+                  if (!hasAnyData && kpiData) {
+                    return <p className="text-center text-sm text-slate-500 py-4">No payment data for this period</p>;
+                  }
+                  return (
+                    <div className="space-y-2">
+                      {cards.map(({ key, label, Icon: CardIcon, color, bg }) => {
+                        const data = methods[key];
+                        const count = data?.count || 0;
+                        const revenue = data?.revenue || 0;
+                        return (
+                          <div key={key} className={`flex items-center gap-3 p-2 rounded-lg ${bg}`}>
+                            <div className="p-2 rounded-lg bg-white/50">
+                              <CardIcon className={`h-4 w-4 ${color}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-slate-700">{label}</span>
+                                <span className={`text-sm font-bold tabular-nums ${count === 0 ? 'text-slate-400' : 'text-slate-900'}`}>
+                                  {formatCurrency(revenue, currency)}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-500">{count} {count === 1 ? 'order' : 'orders'}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 

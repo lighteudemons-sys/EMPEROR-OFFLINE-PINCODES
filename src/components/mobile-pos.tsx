@@ -1454,8 +1454,14 @@ export function MobilePOS() {
         cashierId: user?.id,
       };
 
-      if (paymentMethod === 'card' && cardRefNumber) {
-        orderData.cardReferenceNumber = cardRefNumber;
+      // CRITICAL: For TALABAT, cardRefNumber may be empty, but paymentMethodDetail
+      // MUST still be set. The previous condition `paymentMethod === 'card' && cardRefNumber`
+      // was false when cardRefNumber was empty (TALABAT case), so paymentMethodDetail was
+      // never stored — causing TALABAT orders to be counted as regular CARD orders.
+      if (paymentMethod === 'card') {
+        if (cardRefNumber) {
+          orderData.cardReferenceNumber = cardRefNumber;
+        }
         orderData.paymentMethodDetail = paymentMethodDetailParam || 'CARD';
       }
 

@@ -95,7 +95,7 @@ function groupSalesByPeriod(orders: any[], period: string): any[] {
         revenue: 0,
         itemsSold: 0,
         avgOrderValue: 0,
-        paymentMethods: { cash: 0, card: 0 },
+        paymentMethods: { cash: 0, card: 0, instapay: 0, wallet: 0, talabat: 0 },
       };
     }
 
@@ -103,8 +103,20 @@ function groupSalesByPeriod(orders: any[], period: string): any[] {
     grouped[key].revenue += order.subtotal;
     grouped[key].itemsSold += order.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
 
-    if (order.paymentMethod === 'cash') grouped[key].paymentMethods.cash += order.subtotal;
-    else if (order.paymentMethod === 'card') grouped[key].paymentMethods.card += order.subtotal;
+    // Payment method breakdown — properly categorize card subtypes
+    const method = (order.paymentMethod || 'cash').toLowerCase();
+    const detail = order.paymentMethodDetail?.toUpperCase();
+    if (method === 'cash') {
+      grouped[key].paymentMethods.cash += order.subtotal;
+    } else if (method === 'card') {
+      if (detail === 'INSTAPAY') grouped[key].paymentMethods.instapay += order.subtotal;
+      else if (detail === 'MOBILE_WALLET') grouped[key].paymentMethods.wallet += order.subtotal;
+      else if (detail === 'TALABAT') grouped[key].paymentMethods.talabat += order.subtotal;
+      else grouped[key].paymentMethods.card += order.subtotal;
+    } else if (method === 'credit') {
+      // Credit orders counted as cash equivalent for sales reporting
+      grouped[key].paymentMethods.cash += order.subtotal;
+    }
   });
 
   Object.values(grouped).forEach((group: any) => {
