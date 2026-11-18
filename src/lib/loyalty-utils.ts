@@ -79,6 +79,16 @@ export async function awardLoyaltyPoints(customerId: string, orderId: string, am
     transactionId: transaction.id,
   });
 
+  // Phase 7 — emit tier-upgrade notification (best-effort, never blocks)
+  if (existingCustomer.tier !== newTier) {
+    try {
+      const { notifyTierUpgrade } = await import('@/lib/loyalty-notifications');
+      await notifyTierUpgrade(customerId, existingCustomer.tier || 'BRONZE', newTier);
+    } catch (notifError) {
+      console.error('[LoyaltyUtils] Tier-upgrade notification failed:', notifError);
+    }
+  }
+
   return {
     success: true,
     pointsEarned: points,

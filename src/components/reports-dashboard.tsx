@@ -37,6 +37,7 @@ import DailyReportsTab from './reports-daily';
 import BestSellersReport from './reports-best-sellers';
 import { ReceiptViewer } from './receipt-viewer';
 import DiscountsTracking from './discounts-tracking';
+import LoyaltyReports from '@/components/loyalty/loyalty-reports';
 
 interface Branch {
   id: string;
@@ -701,6 +702,12 @@ export default function ReportsDashboard() {
             <Tag className="h-4 w-4 mr-2" />
             {t('pos.discount')}
           </TabsTrigger>
+          {(user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER') && (
+            <TabsTrigger value="loyalty">
+              <Coffee className="h-4 w-4 mr-2" />
+              Loyalty
+            </TabsTrigger>
+          )}
           {user?.role === 'ADMIN' && (
             <TabsTrigger value="branches">
               <Store className="h-4 w-4 mr-2" />
@@ -1218,6 +1225,11 @@ export default function ReportsDashboard() {
         {user?.role === 'ADMIN' && (
           <TabsContent value="branches">
             <BranchComparisonReport />
+          </TabsContent>
+        )}
+        {(user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER') && (
+          <TabsContent value="loyalty">
+            <LoyaltyReports />
           </TabsContent>
         )}
       </Tabs>

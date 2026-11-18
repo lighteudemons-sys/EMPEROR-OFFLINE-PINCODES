@@ -584,6 +584,17 @@ export async function evaluateOrder(orderId: string): Promise<EvaluationResult> 
     // Ensure promotion version exists
     const versionId = await ensurePromotionVersion(promotion, order.cashierId);
 
+    // Capture promotion context for post-commit notification emission.
+    // Notifications are created AFTER the transaction commits so that
+    // (a) a notification write failure doesn't roll back the loyalty
+    // state change, and (b) we don't hold the transaction open while
+    // writing to the Notification table (different table, different
+    // concern).
+    const issuancePromotionContext = {
+      promotionId: promotion.id,
+      promotionName: promotion.name,
+    };
+
     // Execute atomic issuance: lock enrollment, create EARNED txns, issue rewards.
     const issuance = await db.$transaction(async (tx) => {
       // Find or create enrollment (with SELECT FOR UPDATE)
@@ -692,12 +703,35 @@ export async function evaluateOrder(orderId: string): Promise<EvaluationResult> 
         },
       });
 
-      return { stampsEarned: perItemStamps.reduce((s, e) => s + e.stamps, 0), rewardsIssued: issuedRewards.length, enrollmentId: enrollment.id };
+      return {
+        stampsEarned: perItemStamps.reduce((s, e) => s + e.stamps, 0),
+        rewardsIssued: issuedRewards.length,
+        enrollmentId: enrollment.id,
+        issuedRewards, // pass out for post-commit notifications
+      };
     });
 
     totalStampsEarned += issuance.stampsEarned;
     totalRewardsIssued += issuance.rewardsIssued;
     enrollmentsAffectedSet.add(issuance.enrollmentId);
+
+    // Phase 7 — emit reward-earned notifications AFTER the transaction
+    // commits. Failures here don't affect the loyalty state (already
+    // persisted), and the helper catches its own errors.
+    if (issuance.issuedRewards && issuance.issuedRewards.length > 0) {
+      // Lazy import to avoid loading the notifications module when no
+      // rewards are issued (the common case).
+      const { notifyRewardEarned } = await import('@/lib/loyalty-notifications');
+      for (const reward of issuance.issuedRewards) {
+        await notifyRewardEarned(
+          order.customerId!,
+          issuancePromotionContext.promotionId,
+          issuancePromotionContext.promotionName,
+          reward.id,
+          reward.expiresAt
+        );
+      }
+    }
   }
 
   return {
