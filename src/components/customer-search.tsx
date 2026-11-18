@@ -115,13 +115,14 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
           customerAddressMap.get(addr.customerId)!.push(addr);
         });
 
-        // Search by name or phone
+        // Search by name, phone, or membership code (Phase 3 — match the server API)
         const query = searchQuery.toLowerCase();
         const matchedCustomers = allCustomers
           .filter((customer: any) => {
             return (
               customer.name?.toLowerCase().includes(query) ||
-              customer.phone?.toLowerCase().includes(query)
+              customer.phone?.toLowerCase().includes(query) ||
+              (customer.membershipCode || '').toLowerCase().includes(query)
             );
           })
           .map((customer: any) => ({
@@ -173,13 +174,14 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
           customerAddressMap.get(addr.customerId)!.push(addr);
         });
 
-        // Search by name or phone
+        // Search by name, phone, or membership code (Phase 3 — match server API behavior)
         const query = searchQuery.toLowerCase();
         const matchedCustomers = allCustomers
           .filter((customer: any) => {
             return (
               customer.name?.toLowerCase().includes(query) ||
-              customer.phone?.toLowerCase().includes(query)
+              customer.phone?.toLowerCase().includes(query) ||
+              (customer.membershipCode || '').toLowerCase().includes(query)
             );
           })
           .map((customer: any) => ({
@@ -215,13 +217,14 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
           customerAddressMap.get(addr.customerId)!.push(addr);
         });
 
-        // Search by name or phone
+        // Search by name, phone, or membership code (Phase 3 — match server API behavior)
         const query = searchQuery.toLowerCase();
         const matchedCustomers = allCustomers
           .filter((customer: any) => {
             return (
               customer.name?.toLowerCase().includes(query) ||
-              customer.phone?.toLowerCase().includes(query)
+              customer.phone?.toLowerCase().includes(query) ||
+              (customer.membershipCode || '').toLowerCase().includes(query)
             );
           })
           .map((customer: any) => ({
