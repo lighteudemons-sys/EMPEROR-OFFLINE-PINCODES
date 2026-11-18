@@ -247,6 +247,82 @@ export async function POST(request: NextRequest) {
     updates.push(`Attendances: ${attendances.length}`);
 
     // ============================================
+    // Sync Loyalty Promotions + Versions (Phase 6)
+    // ============================================
+    // Brings down all ACTIVE/SCHEDULED promotions and their current
+    // version snapshots so the offline LoyaltyPanel can render
+    // customer progress and reward previews without a network call.
+    // Enrollments are NOT synced here — they are per-customer and
+    // are fetched on demand via /api/loyalty/customer-progress
+    // when the cashier identifies a customer (cached in IndexedDB
+    // by the existing offline-data hooks).
+    const loyaltyPromotions = await db.loyaltyPromotion.findMany({
+      where: {
+        isActive: true,
+        status: { in: ['ACTIVE', 'SCHEDULED', 'PAUSED'] },
+        OR: [
+          { earnBranches: { none: {} } },
+          { earnBranches: { some: { branchId } } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        earningMethod: true,
+        earningValue: true,
+        stampsRequired: true,
+        maxEarnPerOrder: true,
+        maxEarnPerDay: true,
+        rewardType: true,
+        rewardValue: true,
+        rewardProductId: true,
+        rewardCategoryId: true,
+        rewardExpiresInDays: true,
+        minPurchaseAmount: true,
+        overlapRule: true,
+        priority: true,
+        allowSimultaneousRewards: true,
+        currentVersion: true,
+        // Restrictions — needed for the engine's overlap resolution
+        earnBranches: { select: { branchId: true } },
+        redeemBranches: { select: { branchId: true } },
+        productRestrictions: { select: { menuItemId: true } },
+        categoryRestrictions: { select: { categoryId: true } },
+      },
+    });
+
+    // Pull the current version snapshot for each promotion (one row per
+    // promotion — the one with validUntil = null).
+    const promotionIds = loyaltyPromotions.map((p) => p.id);
+    const loyaltyPromotionVersions = promotionIds.length
+      ? await db.loyaltyPromotionVersion.findMany({
+          where: {
+            promotionId: { in: promotionIds },
+            validUntil: null,
+          },
+          select: {
+            id: true,
+            promotionId: true,
+            versionNumber: true,
+            config: true,
+            validFrom: true,
+            // validUntil is null by definition here, omit for size
+          },
+        })
+      : [];
+
+    dataToReturn.loyaltyPromotions = loyaltyPromotions;
+    dataToReturn.loyaltyPromotionVersions = loyaltyPromotionVersions;
+    totalRecordsProcessed += loyaltyPromotions.length + loyaltyPromotionVersions.length;
+    updates.push(
+      `Loyalty Promotions: ${loyaltyPromotions.length} (${loyaltyPromotionVersions.length} versions)`
+    );
+
+    // ============================================
     // Update Branch Last Sync Time
     // ============================================
     await updateBranchLastSync(branchId);
