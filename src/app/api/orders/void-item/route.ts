@@ -318,6 +318,10 @@ export async function POST(request: NextRequest) {
     // Calculate values before transaction for return statement
     const remainingQuantity = orderItem.quantity - quantity;
 
+    // Captured inside the transaction (partial void only) so the Phase 2
+    // loyalty reversal can reference the VoidedItem row. Null for full voids.
+    let capturedVoidedItemId: string | null = null;
+
     await db.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderItem.orderId },
@@ -406,7 +410,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Create a voided item record for tracking
-        await tx.voidedItem.create({
+        const createdVoidedItem = await tx.voidedItem.create({
           data: {
             orderItemId,
             orderQuantity: orderItem.quantity,
@@ -419,6 +423,7 @@ export async function POST(request: NextRequest) {
             voidedAt: new Date(),
           },
         });
+        capturedVoidedItemId = createdVoidedItem.id;
 
         // Update order totals
         const orderItems = await tx.orderItem.findMany({
@@ -465,6 +470,16 @@ export async function POST(request: NextRequest) {
         });
       }
     });
+
+    // Phase 2: Reverse loyalty stamps for the voided item (non-blocking)
+    // For full voids, capturedVoidedItemId is null — the engine handles this case
+    // by reconstructing the original quantity/subtotal from the EARNED transaction.
+    try {
+      const { reverseVoid } = await import('@/lib/loyalty-engine');
+      await reverseVoid(orderItemId, capturedVoidedItemId, user.id);
+    } catch (loyaltyError) {
+      console.error('[Void Item] Loyalty engine void reversal failed (non-blocking):', loyaltyError);
+    }
 
     // Check if order has been submitted to ETA and generate Credit Note if needed
     let creditNoteResult: { success: boolean; creditNote?: any; error?: string } = { success: false };

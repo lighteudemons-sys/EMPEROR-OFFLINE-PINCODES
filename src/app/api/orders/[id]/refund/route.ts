@@ -559,6 +559,14 @@ export async function POST(
       return updatedOrder;
     });
 
+    // Phase 2: Reverse new loyalty stamp transactions (non-blocking)
+    try {
+      const { reverseOrder } = await import('@/lib/loyalty-engine');
+      await reverseOrder(order.id, user.id);
+    } catch (loyaltyError) {
+      console.error('[Refund] Loyalty engine reversal failed (non-blocking):', loyaltyError);
+    }
+
     // Generate ETA Credit Note if configured
     const creditNoteResult = await generateCreditNoteForRefund(order, reason || 'No reason provided', user.id);
 

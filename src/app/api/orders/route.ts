@@ -892,6 +892,15 @@ export async function POST(request: NextRequest) {
         console.error('Failed to update customer statistics:', customerError);
         // Don't fail the order if customer update fails
       }
+
+      // Phase 2: Evaluate new loyalty promotions (non-blocking)
+      try {
+        const { evaluateOrder } = await import('@/lib/loyalty-engine');
+        await evaluateOrder(order.order.id);
+      } catch (loyaltyError) {
+        console.error('[Order] Loyalty engine evaluation failed (non-blocking):', loyaltyError);
+        // Don't fail the order if loyalty engine fails
+      }
     }
 
     // Create credit transaction if payment method is credit
