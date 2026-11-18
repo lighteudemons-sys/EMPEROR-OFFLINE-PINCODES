@@ -35,6 +35,8 @@ import { getIndexedDBStorage } from '@/lib/storage/indexeddb-storage';
 import TableGridView from '@/components/table-grid-view';
 import ClockInOutButton from '@/components/attendance-clock-in-out';
 import { showSuccessToast, showErrorToast } from '@/hooks/use-toast';
+// Loyalty Phase 3 — embedded loyalty panel for promotions/rewards
+import LoyaltyPanel from '@/components/loyalty/loyalty-panel';
 
 // Create IndexedDB storage instance for table cart persistence
 const storage = getIndexedDBStorage();
@@ -838,6 +840,83 @@ export default function POSInterface() {
   // Loyalty redemption state
   const [redeemedPoints, setRedeemedPoints] = useState<number>(0);
   const [loyaltyDiscount, setLoyaltyDiscount] = useState<number>(0);
+
+  // Loyalty Phase 3 — reward instances reserved through the new loyalty engine.
+  // These are kept in state so the cart can apply the reward (free item / discount)
+  // and so we can release them on checkout failure or order cancellation.
+  const [pendingLoyaltyRewards, setPendingLoyaltyRewards] = useState<any[]>([]);
+
+  // Apply a reserved loyalty reward to the cart.
+  // For now we apply a simple discount equal to the reward value (if amount/percentage)
+  // or add a free-item placeholder line to the cart when the reward is a FREE_PRODUCT.
+  const handleLoyaltyRewardRedeemed = (reward: any) => {
+    setPendingLoyaltyRewards((prev) => {
+      // Avoid double-applying the same reward instance.
+      if (prev.some((r) => r.rewardInstanceId === reward.rewardInstanceId)) {
+        return prev;
+      }
+      return [...prev, reward];
+    });
+
+    // Apply the reward to the cart based on its type.
+    if (reward.rewardType === 'DISCOUNT_AMOUNT' && reward.rewardValue) {
+      setLoyaltyDiscount((prev) => prev + reward.rewardValue);
+    } else if (reward.rewardType === 'DISCOUNT_PERCENTAGE' && reward.rewardValue) {
+      const subtotalNow =
+        (orderType === 'dine-in' && selectedTable ? tableCart : cart).reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        ) || 0;
+      setLoyaltyDiscount((prev) => prev + (subtotalNow * reward.rewardValue) / 100);
+    }
+    // FREE_PRODUCT / FREE_ITEM: leave to the cashier to add the free item manually
+    // (or to a follow-up integration that looks up rewardProductId).
+    if (reward.rewardType === 'FREE_PRODUCT' || reward.rewardType === 'FREE_ITEM') {
+      showSuccessToast(
+        'Reward Applied',
+        `${reward.promotionName} — add the free item to the cart (price will be discounted at checkout).`
+      );
+    }
+  };
+
+  // Release a reserved reward when the cashier cancels in the LoyaltyPanel.
+  const handleLoyaltyRewardReleased = (rewardInstanceId: string) => {
+    setPendingLoyaltyRewards((prev) => {
+      const released = prev.find((r) => r.rewardInstanceId === rewardInstanceId);
+      if (!released) return prev;
+      // Reverse the discount we applied (best-effort — only for amount/percentage).
+      if (released.rewardType === 'DISCOUNT_AMOUNT' && released.rewardValue) {
+        setLoyaltyDiscount((curr) => Math.max(0, curr - released.rewardValue));
+      } else if (released.rewardType === 'DISCOUNT_PERCENTAGE' && released.rewardValue) {
+        const subtotalNow =
+          (orderType === 'dine-in' && selectedTable ? tableCart : cart).reduce(
+            (sum, item) => sum + item.price * item.quantity,
+            0
+          ) || 0;
+        setLoyaltyDiscount((curr) => Math.max(0, curr - (subtotalNow * released.rewardValue) / 100));
+      }
+      return prev.filter((r) => r.rewardInstanceId !== rewardInstanceId);
+    });
+  };
+
+  // Release all pending loyalty rewards (called on order cancel / checkout failure).
+  const releaseAllPendingLoyaltyRewards = async () => {
+    if (pendingLoyaltyRewards.length === 0) return;
+    await Promise.all(
+      pendingLoyaltyRewards.map(async (reward) => {
+        try {
+          await fetch('/api/loyalty/release-reward', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rewardInstanceId: reward.rewardInstanceId }),
+          });
+        } catch (err) {
+          console.error('[POS] Failed to release loyalty reward:', err);
+        }
+      })
+    );
+    setPendingLoyaltyRewards([]);
+  };
 
   // Promo code state
   const [promoCode, setPromoCode] = useState<string>('');
@@ -2045,7 +2124,7 @@ export default function POSInterface() {
     }
   };
 
-  const clearCart = () => {
+  const clearCart = (opts?: { releaseLoyaltyRewards?: boolean }) => {
     if (orderType === 'dine-in' && selectedTable) {
       setTableCart([]);
       storage.setJSON(`table-cart-${selectedTable.id}`, []);
@@ -2056,6 +2135,17 @@ export default function POSInterface() {
     setLoyaltyDiscount(0);
     handleClearPromoCode();
     handleClearManualDiscount();
+    // Loyalty Phase 3 — release reserved reward instances so they go back to
+    // AVAILABLE for the next customer/order. By default we release, but the
+    // success path after a successful checkout passes
+    // { releaseLoyaltyRewards: false } because the engine has already moved
+    // them to REDEEMED.
+    if (opts?.releaseLoyaltyRewards !== false) {
+      releaseAllPendingLoyaltyRewards();
+    } else {
+      // On success, just clear the local state (engine already finalized).
+      setPendingLoyaltyRewards([]);
+    }
   };
 
   // Sync temp manual discount percent when discount dialog opens
@@ -4660,6 +4750,9 @@ export default function POSInterface() {
         promoCodeId: promoCodeId,
         promoCode: promoCode,
         redeemedPoints: redeemedPoints,
+        // Loyalty Phase 3 — preserve reserved reward instances so the cashier
+        // can resume checkout later and the engine can reconcile finalization.
+        pendingLoyaltyRewards: pendingLoyaltyRewards,
       };
 
       const key = getLocalStorageKey();
@@ -4685,6 +4778,10 @@ export default function POSInterface() {
       setDeliveryAddress('');
       setDeliveryArea('');
       setSelectedCourierId('none');
+      // Loyalty Phase 3 — held order retains the reward reservations so they
+      // can be restored when the order is resumed. Just clear the in-memory
+      // tracking; the rewards remain reserved on the server.
+      setPendingLoyaltyRewards([]);
 
       // Refresh held orders list
       await loadHeldOrders();
@@ -4736,6 +4833,8 @@ export default function POSInterface() {
       setPromoCode(heldOrder.promoCode || '');
       setPromoCodeId(heldOrder.promoCodeId || '');
       setPromoDiscount(heldOrder.promoDiscount || 0);
+      // Loyalty Phase 3 — restore reserved reward instances
+      setPendingLoyaltyRewards(heldOrder.pendingLoyaltyRewards || []);
 
       // Remove from IndexedDB
       const updatedHeldOrders = existingHeldOrders.filter((h: any) => h.id !== holdId);
@@ -4758,6 +4857,24 @@ export default function POSInterface() {
     try {
       const key = getLocalStorageKey();
       const existingHeldOrders = await storage.getJSON(key) || [];
+      // Loyalty Phase 3 — release any reserved reward instances attached to
+      // the held order before deleting it so they go back to AVAILABLE.
+      const heldOrder = existingHeldOrders.find((h: any) => h.id === holdId);
+      if (heldOrder?.pendingLoyaltyRewards?.length) {
+        await Promise.all(
+          heldOrder.pendingLoyaltyRewards.map(async (reward: any) => {
+            try {
+              await fetch('/api/loyalty/release-reward', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rewardInstanceId: reward.rewardInstanceId }),
+              });
+            } catch (err) {
+              console.error('[POS] Failed to release held-order reward:', err);
+            }
+          })
+        );
+      }
       const updatedHeldOrders = existingHeldOrders.filter((h: any) => h.id !== holdId);
       await storage.setJSON(key, updatedHeldOrders);
       await loadHeldOrders();
@@ -4990,6 +5107,29 @@ export default function POSInterface() {
         orderData.loyaltyDiscount = loyaltyDiscount;
       }
 
+      // Loyalty Phase 3 — include reserved reward instances so the server can
+      // finalize the redemption (set the actual orderId on each reward). The
+      // engine currently finalizes within /api/loyalty/redeem, but sending
+      // this list lets a follow-up patch reconcile any drift.
+      if (pendingLoyaltyRewards.length > 0) {
+        orderData.loyaltyRewardInstances = pendingLoyaltyRewards.map((r) => ({
+          rewardInstanceId: r.rewardInstanceId,
+          promotionId: r.promotionId,
+          rewardType: r.rewardType,
+          rewardValue: r.rewardValue ?? null,
+          rewardProductId: r.rewardProductId ?? null,
+          rewardCategoryId: r.rewardCategoryId ?? null,
+        }));
+        // Also fold the reward value into loyaltyDiscount so totals reflect it.
+        const rewardDiscountTotal = pendingLoyaltyRewards.reduce((sum, r) => {
+          if (r.rewardType === 'DISCOUNT_AMOUNT' && r.rewardValue) return sum + r.rewardValue;
+          return sum;
+        }, 0);
+        if (rewardDiscountTotal > 0 && !orderData.loyaltyDiscount) {
+          orderData.loyaltyDiscount = loyaltyDiscount;
+        }
+      }
+
       // Add promo code if applied (independent of customer)
       if (promoCodeId && promoDiscount > 0) {
         orderData.promoCodeId = promoCodeId;
@@ -5082,7 +5222,9 @@ export default function POSInterface() {
           setReceiptData(data.order);
           setIsDuplicateReceipt(false);
           setLastOrderNumber(data.order.orderNumber);
-          clearCart();
+          // Loyalty Phase 3 — engine already finalized the reward inside
+          // /api/loyalty/redeem (AVAILABLE → REDEEMED), so do not release.
+          clearCart({ releaseLoyaltyRewards: false });
           setShowReceipt(true);
           setDeliveryAddress('');
           setDeliveryArea('');
@@ -5132,7 +5274,9 @@ export default function POSInterface() {
               setReceiptData(result.order);
               setIsDuplicateReceipt(false);
               setLastOrderNumber(result.order.orderNumber);
-              clearCart();
+              // Loyalty Phase 3 — order was created successfully; engine already
+              // finalized the reward at /api/loyalty/redeem. Don't release here.
+              clearCart({ releaseLoyaltyRewards: false });
               setShowReceipt(true);
               setDeliveryAddress('');
               setDeliveryArea('');
@@ -5174,7 +5318,8 @@ export default function POSInterface() {
           setReceiptData(result.order);
           setIsDuplicateReceipt(false);
           setLastOrderNumber(result.order.orderNumber);
-          clearCart();
+          // Loyalty Phase 3 — order created successfully; don't release rewards.
+          clearCart({ releaseLoyaltyRewards: false });
           setShowReceipt(true);
           setDeliveryAddress('');
           setDeliveryArea('');
@@ -5194,6 +5339,9 @@ export default function POSInterface() {
       console.error('Checkout error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to process order';
       alert(`${errorMessage}\n\nPlease check the browser console for more details.`);
+      // Loyalty Phase 3 — on checkout failure, release any reserved rewards
+      // so the customer can use them on a subsequent order.
+      releaseAllPendingLoyaltyRewards();
     } finally {
       setProcessing(false);
     }
@@ -6103,6 +6251,25 @@ export default function POSInterface() {
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Loyalty Phase 3 — Promotions & Rewards panel */}
+                    {selectedAddress?.customerId && !selectedAddress.customerId.startsWith('temp-') && (
+                      <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 p-2">
+                        <div className="flex items-center gap-1.5 mb-1.5 px-1">
+                          <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
+                            Loyalty Program
+                          </span>
+                        </div>
+                        <LoyaltyPanel
+                          customerId={selectedAddress.customerId}
+                          branchId={user?.role === 'ADMIN' ? (selectedBranch || '') : (user?.branchId || '')}
+                          cashierId={user?.id || ''}
+                          onRewardRedeemed={handleLoyaltyRewardRedeemed}
+                          onRewardReleased={handleLoyaltyRewardReleased}
+                        />
                       </div>
                     )}
                   </div>

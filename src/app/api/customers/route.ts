@@ -14,9 +14,11 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       whereClause.OR = [
-        { name: { contains: search } },
+        { name: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
-        { email: { contains: search } },
+        { email: { contains: search, mode: 'insensitive' } },
+        // Loyalty Phase 3 — allow searching by membership code (e.g. EMP-A7K3M9)
+        { membershipCode: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -55,6 +57,8 @@ export async function GET(request: NextRequest) {
       totalOrders: customer.orderCount || 0,
       branchId: customer.branchId,
       branchName: customer.branch?.branchName || null,
+      // Loyalty Phase 3 — expose membership code (permanent loyalty identifier)
+      membershipCode: customer.membershipCode || null,
       // B2B fields for ETA E-Invoice
       customerType: customer.customerType || 'B2C',
       taxRegistrationNumber: customer.taxRegistrationNumber || null,

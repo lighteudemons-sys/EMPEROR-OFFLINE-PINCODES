@@ -6,7 +6,22 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, User, MapPin, Phone, UserPlus, X, Star, Gift, Wallet } from 'lucide-react';
+import { Search, User, MapPin, Phone, UserPlus, X, Star, Gift, Wallet, QrCode, Award } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+
+// Tier badge color mapping for customer display
+const TIER_BADGE_CLASS: Record<string, string> = {
+  BRONZE: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  SILVER: 'bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300',
+  GOLD: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+  PLATINUM: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
+  DIAMOND: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+};
+
+function tierBadgeClass(tier?: string): string {
+  if (!tier) return TIER_BADGE_CLASS.BRONZE;
+  return TIER_BADGE_CLASS[tier.toUpperCase()] || TIER_BADGE_CLASS.BRONZE;
+}
 
 interface Address {
   id: string;
@@ -26,6 +41,9 @@ interface Address {
   orderCount?: number;
   isDefault?: boolean;
   loyaltyPoints?: number;
+  // Loyalty Phase 3 — pass through membership code + tier to parent
+  membershipCode?: string | null;
+  tier?: string | null;
 }
 
 interface CustomerSearchProps {
@@ -232,6 +250,9 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
       taxRegistrationNumber: customer.taxRegistrationNumber,
       creditLimit: customer.creditLimit,
       creditBalance: customer.creditBalance,
+      // Loyalty Phase 3 — pass membership code + tier up to the POS
+      membershipCode: customer.membershipCode || null,
+      tier: customer.tier || null,
     };
     console.log('[CustomerSearch] Address clicked:', {
       customerName: customer.name,
@@ -496,7 +517,7 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             type="text"
-            placeholder="Search by phone or name..."
+            placeholder="Search by phone, name, or EMP- code..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -517,7 +538,19 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm text-emerald-900 dark:text-emerald-100">{selectedAddress.customerName}</p>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {selectedAddress.membershipCode && (
+                  <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                    <QrCode className="h-3 w-3" />
+                    {selectedAddress.membershipCode}
+                  </span>
+                )}
+                {selectedAddress.tier && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${tierBadgeClass(selectedAddress.tier)}`}>
+                    <Award className="h-3 w-3" />
+                    {selectedAddress.tier}
+                  </span>
+                )}
                 {selectedAddress.loyaltyPoints !== undefined && (
                   <span className="text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <Star className="h-3 w-3" />
@@ -698,6 +731,18 @@ export default function CustomerSearch({ onAddressSelect, selectedAddress, deliv
                   <Phone className="h-3 w-3" />
                   {customer.phone}
                 </span>
+                {customer.membershipCode && (
+                  <Badge variant="outline" className="font-mono text-[10px] bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                    <QrCode className="h-2.5 w-2.5 mr-1" />
+                    {customer.membershipCode}
+                  </Badge>
+                )}
+                {customer.tier && customer.tier !== 'BRONZE' && (
+                  <Badge variant="outline" className={`text-[10px] border-0 ${tierBadgeClass(customer.tier)}`}>
+                    <Award className="h-2.5 w-2.5 mr-1" />
+                    {customer.tier}
+                  </Badge>
+                )}
                 {(customer.customerType === 'B2B' || customer.customerType === 'BOTH') && (
                   <span className="text-xs bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <Wallet className="h-3 w-3" />

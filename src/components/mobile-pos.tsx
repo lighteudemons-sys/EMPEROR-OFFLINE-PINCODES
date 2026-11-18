@@ -29,6 +29,8 @@ import { canSeeFinancials } from '@/lib/permissions';
 import { formatCurrency } from '@/lib/utils';
 import { ReceiptViewer } from '@/components/receipt-viewer';
 import CustomerSearch from '@/components/customer-search';
+// Loyalty Phase 3 — embedded loyalty panel for promotions/rewards
+import LoyaltyPanel from '@/components/loyalty/loyalty-panel';
 import { NumberPad } from '@/components/ui/number-pad';
 import TableGridView from '@/components/table-grid-view';
 import { useOfflineData, offlineDataFetchers } from '@/hooks/use-offline-data';
@@ -667,6 +669,78 @@ export function MobilePOS() {
   // Loyalty redemption state
   const [redeemedPoints, setRedeemedPoints] = useState<number>(0);
   const [loyaltyDiscount, setLoyaltyDiscount] = useState<number>(0);
+
+  // Loyalty Phase 3 — reward instances reserved through the new loyalty engine.
+  // These are kept in state so the cart can apply the reward (free item / discount)
+  // and so we can release them on checkout failure or order cancellation.
+  const [pendingLoyaltyRewards, setPendingLoyaltyRewards] = useState<any[]>([]);
+
+  // Apply a reserved loyalty reward to the cart.
+  const handleLoyaltyRewardRedeemed = (reward: any) => {
+    setPendingLoyaltyRewards((prev) => {
+      if (prev.some((r) => r.rewardInstanceId === reward.rewardInstanceId)) {
+        return prev;
+      }
+      return [...prev, reward];
+    });
+
+    if (reward.rewardType === 'DISCOUNT_AMOUNT' && reward.rewardValue) {
+      setLoyaltyDiscount((prev) => prev + reward.rewardValue);
+    } else if (reward.rewardType === 'DISCOUNT_PERCENTAGE' && reward.rewardValue) {
+      const subtotalNow =
+        (orderType === 'dine-in' && selectedTable ? tableCart : cart).reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        ) || 0;
+      setLoyaltyDiscount((prev) => prev + (subtotalNow * reward.rewardValue) / 100);
+    }
+    if (reward.rewardType === 'FREE_PRODUCT' || reward.rewardType === 'FREE_ITEM') {
+      showSuccessToast(
+        'Reward Applied',
+        `${reward.promotionName} — add the free item to the cart.`
+      );
+    }
+  };
+
+  // Release a reserved reward when the cashier cancels in the LoyaltyPanel.
+  const handleLoyaltyRewardReleased = (rewardInstanceId: string) => {
+    setPendingLoyaltyRewards((prev) => {
+      const released = prev.find((r) => r.rewardInstanceId === rewardInstanceId);
+      if (!released) return prev;
+      if (released.rewardType === 'DISCOUNT_AMOUNT' && released.rewardValue) {
+        setLoyaltyDiscount((curr) => Math.max(0, curr - released.rewardValue));
+      } else if (released.rewardType === 'DISCOUNT_PERCENTAGE' && released.rewardValue) {
+        const subtotalNow =
+          (orderType === 'dine-in' && selectedTable ? tableCart : cart).reduce(
+            (sum, item) => sum + item.price * item.quantity,
+            0
+          ) || 0;
+        setLoyaltyDiscount((curr) =>
+          Math.max(0, curr - (subtotalNow * released.rewardValue) / 100)
+        );
+      }
+      return prev.filter((r) => r.rewardInstanceId !== rewardInstanceId);
+    });
+  };
+
+  // Release all pending loyalty rewards (called on order cancel / checkout failure).
+  const releaseAllPendingLoyaltyRewards = async () => {
+    if (pendingLoyaltyRewards.length === 0) return;
+    await Promise.all(
+      pendingLoyaltyRewards.map(async (reward) => {
+        try {
+          await fetch('/api/loyalty/release-reward', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rewardInstanceId: reward.rewardInstanceId }),
+          });
+        } catch (err) {
+          console.error('[Mobile POS] Failed to release loyalty reward:', err);
+        }
+      })
+    );
+    setPendingLoyaltyRewards([]);
+  };
 
   // Promo code state
   const [promoCode, setPromoCode] = useState<string>('');
@@ -1476,6 +1550,26 @@ export function MobilePOS() {
         orderData.loyaltyDiscount = loyaltyDiscount;
       }
 
+      // Loyalty Phase 3 — include reserved reward instances so the server can
+      // finalize the redemption (set the actual orderId on each reward).
+      if (pendingLoyaltyRewards.length > 0) {
+        orderData.loyaltyRewardInstances = pendingLoyaltyRewards.map((r) => ({
+          rewardInstanceId: r.rewardInstanceId,
+          promotionId: r.promotionId,
+          rewardType: r.rewardType,
+          rewardValue: r.rewardValue ?? null,
+          rewardProductId: r.rewardProductId ?? null,
+          rewardCategoryId: r.rewardCategoryId ?? null,
+        }));
+        const rewardDiscountTotal = pendingLoyaltyRewards.reduce((sum, r) => {
+          if (r.rewardType === 'DISCOUNT_AMOUNT' && r.rewardValue) return sum + r.rewardValue;
+          return sum;
+        }, 0);
+        if (rewardDiscountTotal > 0 && !orderData.loyaltyDiscount) {
+          orderData.loyaltyDiscount = loyaltyDiscount;
+        }
+      }
+
       if (promoCodeId && promoDiscount > 0) {
         orderData.promoCodeId = promoCodeId;
         orderData.promoDiscount = promoDiscount;
@@ -1566,6 +1660,8 @@ export function MobilePOS() {
           setDeliveryAddress('');
           setDeliveryArea('');
           setCardReferenceNumber('');
+          // Loyalty Phase 3 — order succeeded; engine already finalized.
+          setPendingLoyaltyRewards([]);
 
           showSuccessToast('Order Created', `Order #${data.order.orderNumber} created successfully`);
         } catch (apiError) {
@@ -1590,6 +1686,8 @@ export function MobilePOS() {
           setDeliveryAddress('');
           setDeliveryArea('');
           setCardReferenceNumber('');
+          // Loyalty Phase 3 — order succeeded offline; engine already finalized.
+          setPendingLoyaltyRewards([]);
 
           showSuccessToast('Order Created (Offline)', `Order #${offlineResult.order.orderNumber} created and will sync when online`);
         }
@@ -1614,12 +1712,17 @@ export function MobilePOS() {
         setDeliveryAddress('');
         setDeliveryArea('');
         setCardReferenceNumber('');
+        // Loyalty Phase 3 — order succeeded offline; engine already finalized.
+        setPendingLoyaltyRewards([]);
 
         showSuccessToast('Order Created (Offline)', `Order #${offlineResult.order.orderNumber} created and will sync when online`);
       }
     } catch (error) {
       console.error('[Order] Failed to create order:', error);
       showErrorToast('Error', 'Failed to create order');
+      // Loyalty Phase 3 — on checkout failure, release reserved rewards so
+      // the customer can use them on a subsequent order.
+      await releaseAllPendingLoyaltyRewards();
     } finally {
       setProcessing(false);
     }
@@ -4095,6 +4198,26 @@ export function MobilePOS() {
                   </>
                 )}
               </div>
+
+              {/* Loyalty Phase 3 — Promotions & Rewards Panel (compact) */}
+              {selectedAddress?.customerId && !selectedAddress.customerId.startsWith('temp-') && (
+                <div className="space-y-2 p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <span className="font-bold text-sm text-emerald-900 dark:text-emerald-100">
+                      Loyalty Program
+                    </span>
+                  </div>
+                  <LoyaltyPanel
+                    customerId={selectedAddress.customerId}
+                    branchId={user?.role === 'ADMIN' ? (selectedBranch || '') : (user?.branchId || '')}
+                    cashierId={user?.id || ''}
+                    onRewardRedeemed={handleLoyaltyRewardRedeemed}
+                    onRewardReleased={handleLoyaltyRewardReleased}
+                    compact
+                  />
+                </div>
+              )}
 
               {/* Promo Code Section */}
               <div className="space-y-3 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 rounded-xl border border-blue-200 dark:border-blue-800">
