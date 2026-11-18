@@ -1,0 +1,807 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect } from 'react';
+     4→import { Input } from '@/components/ui/input';
+     5→import { Label } from '@/components/ui/label';
+     6→import { Button } from '@/components/ui/button';
+     7→import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+     8→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+     9→import { Search, User, MapPin, Phone, UserPlus, X, Star, Gift, Wallet, QrCode, Award } from 'lucide-react';
+    10→import { Badge } from '@/components/ui/badge';
+    11→
+    12→// Tier badge color mapping for customer display
+    13→const TIER_BADGE_CLASS: Record<string, string> = {
+    14→  BRONZE: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+    15→  SILVER: 'bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300',
+    16→  GOLD: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+    17→  PLATINUM: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
+    18→  DIAMOND: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+    19→};
+    20→
+    21→function tierBadgeClass(tier?: string): string {
+    22→  if (!tier) return TIER_BADGE_CLASS.BRONZE;
+    23→  return TIER_BADGE_CLASS[tier.toUpperCase()] || TIER_BADGE_CLASS.BRONZE;
+    24→}
+    25→
+    26→interface Address {
+    27→  id: string;
+    28→  customerId: string;
+    29→  customerName: string;
+    30→  customerPhone: string;
+    31→  customerType?: string;
+    32→  isVatRegistered?: boolean;
+    33→  taxRegistrationNumber?: string;
+    34→  creditLimit?: number;
+    35→  creditBalance?: number;
+    36→  building?: string;
+    37→  streetAddress: string;
+    38→  floor?: string;
+    39→  apartment?: string;
+    40→  deliveryAreaId?: string;
+    41→  orderCount?: number;
+    42→  isDefault?: boolean;
+    43→  loyaltyPoints?: number;
+    44→  // Loyalty Phase 3 — pass through membership code + tier to parent
+    45→  membershipCode?: string | null;
+    46→  tier?: string | null;
+    47→}
+    48→
+    49→interface CustomerSearchProps {
+    50→  onAddressSelect: (address: Address | null) => void;
+    51→  selectedAddress: Address | null;
+    52→  deliveryAreas: any[];
+    53→  branchId?: string;
+    54→  onCustomerSelect?: (customer: any) => void;
+    55→  selectedCustomer?: any;
+    56→}
+    57→
+    58→export default function CustomerSearch({ onAddressSelect, selectedAddress, deliveryAreas, branchId, onCustomerSelect, selectedCustomer }: CustomerSearchProps) {
+    59→  const [searchQuery, setSearchQuery] = useState('');
+    60→  const [searchResults, setSearchResults] = useState<any[]>([]);
+    61→  const [loading, setLoading] = useState(false);
+    62→  const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
+    63→  const [hasSearched, setHasSearched] = useState(false);
+    64→  
+    65→  // Loyalty redemption state
+    66→  const [redeemingPoints, setRedeemingPoints] = useState(false);
+    67→  const [redeemablePoints, setRedeemablePoints] = useState(0);
+    68→
+    69→  // New customer form state
+    70→  const [newCustomer, setNewCustomer] = useState({
+    71→    name: '',
+    72→    phone: '',
+    73→    email: '',
+    74→    building: '',
+    75→    streetAddress: '',
+    76→    floor: '',
+    77→    apartment: '',
+    78→    deliveryAreaId: '',
+    79→  });
+    80→  const [creatingCustomer, setCreatingCustomer] = useState(false);
+    81→
+    82→  const handleSearch = async () => {
+    83→    if (!searchQuery.trim()) {
+    84→      setSearchResults([]);
+    85→      setHasSearched(false);
+    86→      return;
+    87→    }
+    88→
+    89→    setLoading(true);
+    90→    setHasSearched(true);
+    91→    
+    92→    // Check if offline first
+    93→    const isOffline = !navigator.onLine;
+    94→
+    95→    if (isOffline) {
+    96→      // Offline mode - search IndexedDB directly
+    97→      try {
+    98→        console.log('[CustomerSearch] Offline mode, searching IndexedDB...');
+    99→        const { getLocalStorageService } = await import('@/lib/storage/local-storage');
+   100→        const localStorageService = getLocalStorageService();
+   101→        await localStorageService.init();
+   102→
+   103→        const allCustomers = await localStorageService.getAllCustomers();
+   104→        const allAddresses = await localStorageService.getAllCustomerAddresses();
+   105→
+   106→        console.log('[CustomerSearch] Found customers in IndexedDB:', allCustomers.length);
+   107→        console.log('[CustomerSearch] Found addresses in IndexedDB:', allAddresses.length);
+   108→
+   109→        // Create a map of customer IDs to their addresses
+   110→        const customerAddressMap = new Map<string, any[]>();
+   111→        allAddresses.forEach((addr: any) => {
+   112→          if (!customerAddressMap.has(addr.customerId)) {
+   113→            customerAddressMap.set(addr.customerId, []);
+   114→          }
+   115→          customerAddressMap.get(addr.customerId)!.push(addr);
+   116→        });
+   117→
+   118→        // Search by name or phone
+   119→        const query = searchQuery.toLowerCase();
+   120→        const matchedCustomers = allCustomers
+   121→          .filter((customer: any) => {
+   122→            return (
+   123→              customer.name?.toLowerCase().includes(query) ||
+   124→              customer.phone?.toLowerCase().includes(query)
+   125→            );
+   126→          })
+   127→          .map((customer: any) => ({
+   128→            ...customer,
+   129→            addresses: customerAddressMap.get(customer.id) || [],
+   130→            totalOrders: 0, // Would need to track this separately
+   131→          }));
+   132→
+   133→        setSearchResults(matchedCustomers);
+   134→        console.log('[CustomerSearch] Offline search found:', matchedCustomers.length, 'customers');
+   135→      } catch (offlineError) {
+   136→        console.error('[CustomerSearch] Offline search failed:', offlineError);
+   137→        setSearchResults([]);
+   138→      } finally {
+   139→        setLoading(false);
+   140→      }
+   141→      return;
+   142→    }
+   143→
+   144→    // Online mode - try API first, then fallback to IndexedDB
+   145→    try {
+   146→      console.log('[CustomerSearch] Online mode, trying API...');
+   147→      const response = await fetch(`/api/customers?search=${encodeURIComponent(searchQuery)}`);
+   148→      const data = await response.json();
+   149→
+   150→      if (response.ok && data.customers && data.customers.length > 0) {
+   151→        // API returned customers, use them
+   152→        setSearchResults(data.customers);
+   153→        console.log('[CustomerSearch] API search found:', data.customers.length, 'customers');
+   154→      } else {
+   155→        // API returned no results or failed, fallback to IndexedDB
+   156→        console.log('[CustomerSearch] API returned no results, falling back to IndexedDB...');
+   157→        const { getLocalStorageService } = await import('@/lib/storage/local-storage');
+   158→        const localStorageService = getLocalStorageService();
+   159→        await localStorageService.init();
+   160→
+   161→        const allCustomers = await localStorageService.getAllCustomers();
+   162→        const allAddresses = await localStorageService.getAllCustomerAddresses();
+   163→
+   164→        console.log('[CustomerSearch] Found customers in IndexedDB:', allCustomers.length);
+   165→        console.log('[CustomerSearch] Found addresses in IndexedDB:', allAddresses.length);
+   166→
+   167→        // Create a map of customer IDs to their addresses
+   168→        const customerAddressMap = new Map<string, any[]>();
+   169→        allAddresses.forEach((addr: any) => {
+   170→          if (!customerAddressMap.has(addr.customerId)) {
+   171→            customerAddressMap.set(addr.customerId, []);
+   172→          }
+   173→          customerAddressMap.get(addr.customerId)!.push(addr);
+   174→        });
+   175→
+   176→        // Search by name or phone
+   177→        const query = searchQuery.toLowerCase();
+   178→        const matchedCustomers = allCustomers
+   179→          .filter((customer: any) => {
+   180→            return (
+   181→              customer.name?.toLowerCase().includes(query) ||
+   182→              customer.phone?.toLowerCase().includes(query)
+   183→            );
+   184→          })
+   185→          .map((customer: any) => ({
+   186→            ...customer,
+   187→            addresses: customerAddressMap.get(customer.id) || [],
+   188→            totalOrders: 0, // Would need to track this separately
+   189→          }));
+   190→
+   191→        setSearchResults(matchedCustomers);
+   192→        console.log('[CustomerSearch] IndexedDB fallback found:', matchedCustomers.length, 'customers');
+   193→      }
+   194→    } catch (error) {
+   195→      console.error('[CustomerSearch] API error, falling back to IndexedDB:', error);
+   196→
+   197→      // API error, fallback to IndexedDB
+   198→      try {
+   199→        const { getLocalStorageService } = await import('@/lib/storage/local-storage');
+   200→        const localStorageService = getLocalStorageService();
+   201→        await localStorageService.init();
+   202→
+   203→        const allCustomers = await localStorageService.getAllCustomers();
+   204→        const allAddresses = await localStorageService.getAllCustomerAddresses();
+   205→
+   206→        console.log('[CustomerSearch] Found customers in IndexedDB:', allCustomers.length);
+   207→        console.log('[CustomerSearch] Found addresses in IndexedDB:', allAddresses.length);
+   208→
+   209→        // Create a map of customer IDs to their addresses
+   210→        const customerAddressMap = new Map<string, any[]>();
+   211→        allAddresses.forEach((addr: any) => {
+   212→          if (!customerAddressMap.has(addr.customerId)) {
+   213→            customerAddressMap.set(addr.customerId, []);
+   214→          }
+   215→          customerAddressMap.get(addr.customerId)!.push(addr);
+   216→        });
+   217→
+   218→        // Search by name or phone
+   219→        const query = searchQuery.toLowerCase();
+   220→        const matchedCustomers = allCustomers
+   221→          .filter((customer: any) => {
+   222→            return (
+   223→              customer.name?.toLowerCase().includes(query) ||
+   224→              customer.phone?.toLowerCase().includes(query)
+   225→            );
+   226→          })
+   227→          .map((customer: any) => ({
+   228→            ...customer,
+   229→            addresses: customerAddressMap.get(customer.id) || [],
+   230→            totalOrders: 0, // Would need to track this separately
+   231→          }));
+   232→
+   233→        setSearchResults(matchedCustomers);
+   234→        console.log('[CustomerSearch] IndexedDB fallback found:', matchedCustomers.length, 'customers');
+   235→      } catch (offlineError) {
+   236→        console.error('[CustomerSearch] IndexedDB fallback failed:', offlineError);
+   237→        setSearchResults([]);
+   238→      }
+   239→    } finally {
+   240→      setLoading(false);
+   241→    }
+   242→  };
+   243→
+   244→  const handleAddressClick = (address: Address, customer: any) => {
+   245→    // Include customer type and credit info in the address object
+   246→    const addressWithCustomerInfo = {
+   247→      ...address,
+   248→      customerType: customer.customerType,
+   249→      isVatRegistered: customer.isVatRegistered,
+   250→      taxRegistrationNumber: customer.taxRegistrationNumber,
+   251→      creditLimit: customer.creditLimit,
+   252→      creditBalance: customer.creditBalance,
+   253→      // Loyalty Phase 3 — pass membership code + tier up to the POS
+   254→      membershipCode: customer.membershipCode || null,
+   255→      tier: customer.tier || null,
+   256→    };
+   257→    console.log('[CustomerSearch] Address clicked:', {
+   258→      customerName: customer.name,
+   259→      customerType: customer.customerType,
+   260→      addressWithCustomerType: addressWithCustomerInfo.customerType,
+   261→      creditLimit: customer.creditLimit,
+   262→      creditBalance: customer.creditBalance,
+   263→    });
+   264→    onAddressSelect(addressWithCustomerInfo);
+   265→    onCustomerSelect?.(customer);
+   266→    // Calculate redeemable points (multiples of 15)
+   267→    const customerPoints = customer.loyaltyPoints || 0;
+   268→    setRedeemablePoints(Math.floor(customerPoints / 15) * 15);
+   269→    setSearchResults([]);
+   270→    setSearchQuery('');
+   271→    setHasSearched(false);
+   272→  };
+   273→
+   274→  const handleClear = () => {
+   275→    onAddressSelect(null);
+   276→    onCustomerSelect?.(null);
+   277→    setSearchQuery('');
+   278→    setSearchResults([]);
+   279→    setHasSearched(false);
+   280→    setRedeemablePoints(0);
+   281→  };
+   282→
+   283→  const handleRedeemPoints = () => {
+   284→    if (redeemablePoints < 15) {
+   285→      alert('Minimum 15 points required for redemption');
+   286→      return;
+   287→    }
+   288→    if (!confirm(`Redeem ${redeemablePoints} points for ${redeemablePoints} EGP discount?`)) {
+   289→      return;
+   290→    }
+   291→    setRedeemingPoints(true);
+   292→    // TODO: This should communicate with the POS component to apply the discount
+   293→    // The actual discount application will happen in the parent POS component
+   294→    setTimeout(() => {
+   295→      setRedeemingPoints(false);
+   296→      alert(`${redeemablePoints} points redeemed successfully!`);
+   297→    }, 500);
+   298→  };
+   299→
+   300→  const handleCreateCustomer = async () => {
+   301→    if (!newCustomer.name || !newCustomer.phone || !newCustomer.streetAddress) {
+   302→      alert('Please fill in name, phone, and street address');
+   303→      return;
+   304→    }
+   305→
+   306→    setCreatingCustomer(true);
+   307→    try {
+   308→      // Check if online
+   309→      const isOnline = navigator.onLine;
+   310→
+   311→      if (isOnline) {
+   312→        // Try API first
+   313→        const response = await fetch('/api/customers', {
+   314→          method: 'POST',
+   315→          headers: { 'Content-Type': 'application/json' },
+   316→          body: JSON.stringify({
+   317→            name: newCustomer.name,
+   318→            phone: newCustomer.phone,
+   319→            email: newCustomer.email || null,
+   320→            branchId: branchId || null,
+   321→            addresses: [{
+   322→              building: newCustomer.building || null,
+   323→              streetAddress: newCustomer.streetAddress,
+   324→              floor: newCustomer.floor || null,
+   325→              apartment: newCustomer.apartment || null,
+   326→              deliveryAreaId: newCustomer.deliveryAreaId || null,
+   327→              isDefault: true,
+   328→            }],
+   329→          }),
+   330→        });
+   331→
+   332→        const data = await response.json();
+   333→
+   334→        if (!response.ok || !data.success) {
+   335→          // API failed - try offline mode
+   336→          throw new Error(data.error || 'API failed');
+   337→        }
+   338→
+   339→        // Get the created address
+   340→        if (data.customer && data.customer.addresses && data.customer.addresses.length > 0) {
+   341→          const newAddress: Address = {
+   342→            id: data.customer.addresses[0].id,
+   343→            customerId: data.customer.id,
+   344→            customerName: data.customer.name,
+   345→            customerPhone: data.customer.phone,
+   346→            customerType: data.customer.customerType,
+   347→            isVatRegistered: data.customer.isVatRegistered,
+   348→            taxRegistrationNumber: data.customer.taxRegistrationNumber,
+   349→            creditLimit: data.customer.creditLimit,
+   350→            creditBalance: data.customer.creditBalance,
+   351→            building: data.customer.addresses[0].building,
+   352→            streetAddress: data.customer.addresses[0].streetAddress,
+   353→            floor: data.customer.addresses[0].floor,
+   354→            apartment: data.customer.addresses[0].apartment,
+   355→            deliveryAreaId: data.customer.addresses[0].deliveryAreaId,
+   356→            orderCount: 0,
+   357→            isDefault: data.customer.addresses[0].isDefault,
+   358→          };
+   359→
+   360→          // Auto-select the new address
+   361→          onAddressSelect(newAddress);
+   362→        }
+   363→      } else {
+   364→        // Offline mode - create customer locally
+   365→        throw new Error('Offline');
+   366→      }
+   367→    } catch (error: any) {
+   368→      console.error('Create customer error:', error);
+   369→
+   370→      // If offline or API failed, create customer in IndexedDB
+   371→      try {
+   372→        const { getLocalStorageService } = await import('@/lib/storage/local-storage');
+   373→        const localStorageService = getLocalStorageService();
+   374→        await localStorageService.init();
+   375→
+   376→        // Create a temporary ID
+   377→        const tempCustomerId = `temp-customer-${Date.now()}`;
+   378→
+   379→        // Create customer object
+   380→        const customer = {
+   381→          id: tempCustomerId,
+   382→          name: newCustomer.name,
+   383→          phone: newCustomer.phone,
+   384→          email: newCustomer.email || null,
+   385→          branchId: branchId || null,
+   386→          loyaltyPoints: 0,
+   387→          tier: 'BRONZE',
+   388→          totalSpent: 0,
+   389→          orderCount: 0,
+   390→          createdAt: new Date().toISOString(),
+   391→          updatedAt: new Date().toISOString(),
+   392→        };
+   393→
+   394→        // Create address object
+   395→        const tempAddressId = `temp-address-${Date.now()}`;
+   396→        const address = {
+   397→          id: tempAddressId,
+   398→          customerId: tempCustomerId,
+   399→          building: newCustomer.building || null,
+   400→          streetAddress: newCustomer.streetAddress,
+   401→          floor: newCustomer.floor || null,
+   402→          apartment: newCustomer.apartment || null,
+   403→          deliveryAreaId: newCustomer.deliveryAreaId || null,
+   404→          isDefault: true,
+   405→          orderCount: 0,
+   406→          createdAt: new Date().toISOString(),
+   407→          updatedAt: new Date().toISOString(),
+   408→        };
+   409→
+   410→        // Save customer and address to IndexedDB
+   411→        await localStorageService.saveCustomer(customer);
+   412→        await localStorageService.saveCustomerAddress(address);
+   413→
+   414→        // Queue operation for sync
+   415→        await localStorageService.addOperation({
+   416→          type: 'CREATE_CUSTOMER',
+   417→          data: {
+   418→            ...customer,
+   419→            addresses: [address],
+   420→          },
+   421→          branchId: branchId || 'unknown',
+   422→          retryCount: 0,
+   423→        });
+   424→
+   425→        // Create address object for selection
+   426→        const newAddress: Address = {
+   427→          id: tempAddressId,
+   428→          customerId: tempCustomerId,
+   429→          customerName: customer.name,
+   430→          customerPhone: customer.phone,
+   431→          customerType: customer.customerType,
+   432→          isVatRegistered: customer.isVatRegistered,
+   433→          taxRegistrationNumber: customer.taxRegistrationNumber,
+   434→          creditLimit: customer.creditLimit,
+   435→          creditBalance: customer.creditBalance,
+   436→          building: address.building,
+   437→          streetAddress: address.streetAddress,
+   438→          floor: address.floor,
+   439→          apartment: address.apartment,
+   440→          deliveryAreaId: address.deliveryAreaId,
+   441→          orderCount: 0,
+   442→          isDefault: address.isDefault,
+   443→        };
+   444→
+   445→        // Auto-select the new address
+   446→        onAddressSelect(newAddress);
+   447→
+   448→        alert('Customer created (offline mode - will sync when online)');
+   449→      } catch (offlineError) {
+   450→        console.error('Offline customer creation failed:', offlineError);
+   451→        alert('Failed to create customer. Please try again.');
+   452→      }
+   453→    } finally {
+   454→      setCreatingCustomer(false);
+   455→    }
+   456→
+   457→    // Reset form
+   458→    setNewCustomer({
+   459→      name: '',
+   460→      phone: '',
+   461→      email: '',
+   462→      building: '',
+   463→      streetAddress: '',
+   464→      floor: '',
+   465→      apartment: '',
+   466→      deliveryAreaId: '',
+   467→    });
+   468→
+   469→    // Close dialogs
+   470→    setShowNewCustomerDialog(false);
+   471→    setSearchQuery('');
+   472→    setSearchResults([]);
+   473→    setHasSearched(false);
+   474→  };
+   475→
+   476→  const openNewCustomerDialog = () => {
+   477→    console.log('[CustomerSearch] Opening new customer dialog with searchQuery:', searchQuery);
+   478→
+   479→    // Check if search query is a phone number or name
+   480→    const isPhone = searchQuery && searchQuery.match(/^[0-9+\-\s()]+$/);
+   481→
+   482→    // Set form with pre-filled data
+   483→    const newCustomerData = {
+   484→      name: isPhone ? '' : (searchQuery || ''),
+   485→      phone: isPhone ? searchQuery : '',
+   486→      email: '',
+   487→      building: '',
+   488→      streetAddress: '',
+   489→      floor: '',
+   490→      apartment: '',
+   491→      deliveryAreaId: '',
+   492→    };
+   493→
+   494→    console.log('[CustomerSearch] Setting new customer data:', newCustomerData);
+   495→    setNewCustomer(newCustomerData);
+   496→    setShowNewCustomerDialog(true);
+   497→  };
+   498→
+   499→  // Search automatically when query changes and user stops typing
+   500→  useEffect(() => {
+   501→    const delayDebounceFn = setTimeout(() => {
+   502→      if (searchQuery.trim()) {
+   503→        handleSearch();
+   504→      } else {
+   505→        setSearchResults([]);
+   506→        setHasSearched(false);
+   507→      }
+   508→    }, 500);
+   509→
+   510→    return () => clearTimeout(delayDebounceFn);
+   511→  }, [searchQuery]);
+   512→
+   513→  return (
+   514→    <div className="space-y-3">
+   515→      <div className="flex gap-2">
+   516→        <div className="flex-1 relative">
+   517→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+   518→          <Input
+   519→            type="text"
+   520→            placeholder="Search by phone, name, or EMP- code..."
+   521→            value={searchQuery}
+   522→            onChange={(e) => setSearchQuery(e.target.value)}
+   523→            className="pl-10"
+   524→          />
+   525→        </div>
+   526→        {selectedAddress && (
+   527→          <Button onClick={handleClear} size="icon" variant="outline" className="shrink-0">
+   528→            <X className="h-4 w-4" />
+   529→          </Button>
+   530→        )}
+   531→      </div>
+   532→
+   533→      {selectedAddress && (
+   534→        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
+   535→          <div className="flex items-start gap-3">
+   536→            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+   537→              <User className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+   538→            </div>
+   539→            <div className="flex-1 min-w-0">
+   540→              <p className="font-semibold text-sm text-emerald-900 dark:text-emerald-100">{selectedAddress.customerName}</p>
+   541→              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+   542→                {selectedAddress.membershipCode && (
+   543→                  <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+   544→                    <QrCode className="h-3 w-3" />
+   545→                    {selectedAddress.membershipCode}
+   546→                  </span>
+   547→                )}
+   548→                {selectedAddress.tier && (
+   549→                  <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${tierBadgeClass(selectedAddress.tier)}`}>
+   550→                    <Award className="h-3 w-3" />
+   551→                    {selectedAddress.tier}
+   552→                  </span>
+   553→                )}
+   554→                {selectedAddress.loyaltyPoints !== undefined && (
+   555→                  <span className="text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+   556→                    <Star className="h-3 w-3" />
+   557→                    {(selectedAddress.loyaltyPoints || 0).toFixed(0)} pts
+   558→                  </span>
+   559→                )}
+   560→                {redeemablePoints > 0 && (
+   561→                  <span className="text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+   562→                    <Gift className="h-3 w-3" />
+   563→                    {redeemablePoints} EGP
+   564→                  </span>
+   565→                )}
+   566→              </div>
+   567→              <div className="flex items-start gap-2 mt-1 text-xs text-slate-600 dark:text-slate-400">
+   568→                <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
+   569→                <p className="line-clamp-2">
+   570→                  {[selectedAddress.building, selectedAddress.streetAddress, selectedAddress.floor && `${selectedAddress.floor} Floor`, selectedAddress.apartment && `Apt ${selectedAddress.apartment}`].filter(Boolean).join(', ')}
+   571→                </p>
+   572→              </div>
+   573→              {selectedAddress.orderCount !== undefined && selectedAddress.orderCount > 0 && (
+   574→                <p className="text-xs text-slate-500 mt-1">
+   575→                  {selectedAddress.orderCount} {selectedAddress.orderCount === 1 ? 'order' : 'orders'} to this address
+   576→                </p>
+   577→              )}
+   578→            </div>
+   579→          </div>
+   580→        </div>
+   581→      )}
+   582→
+   583→      {loading && (
+   584→        <div className="flex items-center justify-center py-4 text-sm text-slate-500">
+   585→          <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full mr-2" />
+   586→          Searching customers...
+   587→        </div>
+   588→      )}
+   589→
+   590→      {hasSearched && searchResults.length === 0 && !loading && (
+   591→        <div className="text-center py-6 bg-slate-50 dark:bg-slate-800/50 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700">
+   592→          <User className="h-12 w-12 mx-auto mb-3 text-slate-400" />
+   593→          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">No customers found</p>
+   594→          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+   595→            "{searchQuery}" doesn't match any existing customers
+   596→          </p>
+   597→          <Button
+   598→            size="sm"
+   599→            className="bg-emerald-600 hover:bg-emerald-700"
+   600→            onClick={openNewCustomerDialog}
+   601→          >
+   602→            <UserPlus className="h-4 w-4 mr-2" />
+   603→            Register New Customer
+   604→          </Button>
+   605→          <Dialog open={showNewCustomerDialog} onOpenChange={setShowNewCustomerDialog}>
+   606→            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto z-[200]">
+   607→              <DialogHeader>
+   608→                <DialogTitle>Register New Customer</DialogTitle>
+   609→              </DialogHeader>
+   610→              <div className="space-y-4 mt-4">
+   611→                <div>
+   612→                  <Label htmlFor="customerName">Name *</Label>
+   613→                  <Input
+   614→                    id="customerName"
+   615→                    value={newCustomer.name}
+   616→                    onChange={(e) => setNewCustomer(prev => ({ ...prev, name: e.target.value }))}
+   617→                    placeholder="Enter customer name"
+   618→                    className="mt-1"
+   619→                  />
+   620→                </div>
+   621→                <div>
+   622→                  <Label htmlFor="customerPhone">Phone *</Label>
+   623→                  <Input
+   624→                    id="customerPhone"
+   625→                    value={newCustomer.phone}
+   626→                    onChange={(e) => setNewCustomer(prev => ({ ...prev, phone: e.target.value }))}
+   627→                    placeholder="Enter phone number"
+   628→                    className="mt-1"
+   629→                  />
+   630→                </div>
+   631→                <div>
+   632→                  <Label htmlFor="customerEmail">Email (Optional)</Label>
+   633→                  <Input
+   634→                    id="customerEmail"
+   635→                    type="email"
+   636→                    value={newCustomer.email}
+   637→                    onChange={(e) => setNewCustomer(prev => ({ ...prev, email: e.target.value }))}
+   638→                    placeholder="Enter email address"
+   639→                    className="mt-1"
+   640→                  />
+   641→                </div>
+   642→                <div className="border-t pt-4">
+   643→                  <p className="text-sm font-medium mb-3">Delivery Address *</p>
+   644→                  <div className="space-y-3">
+   645→                    <div>
+   646→                      <Label htmlFor="building">Building (Optional)</Label>
+   647→                      <Input
+   648→                        id="building"
+   649→                        value={newCustomer.building}
+   650→                        onChange={(e) => setNewCustomer(prev => ({ ...prev, building: e.target.value }))}
+   651→                        placeholder="Building name/number"
+   652→                        className="mt-1"
+   653→                      />
+   654→                    </div>
+   655→                    <div>
+   656→                      <Label htmlFor="streetAddress">Street Address *</Label>
+   657→                      <Input
+   658→                        id="streetAddress"
+   659→                        value={newCustomer.streetAddress}
+   660→                        onChange={(e) => setNewCustomer(prev => ({ ...prev, streetAddress: e.target.value }))}
+   661→                        placeholder="Street address"
+   662→                        className="mt-1"
+   663→                      />
+   664→                    </div>
+   665→                    <div className="grid grid-cols-2 gap-3">
+   666→                      <div>
+   667→                        <Label htmlFor="floor">Floor (Optional)</Label>
+   668→                        <Input
+   669→                          id="floor"
+   670→                          value={newCustomer.floor}
+   671→                          onChange={(e) => setNewCustomer(prev => ({ ...prev, floor: e.target.value }))}
+   672→                          placeholder="Floor"
+   673→                          className="mt-1"
+   674→                        />
+   675→                      </div>
+   676→                      <div>
+   677→                        <Label htmlFor="apartment">Apartment (Optional)</Label>
+   678→                        <Input
+   679→                          id="apartment"
+   680→                          value={newCustomer.apartment}
+   681→                          onChange={(e) => setNewCustomer(prev => ({ ...prev, apartment: e.target.value }))}
+   682→                          placeholder="Apt #"
+   683→                          className="mt-1"
+   684→                        />
+   685→                      </div>
+   686→                    </div>
+   687→                    <div>
+   688→                      <Label htmlFor="deliveryArea">Delivery Area</Label>
+   689→                      <Select value={newCustomer.deliveryAreaId} onValueChange={(value) => setNewCustomer(prev => ({ ...prev, deliveryAreaId: value }))}>
+   690→                        <SelectTrigger className="mt-1">
+   691→                          <SelectValue placeholder="Select delivery area" />
+   692→                        </SelectTrigger>
+   693→                        <SelectContent>
+   694→                          {deliveryAreas.map((area) => (
+   695→                            <SelectItem key={area.id} value={area.id}>
+   696→                              {area.name}
+   697→                            </SelectItem>
+   698→                          ))}
+   699→                        </SelectContent>
+   700→                      </Select>
+   701→                    </div>
+   702→                  </div>
+   703→                </div>
+   704→                <div className="flex gap-3 pt-4">
+   705→                  <Button variant="outline" onClick={() => setShowNewCustomerDialog(false)} className="flex-1">
+   706→                    Cancel
+   707→                  </Button>
+   708→                  <Button
+   709→                    onClick={handleCreateCustomer}
+   710→                    disabled={creatingCustomer}
+   711→                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+   712→                  >
+   713→                    {creatingCustomer ? 'Creating...' : 'Create Customer'}
+   714→                  </Button>
+   715→                </div>
+   716→              </div>
+   717→            </DialogContent>
+   718→          </Dialog>
+   719→        </div>
+   720→      )}
+   721→
+   722→      {searchResults.length > 0 && !loading && (
+   723→        <div className="max-h-60 overflow-y-auto border rounded-lg bg-white dark:bg-slate-900 shadow-lg">
+   724→          {searchResults.map((customer: any) => (
+   725→            <div key={customer.id} className="border-b last:border-b-0">
+   726→              <div className="p-3 font-medium text-sm bg-slate-50 dark:bg-slate-800 flex items-center gap-2 flex-wrap">
+   727→                <User className="h-4 w-4 text-slate-500" />
+   728→                {customer.name}
+   729→                <span className="text-slate-400">|</span>
+   730→                <span className="text-slate-500 flex items-center gap-1">
+   731→                  <Phone className="h-3 w-3" />
+   732→                  {customer.phone}
+   733→                </span>
+   734→                {customer.membershipCode && (
+   735→                  <Badge variant="outline" className="font-mono text-[10px] bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+   736→                    <QrCode className="h-2.5 w-2.5 mr-1" />
+   737→                    {customer.membershipCode}
+   738→                  </Badge>
+   739→                )}
+   740→                {customer.tier && customer.tier !== 'BRONZE' && (
+   741→                  <Badge variant="outline" className={`text-[10px] border-0 ${tierBadgeClass(customer.tier)}`}>
+   742→                    <Award className="h-2.5 w-2.5 mr-1" />
+   743→                    {customer.tier}
+   744→                  </Badge>
+   745→                )}
+   746→                {(customer.customerType === 'B2B' || customer.customerType === 'BOTH') && (
+   747→                  <span className="text-xs bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+   748→                    <Wallet className="h-3 w-3" />
+   749→                    B2B Credit
+   750→                  </span>
+   751→                )}
+   752→                {customer.totalOrders > 0 && (
+   753→                  <span className="ml-auto text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+   754→                    {customer.totalOrders} {customer.totalOrders === 1 ? 'order' : 'orders'}
+   755→                  </span>
+   756→                )}
+   757→                {customer.loyaltyPoints !== undefined && (
+   758→                  <span className="ml-2 text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+   759→                    <Star className="h-3 w-3" />
+   760→                    {(customer.loyaltyPoints || 0).toFixed(0)} pts
+   761→                  </span>
+   762→                )}
+   763→              </div>
+   764→              {customer.addresses && customer.addresses.length > 0 ? (
+   765→                <div className="divide-y">
+   766→                  {customer.addresses.map((address: any) => (
+   767→                    <button
+   768→                      key={address.id}
+   769→                      onClick={() => handleAddressClick(address, customer)}
+   770→                      className="w-full p-3 text-left hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors group"
+   771→                    >
+   772→                      <div className="flex items-start gap-2">
+   773→                        <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0 text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" />
+   774→                        <div className="flex-1 min-w-0">
+   775→                          <p className="text-xs line-clamp-2 group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
+   776→                            {[address.building, address.streetAddress, address.floor && `${address.floor} Floor`, address.apartment && `Apt ${address.apartment}`].filter(Boolean).join(', ')}
+   777→                          </p>
+   778→                          <div className="flex items-center gap-2 mt-1">
+   779→                            {address.orderCount !== undefined && address.orderCount > 0 && (
+   780→                              <span className="text-xs text-slate-500">
+   781→                                {address.orderCount} {address.orderCount === 1 ? 'order' : 'orders'}
+   782→                              </span>
+   783→                            )}
+   784→                            {address.isDefault && (
+   785→                              <span className="text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
+   786→                                Default
+   787→                              </span>
+   788→                            )}
+   789→                          </div>
+   790→                        </div>
+   791→                      </div>
+   792→                    </button>
+   793→                  ))}
+   794→                </div>
+   795→              ) : (
+   796→                <div className="p-3 text-xs text-slate-500 italic">
+   797→                  No addresses saved for this customer
+   798→                </div>
+   799→              )}
+   800→            </div>
+   801→          ))}
+   802→        </div>
+   803→      )}
+   804→    </div>
+   805→  );
+   806→}
+   807→
