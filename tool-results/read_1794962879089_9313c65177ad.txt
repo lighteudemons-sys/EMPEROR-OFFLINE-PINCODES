@@ -1,0 +1,1416 @@
+     1→generator client {
+     2→  provider = "prisma-client-js"
+     3→}
+     4→
+     5→datasource db {
+     6→  provider = "postgresql"
+     7→  url      = env("DATABASE_URL")
+     8→}
+     9→
+    10→model User {
+    11→  id                     String                 @id @default(cuid())
+    12→  username               String                 @unique
+    13→  email                  String                 @unique
+    14→  passwordHash           String
+    15→  userCode               String?                @unique
+    16→  pin                    String?
+    17→  name                   String?
+    18→  role                   UserRole               @default(CASHIER)
+    19→  branchId               String?
+    20→  isActive               Boolean                @default(true)
+    21→  canViewFinancials       Boolean                @default(false) // Permission to view monetary numbers in shifts/POS
+    22→  dailyRate              Float?                 // Default daily salary rate
+    23→  createdAt              DateTime               @default(now())
+    24→  updatedAt              DateTime               @updatedAt
+    25→  auditLogs              AuditLog[]
+    26→  modifiedInventories    BranchInventory[]      @relation("InventoryModifier")
+    27→  closedBusinessDays     BusinessDay[]          @relation("BusinessDayCloser")
+    28→  openedBusinessDays     BusinessDay[]          @relation("BusinessDayOpener")
+    29→  dailyExpenses          DailyExpense[]         @relation("ExpenseRecorder")
+    30→  inventoryTxns          InventoryTransaction[]
+    31→  transfersApproved      InventoryTransfer[]    @relation("TransferApprover")
+    32→  transfersCompleted     InventoryTransfer[]    @relation("TransferCompleter")
+    33→  transfersRequested     InventoryTransfer[]    @relation("TransferRequester")
+    34→  orders                 Order[]
+    35→  purchaseOrdersApproved PurchaseOrder[]        @relation("PurchaseOrderApprover")
+    36→  purchaseOrdersCreated  PurchaseOrder[]        @relation("PurchaseOrderCreator")
+    37→  shifts                 Shift[]
+    38→  tablesClosed           Table[]                @relation("TableCloser")
+    39→  tablesOpened           Table[]                @relation("TableOpener")
+    40→  branch                 Branch?                @relation(fields: [branchId], references: [id])
+    41→  wasteLogs              WasteLog[]             @relation("WasteRecorder")
+    42→  attendances            Attendance[]
+    43→  paidAttendances        Attendance[]           @relation("AttendancePayer")
+    44→  cashTransactions       CashTransaction[]     @relation("CashTransactionCreator")
+    45→
+    46→  @@index([username])
+    47→  @@index([userCode])
+    48→  @@index([branchId])
+    49→}
+    50→
+    51→model Branch {
+    52→  id                      String                 @id @default(cuid())
+    53→  branchName              String                 @unique
+    54→  licenseKey              String                 @unique
+    55→  licenseExpiresAt        DateTime
+    56→  isActive                Boolean                @default(true)
+    57→  lastSyncAt              DateTime?
+    58→  menuVersion             Int                    @default(1)
+    59→  pricingVersion          Int                    @default(1)
+    60→  recipeVersion           Int                    @default(1)
+    61→  ingredientVersion       Int                    @default(1)
+    62→  userVersion             Int                    @default(1)
+    63→  createdAt               DateTime               @default(now())
+    64→  updatedAt               DateTime               @updatedAt
+    65→  serialYear              Int                    @default(2024)
+    66→  lastSerial              Int                    @default(0)
+    67→  address                 String?
+    68→  phone                   String?
+    69→  shiftReportEmail        String?                // Email to send shift closing reports to (branch manager)
+    70→  costs                   BranchCost[]
+    71→  branchInventory         BranchInventory[]
+    72→  businessDays            BusinessDay[]
+    73→  couriers                Courier[]
+    74→  customers               Customer[]
+    75→  dailyExpenses           DailyExpense[]
+    76→  inventoryTxns           InventoryTransaction[]
+    77→  transfersAsSource       InventoryTransfer[]    @relation("SourceBranch")
+    78→  transfersAsTarget       InventoryTransfer[]    @relation("TargetBranch")
+    79→  menuItemAssignments     MenuItemBranch[]
+    80→  notifications           Notification[]
+    81→  orders                  Order[]
+    82→  promoBranchRestrictions PromotionBranch[]
+    83→  purchaseOrders          PurchaseOrder[]
+    84→  shifts                  Shift[]
+    85→  syncConflicts           SyncConflict[]
+    86→  syncHistory             SyncHistory[]
+    87→  tables                  Table[]
+    88→  users                   User[]
+    89→  wasteLogs               WasteLog[]
+    90→  etaSettings             BranchETASettings?
+    91→  licenses                BranchLicense[]
+    92→  attendances             Attendance[]
+    93→  cashTransactions        CashTransaction[]
+    94→
+    95→  @@index([licenseKey])
+    96→  @@index([isActive])
+    97→}
+    98→
+    99→model Table {
+   100→  id          String      @id @default(cuid())
+   101→  branchId    String
+   102→  tableNumber Int
+   103→  status      TableStatus @default(AVAILABLE)
+   104→  customerId  String?
+   105→  capacity    Int?
+   106→  openedAt    DateTime?
+   107→  closedAt    DateTime?
+   108→  openedBy    String?
+   109→  closedBy    String?
+   110→  notes       String?
+   111→  createdAt   DateTime    @default(now())
+   112→  updatedAt   DateTime    @updatedAt
+   113→  orders      Order[]     @relation("TableOrders")
+   114→  branch      Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   115→  closer      User?       @relation("TableCloser", fields: [closedBy], references: [id])
+   116→  customer    Customer?   @relation(fields: [customerId], references: [id])
+   117→  opener      User?       @relation("TableOpener", fields: [openedBy], references: [id])
+   118→
+   119→  @@unique([branchId, tableNumber])
+   120→  @@index([branchId])
+   121→  @@index([status])
+   122→  @@index([customerId])
+   123→  @@index([openedBy])
+   124→  @@index([closedBy])
+   125→}
+   126→
+   127→model BranchLicense {
+   128→  id             String          @id @default(cuid())
+   129→  branchId       String
+   130→  licenseKey     String          @unique
+   131→  activationDate DateTime        @default(now())
+   132→  expirationDate DateTime
+   133→  maxDevices     Int             @default(5)
+   134→  isRevoked      Boolean         @default(false)
+   135→  revokedReason  String?
+   136→  createdAt      DateTime        @default(now())
+   137→  updatedAt      DateTime        @updatedAt
+   138→  devices        LicenseDevice[]
+   139→  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   140→
+   141→  @@index([branchId])
+   142→  @@index([licenseKey])
+   143→}
+   144→
+   145→model LicenseDevice {
+   146→  id          String        @id @default(cuid())
+   147→  branchId    String
+   148→  licenseId   String
+   149→  deviceId    String        // Unique device fingerprint
+   150→  deviceName  String?       // User-friendly name (e.g., "Cashier iPad", "Main POS")
+   151→  deviceType  String?       // "pc", "mobile", "tablet"
+   152→  osInfo      String?       // OS name and version
+   153→  browserInfo String?       // Browser info if web-based
+   154→  lastActive  DateTime      @default(now())
+   155→  isActive    Boolean       @default(true)
+   156→  registeredAt DateTime     @default(now())
+   157→  registeredBy String?      // User who registered this device
+   158→  license     BranchLicense @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+   159→
+   160→  @@unique([licenseId, deviceId])
+   161→  @@index([branchId])
+   162→  @@index([licenseId])
+   163→  @@index([deviceId])
+   164→  @@index([isActive])
+   165→}
+   166→
+   167→model BranchETASettings {
+   168→  id                    String   @id @default(cuid())
+   169→  branchId              String   @unique
+   170→  branch                Branch   @relation(fields: [branchId], references: [id])
+   171→  
+   172→  // Company Info (from Commercial Register)
+   173→  companyName           String   // Legal name on papers
+   174→  taxRegistrationNumber String   @unique // TRN
+   175→  branchCode            String   // ETA branch code
+   176→  commercialRegister    String?  // Commercial Register number
+   177→  address               String   // Full address
+   178→  city                  String
+   179→  governorate           String
+   180→  postalCode            String?
+   181→  phone                 String
+   182→  email                 String?
+   183→  
+   184→  // ETA Credentials
+   185→  clientId              String   // API Client ID
+   186→  clientSecret          String   // API Secret (encrypted)
+   187→  environment           String   @default("TEST") // TEST or PRODUCTION
+   188→  
+   189→  // Digital Certificate (stored securely)
+   190→  certificateFile       String?  // Path or encrypted content
+   191→  certificatePassword   String?  // Encrypted
+   192→
+   193→  // OAuth Token Management
+   194→  accessToken           String?  // Current OAuth access token
+   195→  accessTokenExpiresAt  DateTime? // When the access token expires
+   196→  lastTokenRefreshAt    DateTime? // Last time token was refreshed
+   197→  tokenRefreshCount     Int      @default(0) // Number of token refreshes
+   198→
+   199→  // Settings
+   200→  autoSubmit            Boolean  @default(true) // Auto-submit after order
+   201→  includeQR             Boolean  @default(true)
+   202→  retryFailed           Boolean  @default(true)
+   203→  maxRetries            Int      @default(3)
+   204→  
+   205→  // Status
+   206→  isActive              Boolean  @default(true)
+   207→  lastSubmissionAt      DateTime?
+   208→  totalSubmitted        Int      @default(0)
+   209→  totalFailed           Int      @default(0)
+   210→  
+   211→  createdAt             DateTime @default(now())
+   212→  updatedAt             DateTime @updatedAt
+   213→  
+   214→  @@index([branchId])
+   215→  @@index([taxRegistrationNumber])
+   216→}
+   217→
+   218→model Category {
+   219→  id                        String              @id @default(cuid())
+   220→  name                      String              @unique
+   221→  description               String?
+   222→  sortOrder                 Int                 @default(0)
+   223→  isActive                  Boolean             @default(true)
+   224→  defaultVariantTypeId      String?
+   225→  requiresCaptainReceipt    Boolean             @default(false)
+   226→  createdAt                 DateTime            @default(now())
+   227→  updatedAt                 DateTime            @updatedAt
+   228→  imagePath                 String?
+   229→  defaultVariantType        VariantType?        @relation("CategoryVariantType", fields: [defaultVariantTypeId], references: [id])
+   230→  menuItems                 MenuItem[]
+   231→  promoCategoryRestrictions PromotionCategory[]
+   232→
+   233→  @@index([sortOrder])
+   234→  @@index([isActive])
+   235→}
+   236→
+   237→model MenuItem {
+   238→  id                String            @id @default(cuid())
+   239→  name              String
+   240→  category          String
+   241→  categoryId        String?
+   242→  price             Float
+   243→  taxRate           Float             @default(0.14)
+   244→  isActive          Boolean           @default(true)
+   245→  deletedAt         DateTime?
+   246→  availabilityMode  MenuAvailabilityMode @default(GLOBAL)
+   247→  imagePath         String?
+   248→  sortOrder         Int?
+   249→  hasVariants       Boolean           @default(false)
+   250→  version           Int               @default(1)
+   251→  createdAt         DateTime          @default(now())
+   252→  updatedAt         DateTime          @updatedAt
+   253→  productCode       String?           @unique // Product code/barcode for B2B E-Invoice compliance
+   254→  categoryRel       Category?         @relation(fields: [categoryId], references: [id])
+   255→  branchAssignments MenuItemBranch[]
+   256→  variants          MenuItemVariant[]
+   257→  orderItems        OrderItem[]
+   258→  recipes           Recipe[]
+   259→
+   260→  @@index([category])
+   261→  @@index([categoryId])
+   262→  @@index([isActive])
+   263→  @@index([version])
+   264→  @@index([hasVariants])
+   265→  @@index([productCode])
+   266→  @@index([availabilityMode])
+   267→  @@index([deletedAt])
+   268→}
+   269→
+   270→enum MenuAvailabilityMode {
+   271→  GLOBAL
+   272→  EXPLICIT
+   273→}
+   274→
+   275→model MenuItemBranch {
+   276→  id         String    @id @default(cuid())
+   277→  menuItemId String
+   278→  branchId   String
+   279→  price      Decimal?  @db.Decimal(10, 2)
+   280→  isActive   Boolean   @default(true)
+   281→  createdAt  DateTime  @default(now())
+   282→  updatedAt  DateTime  @default(now()) @updatedAt
+   283→  branch     Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   284→  menuItem   MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+   285→
+   286→  @@unique([menuItemId, branchId])
+   287→  @@index([menuItemId])
+   288→  @@index([branchId])
+   289→  @@index([isActive])
+   290→}
+   291→
+   292→model Recipe {
+   293→  id                String           @id @default(cuid())
+   294→  menuItemId        String
+   295→  ingredientId      String
+   296→  quantityRequired  Float
+   297→  unit              String
+   298→  menuItemVariantId String?
+   299→  version           Int              @default(1)
+   300→  createdAt         DateTime         @default(now())
+   301→  updatedAt         DateTime         @updatedAt
+   302→  ingredient        Ingredient       @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+   303→  menuItem          MenuItem         @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+   304→  variant           MenuItemVariant? @relation(fields: [menuItemVariantId], references: [id], onDelete: Cascade)
+   305→
+   306→  @@unique([menuItemId, ingredientId, menuItemVariantId])
+   307→  @@index([menuItemId])
+   308→  @@index([menuItemVariantId])
+   309→  @@index([version])
+   310→}
+   311→
+   312→model Ingredient {
+   313→  id                 String                  @id @default(cuid())
+   314→  name               String                  @unique
+   315→  unit               String
+   316→  costPerUnit        Float
+   317→  reorderThreshold   Float
+   318→  alertThreshold     Float                   @default(0)
+   319→  version            Int                     @default(1)
+   320→  createdAt          DateTime                @default(now())
+   321→  updatedAt          DateTime                @updatedAt
+   322→  branchInventory    BranchInventory[]
+   323→  inventoryTxns      InventoryTransaction[]
+   324→  transferItems      InventoryTransferItem[]
+   325→  purchaseOrderItems PurchaseOrderItem[]
+   326→  recipes            Recipe[]
+   327→  wasteLogs          WasteLog[]
+   328→  expenseIngredients DailyExpense[]          @relation("ExpenseIngredients")
+   329→
+   330→  @@index([name])
+   331→  @@index([version])
+   332→}
+   333→
+   334→model VariantType {
+   335→  id               String            @id @default(cuid())
+   336→  name             String            @unique
+   337→  description      String?
+   338→  isActive         Boolean           @default(true)
+   339→  createdAt        DateTime          @default(now())
+   340→  updatedAt        DateTime          @updatedAt
+   341→  isCustomInput    Boolean           @default(false)
+   342→  categories       Category[]        @relation("CategoryVariantType")
+   343→  menuItemVariants MenuItemVariant[]
+   344→  options          VariantOption[]
+   345→
+   346→  @@index([isActive])
+   347→  @@index([isCustomInput])
+   348→}
+   349→
+   350→model VariantOption {
+   351→  id               String            @id @default(cuid())
+   352→  variantTypeId    String
+   353→  name             String
+   354→  description      String?
+   355→  sortOrder        Int               @default(0)
+   356→  isActive         Boolean           @default(true)
+   357→  createdAt        DateTime          @default(now())
+   358→  updatedAt        DateTime          @updatedAt
+   359→  menuItemVariants MenuItemVariant[]
+   360→  variantType      VariantType       @relation(fields: [variantTypeId], references: [id], onDelete: Cascade)
+   361→
+   362→  @@unique([variantTypeId, name])
+   363→  @@index([variantTypeId])
+   364→  @@index([isActive])
+   365→}
+   366→
+   367→model MenuItemVariant {
+   368→  id              String        @id @default(cuid())
+   369→  menuItemId      String
+   370→  variantTypeId   String
+   371→  variantOptionId String
+   372→  priceModifier   Float         @default(0)
+   373→  sortOrder       Int           @default(0)
+   374→  isActive        Boolean       @default(true)
+   375→  createdAt       DateTime      @default(now())
+   376→  updatedAt       DateTime      @updatedAt
+   377→  menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+   378→  variantOption   VariantOption @relation(fields: [variantOptionId], references: [id], onDelete: Cascade)
+   379→  variantType     VariantType   @relation(fields: [variantTypeId], references: [id], onDelete: Cascade)
+   380→  recipes         Recipe[]
+   381→
+   382→  @@unique([menuItemId, variantOptionId])
+   383→  @@index([menuItemId])
+   384→  @@index([variantTypeId])
+   385→  @@index([variantOptionId])
+   386→  @@index([isActive])
+   387→}
+   388→
+   389→model BranchInventory {
+   390→  id                    String                  @id @default(cuid())
+   391→  branchId              String
+   392→  ingredientId          String
+   393→  currentStock          Float                   @default(0)
+   394→  reservedStock         Float                   @default(0)
+   395→  costPerUnit           Float                   @default(0) // Branch-specific cost per unit
+   396→  expiryDate            DateTime?
+   397→  lastRestockAt         DateTime?
+   398→  lastModifiedAt        DateTime                @default(now())
+   399→  lastModifiedBy        String?
+   400→  createdAt             DateTime                @default(now())
+   401→  updatedAt             DateTime                @updatedAt
+   402→  branch                Branch                  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   403→  ingredient            Ingredient              @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+   404→  modifier              User?                   @relation("InventoryModifier", fields: [lastModifiedBy], references: [id])
+   405→  transferItemsAsSource InventoryTransferItem[] @relation("SourceInventory")
+   406→  transferItemsAsTarget InventoryTransferItem[] @relation("TargetInventory")
+   407→
+   408→  @@unique([branchId, ingredientId])
+   409→  @@index([branchId])
+   410→  @@index([ingredientId])
+   411→  @@index([expiryDate])
+   412→}
+   413→
+   414→model InventoryTransaction {
+   415→  id              String           @id @default(cuid())
+   416→  branchId        String
+   417→  ingredientId    String
+   418→  transactionType InventoryTxnType
+   419→  quantityChange  Float
+   420→  stockBefore     Float
+   421→  stockAfter      Float
+   422→  orderId         String?
+   423→  reason          String?
+   424→  createdBy       String
+   425→  createdAt       DateTime         @default(now())
+   426→  branch          Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   427→  creator         User             @relation(fields: [createdBy], references: [id])
+   428→  ingredient      Ingredient       @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+   429→  order           Order?           @relation(fields: [orderId], references: [id])
+   430→
+   431→  @@index([branchId])
+   432→  @@index([ingredientId])
+   433→  @@index([orderId])
+   434→  @@index([createdAt])
+   435→}
+   436→
+   437→model CostCategory {
+   438→  id          String       @id @default(cuid())
+   439→  name        String
+   440→  description String?
+   441→  icon        String?
+   442→  sortOrder   Int          @default(0)
+   443→  isActive    Boolean      @default(true)
+   444→  branchId    String?
+   445→  createdAt   DateTime     @default(now())
+   446→  updatedAt   DateTime     @updatedAt
+   447→  costs       BranchCost[]
+   448→
+   449→  @@unique([name, branchId])
+   450→  @@index([sortOrder])
+   451→  @@index([isActive])
+   452→  @@index([branchId])
+   453→}
+   454→
+   455→model BranchCost {
+   456→  id             String         @id @default(cuid())
+   457→  branchId       String
+   458→  costCategoryId String
+   459→  shiftId        String?
+   460→  amount         Float
+   461→  period         String
+   462→  notes          String?
+   463→  createdAt      DateTime       @default(now())
+   464→  updatedAt      DateTime       @updatedAt
+   465→  branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   466→  costCategory   CostCategory   @relation(fields: [costCategoryId], references: [id], onDelete: Cascade)
+   467→  shift          Shift?         @relation(fields: [shiftId], references: [id])
+   468→  dailyExpenses  DailyExpense[]
+   469→
+   470→  @@index([branchId])
+   471→  @@index([costCategoryId])
+   472→  @@index([period])
+   473→  @@index([branchId, period])
+   474→  @@index([branchId, costCategoryId])
+   475→  @@index([shiftId])
+   476→}
+   477→
+   478→model DailyExpense {
+   479→  id           String          @id @default(cuid())
+   480→  branchId     String
+   481→  shiftId      String?
+   482→  amount       Float
+   483→  reason       String
+   484→  recordedBy   String
+   485→  category     ExpenseCategory @default(OTHER)
+   486→  ingredientId String?
+   487→  quantity     Float?
+   488→  quantityUnit String?
+   489→  unitPrice    Float?
+   490→  createdAt    DateTime        @default(now())
+   491→  costId       String?
+   492→  branch       Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   493→  cost         BranchCost?     @relation(fields: [costId], references: [id])
+   494→  recorder     User            @relation("ExpenseRecorder", fields: [recordedBy], references: [id])
+   495→  shift        Shift?          @relation(fields: [shiftId], references: [id])
+   496→  ingredient   Ingredient?     @relation("ExpenseIngredients", fields: [ingredientId], references: [id])
+   497→
+   498→  @@index([branchId])
+   499→  @@index([shiftId])
+   500→  @@index([recordedBy])
+   501→  @@index([createdAt])
+   502→  @@index([costId])
+   503→  @@index([category])
+   504→  @@index([ingredientId])
+   505→}
+   506→
+   507→model InvoiceSerial {
+   508→  id         String   @id @default(cuid())
+   509→  branchId   String
+   510→  year       Int
+   511→  lastSerial Int      @default(0)
+   512→  createdAt  DateTime @default(now())
+   513→  updatedAt  DateTime @updatedAt
+   514→
+   515→  @@unique([branchId, year])
+   516→  @@index([branchId, year])
+   517→}
+   518→
+   519→model Order {
+   520→  id                    String                 @id @default(cuid())
+   521→  branchId              String
+   522→  orderNumber           Int
+   523→  orderTimestamp        DateTime               @default(now())
+   524→  cashierId             String
+   525→  subtotal              Float
+   526→  taxAmount             Float                  @default(0)
+   527→  taxEnabled            Boolean                @default(false)
+   528→  totalAmount           Float
+   529→  paymentMethod         String
+   530→  orderType             String                 @default("dine-in")
+   531→  deliveryAddress       String?
+   532→  deliveryAreaId        String?
+   533→  deliveryFee           Float                  @default(0)
+   534→  isRefunded            Boolean                @default(false)
+   535→  refundReason          String?
+   536→  refundedAt            DateTime?
+   537→  transactionHash       String                 @unique
+   538→  synced                Boolean                @default(false)
+   539→  shiftId               String?
+   540→  customerId            String?
+   541→  customerAddressId     String?
+   542→  courierId             String?
+   543→  createdAt             DateTime               @default(now())
+   544→  updatedAt             DateTime               @updatedAt
+   545→  promoCodeId           String?
+   546→  promoDiscount         Float                  @default(0)
+   547→  manualDiscountPercent Float                  @default(0)
+   548→  manualDiscountAmount  Float                  @default(0)
+   549→  manualDiscountComment String?
+   550→  tableId               String?
+   551→  cardReferenceNumber   String?
+   552→  paymentMethodDetail   String?
+   553→  inventoryTxns         InventoryTransaction[]
+   554→  branch                Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   555→  cashier               User                   @relation(fields: [cashierId], references: [id])
+   556→  courier               Courier?               @relation(fields: [courierId], references: [id])
+   557→  customerAddress       CustomerAddress?       @relation(fields: [customerAddressId], references: [id])
+   558→  customer              Customer?              @relation(fields: [customerId], references: [id])
+   559→  deliveryArea          DeliveryArea?          @relation(fields: [deliveryAreaId], references: [id])
+   560→  shift                 Shift?                 @relation(fields: [shiftId], references: [id])
+   561→  table                 Table?                 @relation("TableOrders", fields: [tableId], references: [id])
+   562→  items                 OrderItem[]
+   563→  transfersFrom         OrderItemTransfer[]    @relation("TransferFrom")
+   564→  transfersTo           OrderItemTransfer[]    @relation("TransferTo")
+   565→
+   566→  // ETA E-Receipt Fields (all optional for backward compatibility)
+   567→  etaUUID               String?  @unique // Document UUID from ETA
+   568→  etaSubmissionStatus   String?  // PENDING, SUBMITTED, ACCEPTED, REJECTED, CREDIT_NOTE_ISSUED
+   569→  etaSubmittedAt        DateTime?
+   570→  etaAcceptedAt         DateTime?
+   571→  etaQRCode             String?  // Base64 or URL to QR code
+   572→  etaResponse           String?  // Full API response (JSON string)
+   573→  etaError              String?  // Error message if failed
+   574→  etaSettingsId         String?  // Reference to which branch settings used
+   575→  etaDocumentType       String?  // 388=Receipt, 381=Invoice, 383=Credit Note, 384=Debit Note
+   576→
+   577→  // Credit Note Tracking (for ETA compliance)
+   578→  isCreditNote         Boolean  @default(false) // True if this IS a credit note
+   579→  creditNoteReason     String?  // Required if isCreditNote = true
+   580→  originalOrderUUID    String?  // Original order's etaUUID being credited
+   581→  originalOrderId      String?  @unique // Reference to original order (if this is a credit note)
+   582→  originalOrder        Order?   @relation("OrderCreditNote", fields: [originalOrderId], references: [id])
+   583→  creditNote           Order?   @relation("OrderCreditNote") // The credit note issued for this order
+   584→
+   585→  @@unique([branchId, shiftId, orderNumber])
+   586→  @@index([branchId])
+   587→  @@index([orderTimestamp])
+   588→  @@index([synced])
+   589→  @@index([transactionHash])
+   590→  @@index([shiftId])
+   591→  @@index([orderType])
+   592→  @@index([deliveryAreaId])
+   593→  @@index([customerId])
+   594→  @@index([customerAddressId])
+   595→  @@index([courierId])
+   596→  @@index([promoCodeId])
+   597→  @@index([tableId])
+   598→  @@index([isRefunded])
+   599→  @@index([refundedAt])
+   600→  @@index([etaSubmissionStatus])
+   601→  @@index([etaSubmittedAt])
+   602→  @@index([isCreditNote])
+   603→  @@index([originalOrderId])
+   604→}
+   605→
+   606→model DeliveryArea {
+   607→  id                String            @id @default(cuid())
+   608→  name              String
+   609→  fee               Float
+   610→  isActive          Boolean           @default(true)
+   611→  createdAt         DateTime          @default(now())
+   612→  updatedAt         DateTime          @updatedAt
+   613→  customerAddresses CustomerAddress[]
+   614→  orders            Order[]
+   615→
+   616→  @@index([isActive])
+   617→}
+   618→
+   619→model Courier {
+   620→  id        String   @id @default(cuid())
+   621→  name      String
+   622→  phone     String?
+   623→  branchId  String
+   624→  isActive  Boolean  @default(true)
+   625→  createdAt DateTime @default(now())
+   626→  updatedAt DateTime @updatedAt
+   627→  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   628→  orders    Order[]
+   629→
+   630→  @@index([branchId])
+   631→  @@index([isActive])
+   632→}
+   633→
+   634→model OrderItem {
+   635→  id                     String       @id @default(cuid())
+   636→  orderId                String
+   637→  menuItemId             String
+   638→  itemName               String
+   639→  quantity               Int
+   640→  unitPrice              Float
+   641→  subtotal               Float
+   642→  recipeVersion          Int
+   643→  menuItemVariantId      String?
+   644→  variantName            String?
+   645→  createdAt              DateTime     @default(now())
+   646→  isVoided               Boolean      @default(false)
+   647→  voidReason             String?
+   648→  voidedAt               DateTime?
+   649→  voidedBy               String?
+   650→  specialInstructions    String?
+   651→  customVariantValue     Float?
+   652→  requiresCaptainReceipt Boolean      @default(false)
+   653→  priceSource            String?      // 'online' | 'offline' | NULL (historical/unknown). Audit-only field.
+   654→  menuItem               MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+   655→  order                  Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+   656→  voidedItems            VoidedItem[] @relation("OrderItemVoidedItems")
+   657→
+   658→  @@index([orderId])
+   659→  @@index([menuItemId])
+   660→  @@index([menuItemVariantId])
+   661→  @@index([priceSource])
+   662→}
+   663→
+   664→model VoidedItem {
+   665→  id                String    @id @default(cuid())
+   666→  orderItemId       String
+   667→  orderQuantity     Int
+   668→  voidedQuantity    Int
+   669→  remainingQuantity Int
+   670→  unitPrice         Float
+   671→  voidedSubtotal    Float
+   672→  reason            String
+   673→  voidedBy          String
+   674→  voidedAt          DateTime  @default(now())
+   675→  createdAt         DateTime  @default(now())
+   676→  orderItem         OrderItem @relation("OrderItemVoidedItems", fields: [orderItemId], references: [id], onDelete: Cascade)
+   677→
+   678→  @@index([orderItemId])
+   679→  @@index([voidedAt])
+   680→}
+   681→
+   682→model OrderItemTransfer {
+   683→  id            String   @id @default(cuid())
+   684→  fromOrderId   String
+   685→  toOrderId     String
+   686→  itemId        String
+   687→  itemName      String
+   688→  quantity      Float
+   689→  transferredBy String
+   690→  transferredAt DateTime @default(now())
+   691→  fromOrder     Order    @relation("TransferFrom", fields: [fromOrderId], references: [id], onDelete: Cascade)
+   692→  toOrder       Order    @relation("TransferTo", fields: [toOrderId], references: [id], onDelete: Cascade)
+   693→
+   694→  @@index([fromOrderId])
+   695→  @@index([toOrderId])
+   696→  @@index([transferredAt])
+   697→}
+   698→
+   699→model SyncHistory {
+   700→  id              String        @id @default(cuid())
+   701→  branchId        String
+   702→  syncDirection   SyncDirection
+   703→  recordsAffected Int
+   704→  syncStartedAt   DateTime      @default(now())
+   705→  syncCompletedAt DateTime?
+   706→  status          SyncStatus
+   707→  errorDetails    String?
+   708→  branch          Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   709→
+   710→  @@index([branchId])
+   711→  @@index([syncStartedAt])
+   712→}
+   713→
+   714→model SyncConflict {
+   715→  id             String              @id @default(cuid())
+   716→  branchId       String
+   717→  entityType     String
+   718→  entityId       String
+   719→  conflictReason String
+   720→  branchPayload  String?
+   721→  centralPayload String?
+   722→  detectedAt     DateTime            @default(now())
+   723→  resolvedAt     DateTime?
+   724→  resolvedBy     String?
+   725→  resolution     ConflictResolution?
+   726→  branch         Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   727→
+   728→  @@index([branchId])
+   729→  @@index([detectedAt])
+   730→}
+   731→
+   732→model IdempotencyKey {
+   733→  id          String   @id @default(cuid())
+   734→  key         String   @unique
+   735→  branchId    String
+   736→  processedAt DateTime @default(now())
+   737→
+   738→  @@index([branchId])
+   739→  @@index([processedAt])
+   740→  @@index([key, branchId])
+   741→}
+   742→
+   743→model AuditLog {
+   744→  id           String   @id @default(cuid())
+   745→  timestamp    DateTime @default(now())
+   746→  userId       String
+   747→  actionType   String
+   748→  entityType   String?
+   749→  entityId     String?
+   750→  oldValue     String?
+   751→  newValue     String?
+   752→  ipAddress    String?
+   753→  previousHash String?
+   754→  currentHash  String
+   755→  branchId     String?
+   756→  user         User     @relation(fields: [userId], references: [id])
+   757→
+   758→  @@index([userId])
+   759→  @@index([timestamp])
+   760→  @@index([actionType])
+   761→  @@index([branchId])
+   762→}
+   763→
+   764→model Shift {
+   765→  id                      String         @id @default(cuid())
+   766→  branchId                String
+   767→  cashierId               String
+   768→  startTime               DateTime       @default(now())
+   769→  endTime                 DateTime?
+   770→  openingCash             Float          @default(0)
+   771→  closingCash             Float?
+   772→  openingOrders           Int            @default(0)
+   773→  closingOrders           Int?
+   774→  openingRevenue          Float          @default(0)
+   775→  closingRevenue          Float?
+   776→  closingLoyaltyDiscounts Float?         @default(0)
+   777→  isClosed                Boolean        @default(false)
+   778→  notes                   String?
+   779→  createdAt               DateTime       @default(now())
+   780→  updatedAt               DateTime       @updatedAt
+   781→  dayId                   String?
+   782→  closingPromoDiscounts   Float?         @default(0)
+   783→  closingDailyExpenses    Float?         @default(0)
+   784→  closingVoidedItems      Int?           @default(0)
+   785→  closingRefunds          Int?           @default(0)
+   786→  paymentBreakdown        Json?
+   787→  costs                   BranchCost[]
+   788→  dailyExpenses           DailyExpense[]
+   789→  orders                  Order[]
+   790→  branch                  Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   791→  cashier                 User           @relation(fields: [cashierId], references: [id])
+   792→  businessDay             BusinessDay?   @relation("BusinessDayShifts", fields: [dayId], references: [id])
+   793→  cashTransaction         CashTransaction? @relation("ShiftCashTransaction")
+   794→
+   795→  @@index([branchId])
+   796→  @@index([dayId])
+   797→  @@index([cashierId])
+   798→  @@index([startTime])
+   799→  @@index([isClosed])
+   800→}
+   801→
+   802→model BusinessDay {
+   803→  id               String    @id @default(cuid())
+   804→  branchId         String
+   805→  openedBy         String
+   806→  closedBy         String?
+   807→  openedAt         DateTime  @default(now())
+   808→  closedAt         DateTime?
+   809→  isOpen           Boolean   @default(true)
+   810→  openingCash      Float     @default(0)
+   811→  closingCash      Float?
+   812→  expectedCash     Float?
+   813→  cashDifference   Float?
+   814→  totalOrders      Int       @default(0)
+   815→  totalSales       Float     @default(0)
+   816→  subtotal         Float     @default(0)
+   817→  taxAmount        Float     @default(0)
+   818→  deliveryFees     Float     @default(0)
+   819→  loyaltyDiscounts Float     @default(0)
+   820→  cashSales        Float     @default(0)
+   821→  cardSales        Float     @default(0)
+   822→  dineInOrders     Int       @default(0)
+   823→  dineInSales      Float     @default(0)
+   824→  takeAwayOrders   Int       @default(0)
+   825→  takeAwaySales    Float     @default(0)
+   826→  deliveryOrders   Int       @default(0)
+   827→  deliverySales    Float     @default(0)
+   828→  totalShifts      Int       @default(0)
+   829→  notes            String?
+   830→  promoDiscounts   Float     @default(0)
+   831→  branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   832→  closedByUser     User?     @relation("BusinessDayCloser", fields: [closedBy], references: [id])
+   833→  openedByUser     User      @relation("BusinessDayOpener", fields: [openedBy], references: [id])
+   834→  shifts           Shift[]   @relation("BusinessDayShifts")
+   835→
+   836→  @@unique([branchId, openedAt])
+   837→  @@index([branchId])
+   838→  @@index([openedBy])
+   839→  @@index([closedBy])
+   840→  @@index([isOpen])
+   841→  @@index([openedAt])
+   842→}
+   843→
+   844→enum CustomerType {
+   845→  B2C
+   846→  B2B
+   847→  BOTH
+   848→}
+   849→
+   850→model Customer {
+   851→  id                     String               @id @default(cuid())
+   852→  name                   String
+   853→  phone                  String               @unique
+   854→  email                  String?
+   855→  notes                  String?
+   856→  branchId               String?
+   857→  loyaltyPoints          Float                @default(0)
+   858→  tier                   String               @default("BRONZE")
+   859→  totalSpent             Float                @default(0)
+   860→  orderCount             Int                  @default(0)
+   861→  createdAt              DateTime             @default(now())
+   862→  updatedAt              DateTime             @updatedAt
+   863→  
+   864→  // B2B E-Invoice fields
+   865→  customerType           CustomerType         @default(B2C)
+   866→  taxRegistrationNumber  String?              @unique // TRN for VAT-registered customers (B2B)
+   867→  isVatRegistered        Boolean              @default(false)
+   868→  commercialRegister     String?              // Commercial registration number for B2B
+   869→  billingAddress         String?              // Separate billing address for B2B
+   870→  paymentTerms           String?              // e.g., "NET 30", "COD"
+   871→  creditLimit            Float?               // Credit limit for B2B customers
+   872→  creditBalance          Float                @default(0) // Current outstanding credit balance
+   873→  
+   874→  branch                 Branch?              @relation(fields: [branchId], references: [id])
+   875→  addresses              CustomerAddress[]
+   876→  loyaltyTransactions    LoyaltyTransaction[]
+   877→  creditTransactions     CreditTransaction[]  // Credit transaction history
+   878→  orders                 Order[]
+   879→  tables                 Table[]
+   880→
+   881→  @@index([phone])
+   882→  @@index([branchId])
+   883→  @@index([createdAt])
+   884→  @@index([loyaltyPoints])
+   885→  @@index([taxRegistrationNumber])
+   886→  @@index([customerType])
+   887→  @@index([isVatRegistered])
+   888→}
+   889→
+   890→model CustomerAddress {
+   891→  id             String        @id @default(cuid())
+   892→  customerId     String
+   893→  building       String?
+   894→  streetAddress  String
+   895→  floor          String?
+   896→  apartment      String?
+   897→  deliveryAreaId String?
+   898→  isDefault      Boolean       @default(false)
+   899→  orderCount     Int           @default(0)
+   900→  createdAt      DateTime      @default(now())
+   901→  updatedAt      DateTime      @updatedAt
+   902→  customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+   903→  deliveryArea   DeliveryArea? @relation(fields: [deliveryAreaId], references: [id])
+   904→  orders         Order[]
+   905→
+   906→  @@index([customerId])
+   907→  @@index([deliveryAreaId])
+   908→  @@index([createdAt])
+   909→}
+   910→
+   911→model Supplier {
+   912→  id             String          @id @default(cuid())
+   913→  name           String          @unique
+   914→  contactPerson  String?
+   915→  email          String?
+   916→  phone          String
+   917→  address        String?
+   918→  isActive       Boolean         @default(true)
+   919→  notes          String?
+   920→  createdAt      DateTime        @default(now())
+   921→  updatedAt      DateTime        @updatedAt
+   922→  purchaseOrders PurchaseOrder[]
+   923→
+   924→  @@index([isActive])
+   925→  @@index([name])
+   926→}
+   927→
+   928→model PurchaseOrder {
+   929→  id          String              @id @default(cuid())
+   930→  supplierId  String
+   931→  branchId    String
+   932→  orderNumber String              @unique
+   933→  status      PurchaseOrderStatus @default(PENDING)
+   934→  totalAmount Float               @default(0)
+   935→  orderedAt   DateTime            @default(now())
+   936→  expectedAt  DateTime?
+   937→  receivedAt  DateTime?
+   938→  notes       String?
+   939→  approvedBy  String?
+   940→  approvedAt  DateTime?
+   941→  createdBy   String
+   942→  createdAt   DateTime            @default(now())
+   943→  updatedAt   DateTime            @updatedAt
+   944→  approver    User?               @relation("PurchaseOrderApprover", fields: [approvedBy], references: [id])
+   945→  branch      Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   946→  creator     User                @relation("PurchaseOrderCreator", fields: [createdBy], references: [id])
+   947→  supplier    Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+   948→  items       PurchaseOrderItem[]
+   949→
+   950→  @@index([supplierId])
+   951→  @@index([branchId])
+   952→  @@index([status])
+   953→  @@index([orderedAt])
+   954→}
+   955→
+   956→model PurchaseOrderItem {
+   957→  id              String        @id @default(cuid())
+   958→  purchaseOrderId String
+   959→  ingredientId    String
+   960→  quantity        Float
+   961→  unit            String
+   962→  unitPrice       Float
+   963→  receivedQty     Float         @default(0)
+   964→  createdAt       DateTime      @default(now())
+   965→  updatedAt       DateTime      @updatedAt
+   966→  ingredient      Ingredient    @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+   967→  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+   968→
+   969→  @@index([purchaseOrderId])
+   970→  @@index([ingredientId])
+   971→}
+   972→
+   973→model InventoryTransfer {
+   974→  id              String                  @id @default(cuid())
+   975→  transferNumber  String                  @unique
+   976→  sourceBranchId  String?
+   977→  targetBranchId  String
+   978→  status          TransferStatus          @default(PENDING)
+   979→  requestedAt     DateTime                @default(now())
+   980→  completedAt     DateTime?
+   981→  notes           String?
+   982→  requestedBy     String
+   983→  approvedBy      String?
+   984→  approvedAt      DateTime?
+   985→  completedBy     String?
+   986→  createdAt       DateTime                @default(now())
+   987→  updatedAt       DateTime                @updatedAt
+   988→  isPurchaseOrder Boolean                 @default(false)
+   989→  poNumber        String?                 @unique
+   990→  totalPrice      Float?
+   991→  approver        User?                   @relation("TransferApprover", fields: [approvedBy], references: [id])
+   992→  completer       User?                   @relation("TransferCompleter", fields: [completedBy], references: [id])
+   993→  requester       User                    @relation("TransferRequester", fields: [requestedBy], references: [id])
+   994→  sourceBranch    Branch?                 @relation("SourceBranch", fields: [sourceBranchId], references: [id], onDelete: Cascade)
+   995→  targetBranch    Branch                  @relation("TargetBranch", fields: [targetBranchId], references: [id], onDelete: Cascade)
+   996→  items           InventoryTransferItem[]
+   997→
+   998→  @@index([sourceBranchId])
+   999→  @@index([targetBranchId])
+  1000→  @@index([status])
+  1001→  @@index([requestedAt])
+  1002→  @@index([poNumber])
+  1003→}
+  1004→
+  1005→model InventoryTransferItem {
+  1006→  id                String            @id @default(cuid())
+  1007→  transferId        String
+  1008→  ingredientId      String
+  1009→  sourceInventoryId String?
+  1010→  targetInventoryId String?
+  1011→  quantity          Float
+  1012→  unit              String
+  1013→  createdAt         DateTime          @default(now())
+  1014→  totalPrice        Float?
+  1015→  unitPrice         Float?
+  1016→  ingredient        Ingredient        @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  1017→  sourceInventory   BranchInventory?  @relation("SourceInventory", fields: [sourceInventoryId], references: [id], onDelete: Cascade)
+  1018→  targetInventory   BranchInventory?  @relation("TargetInventory", fields: [targetInventoryId], references: [id], onDelete: Cascade)
+  1019→  transfer          InventoryTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  1020→
+  1021→  @@index([transferId])
+  1022→  @@index([ingredientId])
+  1023→}
+  1024→
+  1025→model WasteLog {
+  1026→  id           String      @id @default(cuid())
+  1027→  branchId     String
+  1028→  ingredientId String
+  1029→  quantity     Float
+  1030→  unit         String
+  1031→  reason       WasteReason
+  1032→  lossValue    Float
+  1033→  notes        String?
+  1034→  recordedBy   String
+  1035→  createdAt    DateTime    @default(now())
+  1036→  branch       Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  1037→  ingredient   Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  1038→  recorder     User        @relation("WasteRecorder", fields: [recordedBy], references: [id])
+  1039→
+  1040→  @@index([branchId])
+  1041→  @@index([ingredientId])
+  1042→  @@index([reason])
+  1043→  @@index([createdAt])
+  1044→}
+  1045→
+  1046→model LoyaltyTransaction {
+  1047→  id         String                 @id @default(cuid())
+  1048→  customerId String
+  1049→  points     Float
+  1050→  type       LoyaltyTransactionType
+  1051→  orderId    String?
+  1052→  amount     Float?
+  1053→  notes      String?
+  1054→  createdAt  DateTime               @default(now())
+  1055→  customer   Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  1056→
+  1057→  @@index([customerId])
+  1058→  @@index([createdAt])
+  1059→}
+  1060→
+  1061→enum CreditTransactionType {
+  1062→  CREDIT_PURCHASE      // Purchase made on credit (adds to balance)
+  1063→  CREDIT_PAYMENT       // Payment received against credit (reduces balance)
+  1064→  CREDIT_ADJUSTMENT    // Manual adjustment to credit balance
+  1065→  CREDIT_REFUND        // Refund issued that affects credit balance
+  1066→}
+  1067→
+  1068→model CreditTransaction {
+  1069→  id              String                @id @default(cuid())
+  1070→  customerId      String
+  1071→  amount          Float                 // Transaction amount (positive for adding to balance, negative for reducing)
+  1072→  type            CreditTransactionType
+  1073→  orderId         String?               // Related order if applicable
+  1074→  referenceNumber String?               // Payment reference or invoice number
+  1075→  notes           String?               // Transaction notes
+  1076→  previousBalance Float                 // Balance before this transaction
+  1077→  newBalance      Float                 // Balance after this transaction
+  1078→  createdBy       String                // User who recorded this transaction
+  1079→  createdAt       DateTime              @default(now())
+  1080→  customer        Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  1081→
+  1082→  @@index([customerId])
+  1083→  @@index([orderId])
+  1084→  @@index([type])
+  1085→  @@index([createdAt])
+  1086→}
+  1087→
+  1088→model Notification {
+  1089→  id         String           @id @default(cuid())
+  1090→  branchId   String
+  1091→  type       NotificationType
+  1092→  title      String
+  1093→  message    String
+  1094→  isRead     Boolean          @default(false)
+  1095→  priority   String           @default("NORMAL")
+  1096→  entityId   String?
+  1097→  entityType String?
+  1098→  createdAt  DateTime         @default(now())
+  1099→  branch     Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  1100→
+  1101→  @@index([branchId])
+  1102→  @@index([type])
+  1103→  @@index([isRead])
+  1104→  @@index([createdAt])
+  1105→}
+  1106→
+  1107→model ReceiptSettings {
+  1108→  id                String   @id @default(cuid())
+  1109→  storeName         String
+  1110→  headerText        String?  @default("Quality Coffee Since 2024")
+  1111→  footerText        String?  @default("Visit us again soon!")
+  1112→  thankYouMessage   String   @default("Thank you for your purchase!")
+  1113→  fontSize          String   @default("medium")
+  1114→  showLogo          Boolean  @default(true)
+  1115→  logoData          String?
+  1116→  showCashier       Boolean  @default(true)
+  1117→  showDateTime      Boolean  @default(true)
+  1118→  showOrderType     Boolean  @default(true)
+  1119→  showCustomerInfo  Boolean  @default(true)
+  1120→  openCashDrawer    Boolean  @default(true)
+  1121→  cutPaper          Boolean  @default(true)
+  1122→  cutType           String   @default("full")
+  1123→  paperWidth        Int      @default(80)
+  1124→  createdAt         DateTime @default(now())
+  1125→  updatedAt         DateTime @updatedAt
+  1126→  branchId          String?
+  1127→  showBranchAddress Boolean  @default(true)
+  1128→  showBranchPhone   Boolean  @default(true)
+  1129→
+  1130→  @@map("receipt_settings")
+  1131→}
+  1132→
+  1133→model Promotion {
+  1134→  id                   String              @id @default(cuid())
+  1135→  name                 String
+  1136→  description          String?
+  1137→  discountType         PromoDiscountType
+  1138→  discountValue        Float
+  1139→  categoryId           String?
+  1140→  maxUses              Int?
+  1141→  usesPerCustomer      Int?
+  1142→  startDate            DateTime
+  1143→  endDate              DateTime
+  1144→  isActive             Boolean             @default(true)
+  1145→  allowStacking        Boolean             @default(false)
+  1146→  minOrderAmount       Float?
+  1147→  maxDiscountAmount    Float?
+  1148→  // BOGO (Buy X Get Y Free) fields
+  1149→  buyQuantity          Int?
+  1150→  getQuantity          Int?
+  1151→  buyProductId         String?
+  1152→  buyCategoryId        String?
+  1153→  buyProductVariantId  String?
+  1154→  getProductId         String?
+  1155→  getCategoryId        String?
+  1156→  getProductVariantId  String?
+  1157→  applyToCheapest      Boolean             @default(false)
+  1158→  createdAt            DateTime            @default(now())
+  1159→  updatedAt            DateTime            @updatedAt
+  1160→  createdBy            String?
+  1161→  branchRestrictions   PromotionBranch[]
+  1162→  categoryRestrictions PromotionCategory[]
+  1163→  codes                PromotionCode[]
+  1164→  usageLogs            PromotionUsageLog[]
+  1165→
+  1166→  @@index([isActive])
+  1167→  @@index([startDate, endDate])
+  1168→  @@index([categoryId])
+  1169→  @@index([discountType])
+  1170→  @@index([buyProductId])
+  1171→  @@index([buyCategoryId])
+  1172→  @@index([getProductId])
+  1173→  @@index([getCategoryId])
+  1174→}
+  1175→
+  1176→model PromotionCode {
+  1177→  id           String              @id @default(cuid())
+  1178→  promotionId  String
+  1179→  code         String              @unique
+  1180→  isActive     Boolean             @default(true)
+  1181→  usageCount   Int                 @default(0)
+  1182→  maxUses      Int?
+  1183→  isSingleUse  Boolean             @default(false)
+  1184→  campaignName String?
+  1185→  createdAt    DateTime            @default(now())
+  1186→  updatedAt    DateTime            @updatedAt
+  1187→  promotion    Promotion           @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  1188→  usageLogs    PromotionUsageLog[]
+  1189→
+  1190→  @@index([code])
+  1191→  @@index([promotionId])
+  1192→  @@index([isActive])
+  1193→  @@index([campaignName])
+  1194→}
+  1195→
+  1196→model PromotionBranch {
+  1197→  id          String    @id @default(cuid())
+  1198→  promotionId String
+  1199→  branchId    String
+  1200→  createdAt   DateTime  @default(now())
+  1201→  branch      Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  1202→  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  1203→
+  1204→  @@unique([promotionId, branchId])
+  1205→  @@index([promotionId])
+  1206→  @@index([branchId])
+  1207→}
+  1208→
+  1209→model PromotionCategory {
+  1210→  id          String    @id @default(cuid())
+  1211→  promotionId String
+  1212→  categoryId  String
+  1213→  createdAt   DateTime  @default(now())
+  1214→  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  1215→  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  1216→
+  1217→  @@unique([promotionId, categoryId])
+  1218→  @@index([promotionId])
+  1219→  @@index([categoryId])
+  1220→}
+  1221→
+  1222→model PromotionUsageLog {
+  1223→  id             String        @id @default(cuid())
+  1224→  promotionId    String
+  1225→  codeId         String
+  1226→  code           String
+  1227→  orderId        String
+  1228→  branchId       String
+  1229→  customerId     String?
+  1230→  discountAmount Float
+  1231→  orderSubtotal  Float
+  1232→  cashierId      String
+  1233→  usedAt         DateTime      @default(now())
+  1234→  codeEntity     PromotionCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  1235→  promotion      Promotion     @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  1236→
+  1237→  @@index([promotionId])
+  1238→  @@index([codeId])
+  1239→  @@index([orderId])
+  1240→  @@index([branchId])
+  1241→  @@index([customerId])
+  1242→  @@index([usedAt])
+  1243→}
+  1244→
+  1245→model Attendance {
+  1246→  id          String            @id @default(cuid())
+  1247→  userId      String
+  1248→  branchId    String
+  1249→  clockIn     DateTime          @default(now())
+  1250→  clockOut    DateTime?
+  1251→  status      AttendanceStatus  @default(PRESENT)
+  1252→  notes       String?
+  1253→  
+  1254→  // Salary tracking
+  1255→  isPaid      Boolean           @default(false)
+  1256→  paidAt      DateTime?
+  1257→  paidBy      String?
+  1258→  dailyRate   Float?            // Override user's default rate
+  1259→  
+  1260→  createdAt   DateTime          @default(now())
+  1261→  updatedAt   DateTime          @updatedAt
+  1262→  
+  1263→  user        User              @relation(fields: [userId], references: [id])
+  1264→  branch      Branch            @relation(fields: [branchId], references: [id])
+  1265→  payer       User?             @relation("AttendancePayer", fields: [paidBy], references: [id])
+  1266→  
+  1267→  @@index([userId, branchId, createdAt])
+  1268→  @@index([branchId, createdAt])
+  1269→  @@index([isPaid])
+  1270→  @@index([clockIn])
+  1271→  @@index([clockOut])
+  1272→}
+  1273→
+  1274→enum UserRole {
+  1275→  ADMIN
+  1276→  BRANCH_MANAGER
+  1277→  CASHIER
+  1278→}
+  1279→
+  1280→enum TableStatus {
+  1281→  AVAILABLE
+  1282→  OCCUPIED
+  1283→  READY_TO_PAY
+  1284→  RESERVED
+  1285→  CLEANING
+  1286→}
+  1287→
+  1288→enum InventoryTxnType {
+  1289→  SALE
+  1290→  WASTE
+  1291→  REFUND
+  1292→  ADJUSTMENT
+  1293→  RESTOCK
+  1294→}
+  1295→
+  1296→enum SyncDirection {
+  1297→  UP
+  1298→  DOWN
+  1299→}
+  1300→
+  1301→enum SyncStatus {
+  1302→  SUCCESS
+  1303→  PARTIAL
+  1304→  FAILED
+  1305→}
+  1306→
+  1307→enum ConflictResolution {
+  1308→  ACCEPT_BRANCH
+  1309→  ACCEPT_CENTRAL
+  1310→  MANUAL_MERGE
+  1311→}
+  1312→
+  1313→enum PurchaseOrderStatus {
+  1314→  PENDING
+  1315→  APPROVED
+  1316→  RECEIVED
+  1317→  PARTIAL
+  1318→  CANCELLED
+  1319→}
+  1320→
+  1321→enum TransferStatus {
+  1322→  PENDING
+  1323→  APPROVED
+  1324→  IN_TRANSIT
+  1325→  COMPLETED
+  1326→  CANCELLED
+  1327→}
+  1328→
+  1329→enum WasteReason {
+  1330→  EXPIRED
+  1331→  SPOILED
+  1332→  DAMAGED
+  1333→  PREPARATION
+  1334→  MISTAKE
+  1335→  THEFT
+  1336→  OTHER
+  1337→}
+  1338→
+  1339→enum LoyaltyTransactionType {
+  1340→  EARNED
+  1341→  REDEEMED
+  1342→  ADJUSTMENT
+  1343→  BONUS
+  1344→}
+  1345→
+  1346→enum NotificationType {
+  1347→  LOW_STOCK
+  1348→  EXPIRY_WARNING
+  1349→  EXPIRED
+  1350→  TRANSFER_REQUEST
+  1351→  PURCHASE_ORDER
+  1352→  WASTE_ALERT
+  1353→  LOYALTY_MILESTONE
+  1354→  SYSTEM
+  1355→}
+  1356→
+  1357→enum PromoDiscountType {
+  1358→  PERCENTAGE
+  1359→  FIXED_AMOUNT
+  1360→  CATEGORY_PERCENTAGE
+  1361→  CATEGORY_FIXED
+  1362→  BUY_X_GET_Y_FREE
+  1363→}
+  1364→
+  1365→enum ExpenseCategory {
+  1366→  INVENTORY
+  1367→  EQUIPMENT
+  1368→  REPAIRS
+  1369→  UTILITIES
+  1370→  RENT
+  1371→  MARKETING
+  1372→  SALARIES
+  1373→  TRANSPORTATION
+  1374→  SUPPLIES
+  1375→  MAINTENANCE
+  1376→  INSURANCE
+  1377→  TAXES
+  1378→  OTHER
+  1379→}
+  1380→
+  1381→enum AttendanceStatus {
+  1382→  PRESENT
+  1383→  LATE
+  1384→  EARLY_LEAVE
+  1385→  ABSENT
+  1386→  ON_LEAVE
+  1387→  SICK
+  1388→  OVERTIME
+  1389→}
+  1390→
+  1391→enum CashTransactionType {
+  1392→  SHIFT_CLOSING      // Cash from shift closing
+  1393→  WITHDRAWAL         // Manual withdrawal from safe
+  1394→}
+  1395→
+  1396→model CashTransaction {
+  1397→  id             String             @id @default(cuid())
+  1398→  branchId       String
+  1399→  type           CashTransactionType
+  1400→  amount         Float
+  1401→  description    String?
+  1402→  shiftId        String?            @unique // Reference to shift if from shift closing (one-to-one)
+  1403→  createdBy      String
+  1404→  createdAt      DateTime           @default(now())
+  1405→  transactionDate DateTime?          // Business date (for filtering — set explicitly, e.g. shift's date instead of close time)
+  1406→  branch         Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  1407→  creator        User               @relation("CashTransactionCreator", fields: [createdBy], references: [id])
+  1408→  shift          Shift?             @relation("ShiftCashTransaction", fields: [shiftId], references: [id])
+  1409→
+  1410→  @@index([branchId])
+  1411→  @@index([type])
+  1412→  @@index([createdAt])
+  1413→  @@index([shiftId])
+  1414→  @@index([transactionDate])
+  1415→}
+  1416→

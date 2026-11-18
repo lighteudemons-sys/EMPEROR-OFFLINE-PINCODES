@@ -1,0 +1,1148 @@
+     1→import { NextRequest, NextResponse } from 'next/server';
+     2→import { db } from '@/lib/db';
+     3→import { validateRequest, orderCreateSchema, formatZodErrors } from '@/lib/validators';
+     4→import { parsePaginationParams, buildPaginatedResponse, defaultPagination } from '@/lib/pagination';
+     5→import { logOrderCreated, logPromoCodeApplied } from '@/lib/audit-logger';
+     6→import { calculateOrderTax, calculateTotalAmount } from '@/lib/tax-calculation';
+     7→import { resolveBranchPrice } from '@/lib/menu-pricing';
+     8→
+     9→/**
+    10→ * Get or create "Loyalty Discounts" cost category for a branch
+    11→ */
+    12→async function getLoyaltyDiscountCostCategory(branchId: string) {
+    13→  let costCategory = await db.costCategory.findFirst({
+    14→    where: {
+    15→      name: 'Loyalty Discounts',
+    16→      branchId, // Only get branch-specific category
+    17→    },
+    18→  });
+    19→
+    20→  if (!costCategory) {
+    21→    // Create the loyalty discounts category for this branch
+    22→    costCategory = await db.costCategory.create({
+    23→      data: {
+    24→        name: 'Loyalty Discounts',
+    25→        description: 'Discounts redeemed from customer loyalty points',
+    26→        icon: 'Gift',
+    27→        sortOrder: 999, // Show at the bottom
+    28→        isActive: true,
+    29→        branchId, // Make it branch-specific
+    30→      },
+    31→    });
+    32→  }
+    33→
+    34→  return costCategory;
+    35→}
+    36→
+    37→/**
+    38→ * Create a loyalty discount cost record for a branch
+    39→ */
+    40→async function createLoyaltyDiscountCost(
+    41→  branchId: string,
+    42→  discountAmount: number,
+    43→  orderNumber: number,
+    44→  orderId: string,
+    45→  customerId?: string | null,
+    46→  shiftId?: string | null
+    47→) {
+    48→  const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
+    49→
+    50→  const costCategory = await getLoyaltyDiscountCostCategory(branchId);
+    51→
+    52→  await db.branchCost.create({
+    53→    data: {
+    54→      branchId,
+    55→      costCategoryId: costCategory.id,
+    56→      shiftId, // Link to shift for accurate reporting
+    57→      amount: discountAmount,
+    58→      period: currentPeriod,
+    59→      notes: `Loyalty points redeemed on Order #${orderNumber}${customerId ? ` for customer ${customerId}` : ''}`,
+    60→    },
+    61→  });
+    62→}
+    63→
+    64→/**
+    65→ * Get or create "Promo Codes" cost category for a branch
+    66→ */
+    67→async function getPromoCodeCostCategory(branchId: string) {
+    68→  console.log('[Cost] Getting/creating promo code cost category for branch:', branchId);
+    69→
+    70→  let costCategory = await db.costCategory.findFirst({
+    71→    where: {
+    72→      name: 'Promo Codes',
+    73→      branchId, // Only get branch-specific category
+    74→    },
+    75→  });
+    76→
+    77→  console.log('[Cost] Existing cost category found:', !!costCategory);
+    78→
+    79→  if (!costCategory) {
+    80→    console.log('[Cost] Creating new promo code cost category...');
+    81→    // Create the promo codes category for this branch
+    82→    costCategory = await db.costCategory.create({
+    83→      data: {
+    84→        name: 'Promo Codes',
+    85→        description: 'Discounts from promotional codes',
+    86→        icon: 'Tag',
+    87→        sortOrder: 998, // Show just above loyalty discounts
+    88→        isActive: true,
+    89→        branchId, // Make it branch-specific
+    90→      },
+    91→    });
+    92→    console.log('[Cost] Cost category created:', { id: costCategory.id, name: costCategory.name });
+    93→  } else {
+    94→    console.log('[Cost] Using existing cost category:', { id: costCategory.id, name: costCategory.name });
+    95→  }
+    96→
+    97→  return costCategory;
+    98→}
+    99→
+   100→/**
+   101→ * Create a promo code discount cost record for a branch
+   102→ */
+   103→async function createPromoCodeDiscountCost(
+   104→  branchId: string,
+   105→  discountAmount: number,
+   106→  orderNumber: number,
+   107→  orderId: string,
+   108→  promoCode: string,
+   109→  customerId?: string | null,
+   110→  shiftId?: string | null
+   111→) {
+   112→  try {
+   113→    console.log('[Cost] Creating promo code cost:', { branchId, discountAmount, orderNumber, promoCode, shiftId });
+   114→
+   115→    const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
+   116→    console.log('[Cost] Current period:', currentPeriod);
+   117→
+   118→    const costCategory = await getPromoCodeCostCategory(branchId);
+   119→    console.log('[Cost] Got cost category:', { id: costCategory.id, name: costCategory.name });
+   120→
+   121→    const branchCost = await db.branchCost.create({
+   122→      data: {
+   123→        branchId,
+   124→        costCategoryId: costCategory.id,
+   125→        shiftId, // Link to shift for accurate reporting
+   126→        amount: discountAmount,
+   127→        period: currentPeriod,
+   128→        notes: `Promo code '${promoCode}' used on Order #${orderNumber}${customerId ? ` for customer ${customerId}` : ''}`,
+   129→      },
+   130→    });
+   131→
+   132→    console.log('[Cost] Branch cost created successfully:', { id: branchCost.id, amount: branchCost.amount });
+   133→    return branchCost;
+   134→  } catch (error) {
+   135→    console.error('[Cost] Error creating promo code cost:', error);
+   136→    throw error;
+   137→  }
+   138→}
+   139→
+   140→/**
+   141→ * Safely deduct inventory with atomic operation to prevent race conditions
+   142→ * Uses optimistic concurrency control for SQLite
+   143→ */
+   144→async function safeInventoryDeduct(
+   145→  tx: any,
+   146→  branchId: string,
+   147→  ingredientId: string,
+   148→  quantityToDeduct: number,
+   149→  orderId: string,
+   150→  createdBy: string,
+   151→  ingredientName: string
+   152→) {
+   153→  const quantityToDeductAbs = Math.abs(quantityToDeduct);
+   154→
+   155→  // Check current stock first
+   156→  const inventory = await tx.branchInventory.findUnique({
+   157→    where: {
+   158→      branchId_ingredientId: {
+   159→        branchId,
+   160→        ingredientId,
+   161→      },
+   162→    },
+   163→  });
+   164→
+   165→  const currentStock = inventory?.currentStock || 0;
+   166→
+   167→  // Allow negative stock - just deduct the quantity
+   168→  // This allows orders to proceed even when stock is insufficient
+   169→
+   170→  // Update inventory (or create if doesn't exist)
+   171→  const stockBefore = currentStock;
+   172→  const stockAfter = currentStock - quantityToDeductAbs;
+   173→
+   174→  // Use upsert to handle case where inventory record doesn't exist yet
+   175→  await tx.branchInventory.upsert({
+   176→    where: {
+   177→      branchId_ingredientId: {
+   178→        branchId,
+   179→        ingredientId,
+   180→      },
+   181→    },
+   182→    create: {
+   183→      branchId,
+   184→      ingredientId,
+   185→      currentStock: stockAfter,
+   186→      reservedStock: 0,
+   187→      lastModifiedAt: new Date(),
+   188→    },
+   189→    update: {
+   190→      currentStock: stockAfter,
+   191→      lastModifiedAt: new Date(),
+   192→    },
+   193→  });
+   194→
+   195→  // Create inventory transaction record
+   196→  await tx.inventoryTransaction.create({
+   197→    data: {
+   198→      branchId,
+   199→      ingredientId,
+   200→      transactionType: 'SALE',
+   201→      quantityChange: -quantityToDeductAbs,
+   202→      stockBefore,
+   203→      stockAfter,
+   204→      orderId,
+   205→      createdBy,
+   206→    },
+   207→  });
+   208→}
+   209→
+   210→export async function POST(request: NextRequest) {
+   211→  try {
+   212→    // Validate request with Zod
+   213→    const validationResult = validateRequest(orderCreateSchema, await request.json());
+   214→
+   215→    if (!validationResult.success) {
+   216→      console.error('Order validation failed:', validationResult.errors);
+   217→      return NextResponse.json(
+   218→        {
+   219→          success: false,
+   220→          error: 'Invalid request data',
+   221→          details: formatZodErrors(validationResult.errors)
+   222→        },
+   223→        { status: 400 }
+   224→      );
+   225→    }
+   226→
+   227→    const {
+   228→      branchId,
+   229→      cashierId,
+   230→      items,
+   231→      paymentMethod,
+   232→      orderType,
+   233→      tableId,
+   234→      deliveryAddress,
+   235→      deliveryAreaId,
+   236→      deliveryFee,
+   237→      customerId,
+   238→      customerAddressId,
+   239→      customerPhone,
+   240→      customerName,
+   241→      courierId,
+   242→      loyaltyPointsRedeemed,
+   243→      loyaltyDiscount,
+   244→      promoCodeId,
+   245→      promoDiscount,
+   246→      manualDiscountPercent,
+   247→      manualDiscountAmount,
+   248→      manualDiscountComment,
+   249→      orderNumber,
+   250→      cardReferenceNumber,
+   251→      paymentMethodDetail,
+   252→      idempotencyKey,
+   253→    } = validationResult.data;
+   254→
+   255→    // Check for duplicate order using idempotency key
+   256→    if (idempotencyKey) {
+   257→      console.log('[Order] Checking idempotency key:', idempotencyKey);
+   258→
+   259→      const existingKey = await db.idempotencyKey.findUnique({
+   260→        where: { key: idempotencyKey },
+   261→      });
+   262→
+   263→      if (existingKey) {
+   264→        console.log('[Order] Duplicate order detected via idempotency key:', idempotencyKey);
+   265→
+   266→        // Return the existing order instead of creating a duplicate
+   267→        const existingOrder = await db.order.findUnique({
+   268→          where: { id: existingKey.key }, // Try to find by id (the key might be the order ID)
+   269→        });
+   270→
+   271→        if (existingOrder) {
+   272→          return NextResponse.json({
+   273→            success: true,
+   274→            order: {
+   275→              id: existingOrder.id,
+   276→              branchId: existingOrder.branchId,
+   277→              orderNumber: existingOrder.orderNumber,
+   278→              orderTimestamp: existingOrder.orderTimestamp.toISOString(),
+   279→              totalAmount: existingOrder.totalAmount,
+   280→              paymentMethod: existingOrder.paymentMethod,
+   281→              message: 'Order already processed (idempotency)',
+   282→            },
+   283→            duplicate: true,
+   284→          });
+   285→        }
+   286→
+   287→        // If we have the key but can't find the order, still reject to prevent duplicates
+   288→        return NextResponse.json(
+   289→          {
+   290→            success: false,
+   291→            error: 'Duplicate order request',
+   292→            message: 'This order was already processed',
+   293→          },
+   294→          { status: 409 } // 409 Conflict
+   295→        );
+   296→      }
+   297→    }
+   298→
+   299→    // Get next order number if not provided
+   300→    let finalOrderNumber = orderNumber;
+   301→    if (!finalOrderNumber) {
+   302→      const lastOrder = await db.order.findFirst({
+   303→        where: { branchId },
+   304→        orderBy: { orderNumber: 'desc' },
+   305→      });
+   306→      finalOrderNumber = (lastOrder?.orderNumber || 0) + 1;
+   307→    }
+   308→
+   309→    // Get cashier info
+   310→    const cashier = await db.user.findUnique({
+   311→      where: { id: cashierId },
+   312→    });
+   313→
+   314→    if (!cashier) {
+   315→      return NextResponse.json(
+   316→        { error: 'Cashier not found' },
+   317→        { status: 404 }
+   318→      );
+   319→    }
+   320→
+   321→    // CASHIER must have their own open shift to process orders
+   322→    // ADMIN and BRANCH_MANAGER can use ANY open shift from the branch
+   323→    let openShift = null;
+   324→
+   325→    if (cashier.role === 'CASHIER') {
+   326→      // Cashiers must have their own open shift
+   327→      openShift = await db.shift.findFirst({
+   328→        where: {
+   329→          cashierId,
+   330→          isClosed: false,
+   331→        },
+   332→      });
+   333→
+   334→      if (!openShift) {
+   335→        return NextResponse.json(
+   336→          { error: 'No active shift found. Please open a shift before processing orders.' },
+   337→          { status: 400 }
+   338→        );
+   339→      }
+   340→
+   341→      // Verify that open shift is for the same branch
+   342→      if (openShift.branchId !== branchId) {
+   343→        return NextResponse.json(
+   344→          { error: 'Active shift is for a different branch' },
+   345→          { status: 400 }
+   346→        );
+   347→      }
+   348→    } else {
+   349→      // ADMIN and BRANCH_MANAGER can use any open shift from the branch
+   350→      openShift = await db.shift.findFirst({
+   351→        where: {
+   352→          branchId,
+   353→          isClosed: false,
+   354→        },
+   355→      });
+   356→
+   357→      if (!openShift) {
+   358→        return NextResponse.json(
+   359→          { error: `No active shift found for branch. Please have a cashier open a shift before processing orders.` },
+   360→          { status: 400 }
+   361→        );
+   362→      }
+   363→    }
+   364→    
+   365→    // Get branch information for tax calculation
+   366→    const branch = await db.branch.findUnique({
+   367→      where: { id: branchId },
+   368→    });
+   369→
+   370→    // Calculate order totals and validate menu items
+   371→    let subtotal = 0;
+   372→    const orderItemsToCreate = [];
+   373→    const inventoryDeductions = [];
+   374→
+   375→    for (const item of items) {
+   376→      let menuItem;
+   377→      try {
+   378→        menuItem = await db.menuItem.findUnique({
+   379→          where: { id: item.menuItemId },
+   380→          include: {
+   381→            recipes: {
+   382→              include: {
+   383→                ingredient: true,
+   384→              },
+   385→            },
+   386→            categoryRel: true,
+   387→            // Phase 3.1b: Include branch assignments for this branch so we can
+   388→            // resolve the branch-specific price (override or global fallback).
+   389→            // At most one row per branch due to @@unique([menuItemId, branchId]).
+   390→            branchAssignments: {
+   391→              where: { branchId },
+   392→              select: { branchId: true, price: true, isActive: true },
+   393→            },
+   394→            ...(item.menuItemVariantId ? {
+   395→              variants: {
+   396→                include: {
+   397→                  variantType: true,
+   398→                  variantOption: true,
+   399→                },
+   400→                orderBy: { sortOrder: 'asc' },
+   401→              },
+   402→            } : {}),
+   403→          },
+   404→        });
+   405→      } catch (error) {
+   406→        console.error('[Order] Error fetching menu item:', {
+   407→          menuItemId: item.menuItemId,
+   408→          menuItemIdType: typeof item.menuItemId,
+   409→          menuItemIdLength: item.menuItemId?.length,
+   410→          error: error instanceof Error ? error.message : String(error),
+   411→        });
+   412→        return NextResponse.json(
+   413→          {
+   414→            success: false,
+   415→            error: 'Invalid menu item ID format',
+   416→            details: `Menu item ID "${item.menuItemId}" is not valid. Please clear your cart and try again.`
+   417→          },
+   418→          { status: 400 }
+   419→        );
+   420→      }
+   421→
+   422→      if (!menuItem) {
+   423→        console.error('[Order] Menu item not found:', {
+   424→          menuItemId: item.menuItemId,
+   425→          allItemsInCart: items.map(i => ({ id: i.menuItemId })),
+   426→        });
+   427→        return NextResponse.json(
+   428→          {
+   429→            success: false,
+   430→            error: 'Menu item not found',
+   431→            details: `Menu item with ID "${item.menuItemId}" no longer exists. Please clear your cart and try again.`
+   432→          },
+   433→          { status: 404 }
+   434→        );
+   435→      }
+   436→
+   437→      if (!menuItem.isActive) {
+   438→        return NextResponse.json(
+   439→          {
+   440→            success: false,
+   441→            error: 'Menu item not available',
+   442→            details: `Menu item "${menuItem.name}" is currently inactive.`
+   443→          },
+   444→          { status: 400 }
+   445→        );
+   446→      }
+   447→
+   448→      // Phase 3.1b: Resolve branch-specific price.
+   449→      // Falls back to MenuItem.price if no override exists.
+   450→      // Uses the single source of truth in src/lib/menu-pricing.ts.
+   451→      const basePrice = resolveBranchPrice(
+   452→        {
+   453→          price: menuItem.price,
+   454→          isActive: menuItem.isActive,
+   455→          deletedAt: menuItem.deletedAt,
+   456→          availabilityMode: menuItem.availabilityMode,
+   457→          branchAssignments: menuItem.branchAssignments,
+   458→        },
+   459→        branchId
+   460→      );
+   461→
+   462→      // Handle variant pricing if provided
+   463→      let finalPrice = basePrice;
+   464→      let variantName = null;
+   465→      let variantId = null;
+   466→      let customVariantValue = null;
+   467→
+   468→      if (item.menuItemVariantId) {
+   469→        const variant = await db.menuItemVariant.findUnique({
+   470→          where: { id: item.menuItemVariantId },
+   471→          include: {
+   472→            variantType: true,
+   473→            variantOption: true,
+   474→          },
+   475→        });
+   476→
+   477→        if (variant) {
+   478→          variantId = variant.id;
+   479→          
+   480→          // Check if this is a custom input variant
+   481→          if (variant.variantType.isCustomInput && item.customVariantValue !== null && item.customVariantValue !== undefined) {
+   482→            customVariantValue = parseFloat(String(item.customVariantValue));
+   483→            // Ensure customVariantValue is a valid number
+   484→            if (isNaN(customVariantValue) || customVariantValue <= 0) {
+   485→              console.error('[Order] Invalid customVariantValue:', item.customVariantValue, 'for item:', menuItem.name);
+   486→              customVariantValue = 1; // Fallback to full portion
+   487→            }
+   488→            // Round to 3 decimal places for clean display
+   489→            const roundedValue = Math.round(customVariantValue * 1000) / 1000;
+   490→            finalPrice = basePrice * customVariantValue;
+   491→            variantName = `${variant.variantType.name}: ${roundedValue}x`;
+   492→            console.log('[Order] Custom variant calculated:', {
+   493→              itemName: menuItem.name,
+   494→              basePrice: menuItem.price,
+   495→              customValue: customVariantValue,
+   496→              roundedValue,
+   497→              finalPrice: finalPrice,
+   498→              quantity: item.quantity,
+   499→              subtotal: finalPrice * item.quantity
+   500→            });
+   501→          } else {
+   502→            // Regular variant with fixed price modifier
+   503→            // Phase 3.1b: modifier is applied to the branch-resolved base price
+   504→            finalPrice = basePrice + variant.priceModifier;
+   505→            variantName = `${variant.variantType.name}: ${variant.variantOption.name}`;
+   506→          }
+   507→        }
+   508→      }
+   509→
+   510→      const itemSubtotal = finalPrice * item.quantity;
+   511→      subtotal += itemSubtotal;
+   512→
+   513→      orderItemsToCreate.push({
+   514→        menuItemId: menuItem.id,
+   515→        itemName: menuItem.name,
+   516→        quantity: item.quantity,
+   517→        unitPrice: finalPrice,
+   518→        subtotal: itemSubtotal,
+   519→        recipeVersion: menuItem.version,
+   520→        menuItemVariantId: variantId,
+   521→        variantName,
+   522→        customVariantValue,
+   523→        specialInstructions: item.specialInstructions || null,
+   524→        requiresCaptainReceipt: menuItem.categoryRel?.requiresCaptainReceipt || false,
+   525→        // Phase 3.1b: Audit field — records that the price was resolved online
+   526→        // (server-side, branch-aware). Historical orders keep NULL. Offline orders
+   527→        // get 'offline' via /api/sync/batch-push.
+   528→        priceSource: 'online',
+   529→      });
+   530→
+   531→      // Calculate inventory deductions based on recipes
+   532→      // Filter recipes: if variant selected, only use variant-specific recipes; otherwise use base recipes
+   533→      const relevantRecipes = menuItem.recipes.filter(
+   534→        recipe => recipe.menuItemVariantId === (item.menuItemVariantId || null)
+   535→      );
+   536→
+   537→      for (const recipe of relevantRecipes) {
+   538→        // Scale inventory deduction by customVariantValue if provided
+   539→        const scaledQuantity = customVariantValue 
+   540→          ? recipe.quantityRequired * customVariantValue 
+   541→          : recipe.quantityRequired;
+   542→        const totalDeduction = scaledQuantity * item.quantity;
+   543→        inventoryDeductions.push({
+   544→          ingredientId: recipe.ingredient.id,
+   545→          ingredientName: recipe.ingredient.name,
+   546→          quantityChange: -totalDeduction,
+   547→          unit: recipe.unit,
+   548→        });
+   549→      }
+   550→    }
+   551→
+   552→    // Calculate tax based on branch settings
+   553→    const { taxAmount, taxEnabled } = calculateOrderTax(subtotal, branch);
+   554→    const totalAmount = calculateTotalAmount(subtotal, taxAmount, deliveryFee || 0, loyaltyDiscount || 0, promoDiscount || 0, manualDiscountAmount || 0);
+   555→
+   556→    // Use the shift ID for tracking (if a shift was found)
+   557→    // For CASHIER, it's their own shift; for ADMIN/BRANCH_MANAGER, it's any open shift from the branch
+   558→    const currentShiftId = openShift?.id || null;
+   559→
+   560→    // Generate transaction hash for tamper detection
+   561→    const transactionHash = Buffer.from(
+   562→      `${branchId}-${finalOrderNumber}-${totalAmount}-${cashierId}-${Date.now()}`
+   563→    ).toString('base64');
+   564→
+   565→    // Initialize ETA fields if configured for offline support
+   566→    let etaFields = {};
+   567→    const etaSettings = await db.branchETASettings.findUnique({
+   568→      where: { branchId },
+   569→    });
+   570→
+   571→    if (etaSettings && etaSettings.isActive) {
+   572→      // Generate UUID locally for offline support
+   573→      const { generateDocumentUUID } = await import('@/lib/eta/ubl-generator');
+   574→      const etaUUID = generateDocumentUUID();
+   575→
+   576→      etaFields = {
+   577→        etaUUID,
+   578→        etaSubmissionStatus: 'PENDING',
+   579→        etaDocumentType: '389', // 389 = Receipt
+   580→        etaSettingsId: etaSettings.id,
+   581→      };
+   582→
+   583→      console.log(`[Order] ETA initialized for offline order ${finalOrderNumber}`, {
+   584→        etaUUID,
+   585→        branchId,
+   586→        environment: etaSettings.environment,
+   587→      });
+   588→    }
+   589→
+   590→    // Create order with inventory deduction
+   591→    const order = await db.$transaction(async (tx) => {
+   592→      // Create order
+   593→      const newOrder = await tx.order.create({
+   594→        data: {
+   595→          id: `${branchId}-${finalOrderNumber}-${Date.now()}`,
+   596→          branchId,
+   597→          orderNumber: finalOrderNumber,
+   598→          orderTimestamp: new Date(),
+   599→          cashierId,
+   600→          subtotal,
+   601→          taxAmount,
+   602→          taxEnabled,
+   603→          totalAmount,
+   604→          paymentMethod,
+   605→          orderType: orderType || 'dine-in',
+   606→          deliveryAddress: deliveryAddress || null,
+   607→          deliveryAreaId: deliveryAreaId || null,
+   608→          deliveryFee: deliveryFee || 0,
+   609→          customerId: customerId || null,
+   610→          customerAddressId: customerAddressId || null,
+   611→          courierId: courierId || null,
+   612→          transactionHash,
+   613→          synced: false,
+   614→          shiftId: currentShiftId,
+   615→          tableId: tableId || null,
+   616→          promoCodeId: promoCodeId || null,
+   617→          promoDiscount: promoDiscount || 0,
+   618→          manualDiscountPercent: manualDiscountPercent || 0,
+   619→          manualDiscountAmount: manualDiscountAmount || 0,
+   620→          manualDiscountComment: manualDiscountComment || null,
+   621→          cardReferenceNumber: cardReferenceNumber || null,
+   622→          paymentMethodDetail: paymentMethodDetail || null,
+   623→          // ETA fields for offline support
+   624→          ...etaFields,
+   625→        },
+   626→      });
+   627→
+   628→      // Create order items and capture created records
+   629→      const createdOrderItems = [];
+   630→      for (const item of orderItemsToCreate) {
+   631→        const createdItem = await tx.orderItem.create({
+   632→          data: {
+   633→            ...item,
+   634→            orderId: newOrder.id,
+   635→          },
+   636→        });
+   637→        createdOrderItems.push(createdItem);
+   638→      }
+   639→
+   640→      // Deduct inventory with atomic operations to prevent race conditions
+   641→      for (const deduction of inventoryDeductions) {
+   642→        await safeInventoryDeduct(
+   643→          tx,
+   644→          branchId,
+   645→          deduction.ingredientId,
+   646→          deduction.quantityChange,
+   647→          newOrder.id,
+   648→          cashierId,
+   649→          deduction.ingredientName
+   650→        );
+   651→      }
+   652→
+   653→      return { order: newOrder, items: createdOrderItems };
+   654→    }).catch((transactionError) => {
+   655→      console.error('Transaction failed:', transactionError);
+   656→      throw transactionError;
+   657→    });
+   658→
+   659→    // Log order creation to audit logs
+   660→    const orderDetails = `Order #${order.order.orderNumber}, Total: ${totalAmount}, Payment: ${paymentMethod}`;
+   661→    await logOrderCreated(cashierId, order.order.id, orderDetails);
+   662→
+   663→    // Store idempotency key if provided to prevent duplicate orders
+   664→    if (idempotencyKey) {
+   665→      try {
+   666→        await db.idempotencyKey.create({
+   667→          data: {
+   668→            key: idempotencyKey,
+   669→            branchId,
+   670→            processedAt: new Date(),
+   671→          },
+   672→        });
+   673→        console.log('[Order] Idempotency key stored:', idempotencyKey);
+   674→      } catch (idempotencyError) {
+   675→        // Log error but don't fail the order
+   676→        console.error('[Order] Failed to store idempotency key:', idempotencyError);
+   677→      }
+   678→    }
+   679→
+   680→    // Update table status to OCCUPIED when a dine-in order is created with a tableId
+   681→    if (tableId && orderType === 'dine-in') {
+   682→      try {
+   683→        await db.table.update({
+   684→          where: { id: tableId },
+   685→          data: {
+   686→            status: 'OCCUPIED',
+   687→            openedAt: new Date(),
+   688→            openedBy: cashierId,
+   689→            currentOrderId: order.order.id,
+   690→          },
+   691→        });
+   692→        console.log(`[Order] Table ${tableId} updated to OCCUPIED with order ${order.orderNumber}`);
+   693→      } catch (tableError) {
+   694→        console.error('[Order] Failed to update table status:', tableError);
+   695→        // Don't fail the order if table update fails
+   696→      }
+   697→    }
+   698→
+   699→    // Log promo code usage if applicable
+   700→    let promoCodeString = null;
+   701→    if (promoCodeId && promoDiscount && promoDiscount > 0) {
+   702→      console.log('[Order] Processing promo code:', { promoCodeId, promoDiscount });
+   703→      try {
+   704→        // Get the promo code details
+   705→        const promoCode = await db.promotionCode.findUnique({
+   706→          where: { id: promoCodeId },
+   707→          include: { promotion: true },
+   708→        });
+   709→
+   710→        if (promoCode) {
+   711→          console.log('[Order] Found promo code:', promoCode.code);
+   712→          promoCodeString = promoCode.code; // Store for response
+   713→
+   714→          // Create usage log
+   715→          await db.promotionUsageLog.create({
+   716→            data: {
+   717→              promotionId: promoCode.promotionId,
+   718→              codeId: promoCodeId,
+   719→              code: promoCode.code,
+   720→              orderId: order.order.id,
+   721→              branchId,
+   722→              customerId: customerId || null,
+   723→              discountAmount: promoDiscount,
+   724→              orderSubtotal: subtotal,
+   725→              cashierId,
+   726→            },
+   727→          });
+   728→
+   729→          // Update promo code usage count
+   730→          await db.promotionCode.update({
+   731→            where: { id: promoCodeId },
+   732→            data: {
+   733→              usageCount: {
+   734→                increment: 1,
+   735→              },
+   736→            },
+   737→          });
+   738→
+   739→          console.log('[Order] Promo usage log created, now creating cost record...');
+   740→
+   741→          // Create cost record for promo code discount
+   742→          try {
+   743→            await createPromoCodeDiscountCost(
+   744→              branchId,
+   745→              promoDiscount,
+   746→              finalOrderNumber,
+   747→              order.order.id,
+   748→              promoCode.code,
+   749→              customerId,
+   750→              currentShiftId
+   751→            );
+   752→            console.log('[Order] Promo code cost record created successfully');
+   753→          } catch (costError) {
+   754→            console.error('[Order] Failed to create promo code discount cost:', costError);
+   755→            // Don't fail order if cost creation fails
+   756→          }
+   757→        } else {
+   758→          console.error('[Order] Promo code not found for ID:', promoCodeId);
+   759→        }
+   760→      } catch (promoError) {
+   761→        console.error('[Order] Failed to log promo usage:', promoError);
+   762→        // Don't fail the order if promo logging fails
+   763→      }
+   764→    } else {
+   765→      console.log('[Order] No promo code to process:', { promoCodeId, promoDiscount });
+   766→    }
+   767→
+   768→    // Increment customer address order count if delivery order with address
+   769→    if (customerAddressId && orderType === 'delivery') {
+   770→      try {
+   771→        await db.customerAddress.update({
+   772→          where: { id: customerAddressId },
+   773→          data: {
+   774→            orderCount: {
+   775→              increment: 1,
+   776→            },
+   777→          },
+   778→        });
+   779→      } catch (error) {
+   780→        console.error('Failed to update customer address order count:', error);
+   781→        // Don't fail the order if address update fails
+   782→      }
+   783→    }
+   784→
+   785→    // Update customer statistics
+   786→    if (customerId) {
+   787→      try {
+   788→        // Calculate loyalty points (1 point per 10 EGP spent, using floor for integer points)
+   789→        const pointsEarned = Math.floor(subtotal / 10);
+   790→        const netPointsChange = pointsEarned - (loyaltyPointsRedeemed || 0);
+   791→
+   792→        await db.customer.update({
+   793→          where: { id: customerId },
+   794→          data: {
+   795→            totalSpent: {
+   796→              increment: subtotal,
+   797→            },
+   798→            orderCount: {
+   799→              increment: 1,
+   800→            },
+   801→            loyaltyPoints: {
+   802→              increment: netPointsChange,
+   803→            },
+   804→          },
+   805→        });
+   806→
+   807→        // Create loyalty transaction record for earned points
+   808→        if (pointsEarned > 0) {
+   809→          try {
+   810→            await db.loyaltyTransaction.create({
+   811→              data: {
+   812→                customerId,
+   813→                points: pointsEarned,
+   814→                type: 'EARNED',
+   815→                orderId: order.order.id,
+   816→                amount: subtotal,
+   817→                notes: `Order #${finalOrderNumber}`,
+   818→              },
+   819→            });
+   820→          } catch (ltError) {
+   821→            console.error('Failed to create loyalty transaction:', ltError);
+   822→            // Don't fail the order if loyalty transaction fails
+   823→          }
+   824→        }
+   825→
+   826→        // Create loyalty transaction record for redeemed points
+   827→        if (loyaltyPointsRedeemed && loyaltyPointsRedeemed > 0) {
+   828→          try {
+   829→            await db.loyaltyTransaction.create({
+   830→              data: {
+   831→                customerId,
+   832→                points: -loyaltyPointsRedeemed, // Negative because it's being deducted
+   833→                type: 'REDEEMED',
+   834→                orderId: order.order.id,
+   835→                amount: loyaltyDiscount,
+   836→                notes: `Redeemed on Order #${finalOrderNumber}`,
+   837→              },
+   838→            });
+   839→
+   840→            // Create cost record for loyalty discount
+   841→            // This tracks the discount as a cost so:
+   842→            // - Revenue shows gross sales (300 EGP)
+   843→            // - Cost shows discount (30 EGP)
+   844→            // - Net profit is correct
+   845→            // - Cash collection matches
+   846→            try {
+   847→              await createLoyaltyDiscountCost(
+   848→                branchId,
+   849→                loyaltyDiscount,
+   850→                finalOrderNumber,
+   851→                order.order.id,
+   852→                customerId,
+   853→                currentShiftId
+   854→              );
+   855→            } catch (costError) {
+   856→              console.error('Failed to create loyalty discount cost:', costError);
+   857→              // Don't fail order if cost creation fails
+   858→            }
+   859→          } catch (ltError) {
+   860→            console.error('Failed to create redemption transaction:', ltError);
+   861→            // Don't fail the order if loyalty transaction fails
+   862→          }
+   863→        }
+   864→
+   865→        // Update customer tier based on total spent
+   866→        const updatedCustomer = await db.customer.findUnique({
+   867→          where: { id: customerId },
+   868→        });
+   869→
+   870→        if (updatedCustomer) {
+   871→          let newTier = 'BRONZE';
+   872→          // Update tier thresholds based on total spent (in EGP)
+   873→          if (updatedCustomer.totalSpent >= 10000) {
+   874→            newTier = 'PLATINUM';
+   875→          } else if (updatedCustomer.totalSpent >= 5000) {
+   876→            newTier = 'GOLD';
+   877→          } else if (updatedCustomer.totalSpent >= 2000) {
+   878→            newTier = 'SILVER';
+   879→          }
+   880→
+   881→          if (updatedCustomer.tier !== newTier) {
+   882→            try {
+   883→              await db.customer.update({
+   884→                where: { id: customerId },
+   885→                data: { tier: newTier },
+   886→              });
+   887→            } catch (tierError) {
+   888→              console.error('Failed to update customer tier:', tierError);
+   889→              // Don't fail the order if tier update fails
+   890→            }
+   891→          }
+   892→        }
+   893→      } catch (customerError) {
+   894→        console.error('Failed to update customer statistics:', customerError);
+   895→        // Don't fail the order if customer update fails
+   896→      }
+   897→    }
+   898→
+   899→    // Create credit transaction if payment method is credit
+   900→    if (paymentMethod === 'credit' && customerId) {
+   901→      try {
+   902→        const customer = await db.customer.findUnique({
+   903→          where: { id: customerId },
+   904→        });
+   905→
+   906→        if (customer && (customer.customerType === 'B2B' || customer.customerType === 'BOTH')) {
+   907→          const previousBalance = customer.creditBalance || 0;
+   908→          const newBalance = previousBalance + totalAmount;
+   909→
+   910→          // Create credit transaction
+   911→          await db.creditTransaction.create({
+   912→            data: {
+   913→              customerId,
+   914→              amount: totalAmount,
+   915→              type: 'CREDIT_PURCHASE',
+   916→              orderId: order.order.id,
+   917→              previousBalance,
+   918→              newBalance,
+   919→              createdBy: cashierId,
+   920→              notes: `Order #${finalOrderNumber}`,
+   921→            },
+   922→          });
+   923→
+   924→          // Update customer credit balance
+   925→          await db.customer.update({
+   926→            where: { id: customerId },
+   927→            data: { creditBalance: newBalance },
+   928→          });
+   929→
+   930→          console.log(`[Order] Credit transaction created: ${totalAmount} added to customer ${customerId}, new balance: ${newBalance}`);
+   931→        }
+   932→      } catch (creditError) {
+   933→        console.error('Failed to create credit transaction:', creditError);
+   934→        // Don't fail the order if credit transaction fails, log for manual review
+   935→      }
+   936→    }
+   937→
+   938→    const responseOrder = order.order;
+   939→
+   940→    return NextResponse.json({
+   941→      success: true,
+   942→      order: {
+   943→        id: responseOrder.id,
+   944→        branchId: responseOrder.branchId,
+   945→        orderNumber: responseOrder.orderNumber,
+   946→        orderTimestamp: responseOrder.orderTimestamp.toISOString(),
+   947→        totalAmount: responseOrder.totalAmount,
+   948→        subtotal: responseOrder.subtotal,
+   949→        paymentMethod: responseOrder.paymentMethod,
+   950→        paymentMethodDetail: responseOrder.paymentMethodDetail,
+   951→        orderType: responseOrder.orderType,
+   952→        deliveryFee: responseOrder.deliveryFee,
+   953→        deliveryAddress: responseOrder.deliveryAddress,
+   954→        deliveryAreaId: responseOrder.deliveryAreaId,
+   955→        isRefunded: responseOrder.isRefunded,
+   956→        refundReason: responseOrder.refundReason,
+   957→        transactionHash: responseOrder.transactionHash,
+   958→        synced: responseOrder.synced,
+   959→        shiftId: responseOrder.shiftId,
+   960→        createdAt: responseOrder.createdAt.toISOString(),
+   961→        updatedAt: responseOrder.updatedAt.toISOString(),
+   962→        cashierId: cashier.id,
+   963→        cashier: {
+   964→          id: cashier.id,
+   965→          username: cashier.username,
+   966→          name: cashier.name,
+   967→        },
+   968→        customerPhone: customerPhone || null,
+   969→        customerName: customerName || null,
+   970→        loyaltyPointsRedeemed: loyaltyPointsRedeemed || null,
+   971→        loyaltyDiscount: loyaltyDiscount || null,
+   972→        promoCodeId: promoCodeId || null,
+   973→        promoCode: promoCodeString,
+   974→        promoDiscount: promoDiscount || null,
+   975→        manualDiscountPercent: responseOrder.manualDiscountPercent,
+   976→        manualDiscountAmount: responseOrder.manualDiscountAmount,
+   977→        manualDiscountComment: responseOrder.manualDiscountComment,
+   978→        cardReferenceNumber: cardReferenceNumber || null,
+   979→        items: order.items.map(item => ({
+   980→          id: item.id,
+   981→          menuItemId: item.menuItemId,
+   982→          itemName: item.itemName,
+   983→          quantity: item.quantity,
+   984→          unitPrice: item.unitPrice,
+   985→          subtotal: item.subtotal,
+   986→          recipeVersion: item.recipeVersion,
+   987→          menuItemVariantId: item.menuItemVariantId,
+   988→          variantName: item.variantName,
+   989→          specialInstructions: item.specialInstructions,
+   990→          requiresCaptainReceipt: item.requiresCaptainReceipt,
+   991→          createdAt: item.createdAt.toISOString(),
+   992→          // Include full variant info for receipt printing
+   993→          ...(item.menuItemVariantId ? {
+   994→            menuItemVariant: {
+   995→              id: item.menuItemVariantId,
+   996→              variantOption: {
+   997→                name: item.variantName?.split(': ')[1] || item.variantName || null,
+   998→              },
+   999→            },
+  1000→          } : {}),
+  1001→        })),
+  1002→        branch: branch ? {
+  1003→          id: branch.id,
+  1004→          branchName: branch.branchName,
+  1005→          phone: branch.phone,
+  1006→          address: branch.address,
+  1007→        } : null,
+  1008→      },
+  1009→      message: 'Order processed successfully',
+  1010→    });
+  1011→  } catch (error: any) {
+  1012→    console.error('Order processing error:', error);
+  1013→    console.error('Error stack:', error.stack);
+  1014→    console.error('Error name:', error.name);
+  1015→    console.error('Error message:', error.message);
+  1016→
+  1017→    // Log to error tracking service in production
+  1018→    // await logErrorToService(error, {
+  1019→    //   endpoint: '/api/orders',
+  1020→    //   userId,
+  1021→    //   action: 'order.create',
+  1022→    //   entityType: 'Order',
+  1023→    //   entityId: newOrder?.id,
+  1024→    //   error,
+  1025→    // })
+  1026→
+  1027→    return NextResponse.json(
+  1028→      {
+  1029→        success: false,
+  1030→        error: 'Failed to process order',
+  1031→        details: error.message,
+  1032→        errorName: error.name,
+  1033→      },
+  1034→      { status: 500 }
+  1035→    );
+  1036→  }
+  1037→}
+  1038→
+  1039→export async function GET(request: NextRequest) {
+  1040→  try {
+  1041→    const { searchParams } = new URL(request.url);
+  1042→    const branchId = searchParams.get('branchId');
+  1043→    const shiftId = searchParams.get('shiftId');
+  1044→    const startDate = searchParams.get('startDate');
+  1045→    const endDate = searchParams.get('endDate');
+  1046→    const limit = parseInt(searchParams.get('limit') || '100');
+  1047→    const offset = parseInt(searchParams.get('offset') || '0');
+  1048→    const filterPaymentMethod = searchParams.get('paymentMethod');
+  1049→    const filterPaymentMethodDetail = searchParams.get('paymentMethodDetail');
+  1050→
+  1051→    const where: any = {};
+  1052→    if (branchId && branchId !== 'all') {
+  1053→      where.branchId = branchId;
+  1054→    }
+  1055→
+  1056→    // Server-side payment method filter (for Reports breakdown)
+  1057→    if (filterPaymentMethod) {
+  1058→      where.paymentMethod = filterPaymentMethod;
+  1059→    }
+  1060→    if (filterPaymentMethodDetail) {
+  1061→      where.paymentMethodDetail = filterPaymentMethodDetail;
+  1062→    }
+  1063→
+  1064→    // Filter by shiftId if provided (for shift orders view)
+  1065→    if (shiftId) {
+  1066→      where.shiftId = shiftId;
+  1067→    }
+  1068→
+  1069→    if (startDate || endDate) {
+  1070→      where.orderTimestamp = {};
+  1071→      if (startDate) {
+  1072→        where.orderTimestamp.gte = new Date(startDate);
+  1073→      }
+  1074→      if (endDate) {
+  1075→        // Set end date to end of the day
+  1076→        const endDateTime = new Date(endDate);
+  1077→        endDateTime.setHours(23, 59, 59, 999);
+  1078→        where.orderTimestamp.lte = endDateTime;
+  1079→      }
+  1080→    }
+  1081→
+  1082→    const orders = await db.order.findMany({
+  1083→      where,
+  1084→      orderBy: { orderTimestamp: 'desc' },
+  1085→      take: limit,
+  1086→      skip: offset,
+  1087→      select: {
+  1088→        id: true,
+  1089→        branchId: true,
+  1090→        orderNumber: true,
+  1091→        orderTimestamp: true,
+  1092→        totalAmount: true,
+  1093→        subtotal: true,
+  1094→        paymentMethod: true,
+  1095→        paymentMethodDetail: true,
+  1096→        orderType: true,
+  1097→        deliveryFee: true,
+  1098→        deliveryAddress: true,
+  1099→        deliveryAreaId: true,
+  1100→        isRefunded: true,
+  1101→        refundReason: true,
+  1102→        transactionHash: true,
+  1103→        synced: true,
+  1104→        shiftId: true,
+  1105→        createdAt: true,
+  1106→        updatedAt: true,
+  1107→        cashierId: true,
+  1108→        promoCodeId: true,
+  1109→        promoDiscount: true,
+  1110→        cardReferenceNumber: true,
+  1111→        items: true,
+  1112→        branch: true,
+  1113→        courier: true,
+  1114→        customer: true,
+  1115→        table: true,
+  1116→        deliveryArea: true,
+  1117→        cashier: {
+  1118→          select: {
+  1119→            id: true,
+  1120→            name: true,
+  1121→            username: true,
+  1122→          }
+  1123→        },
+  1124→      },
+  1125→    });
+  1126→
+  1127→    const total = await db.order.count({
+  1128→      where,
+  1129→    });
+  1130→
+  1131→    return NextResponse.json({
+  1132→      orders,
+  1133→      pagination: {
+  1134→        total,
+  1135→        limit,
+  1136→        offset,
+  1137→        hasMore: offset + orders.length < total,
+  1138→      },
+  1139→    });
+  1140→  } catch (error: any) {
+  1141→    console.error('Get orders error:', error);
+  1142→    return NextResponse.json(
+  1143→      { error: 'Failed to fetch orders' },
+  1144→      { status: 500 }
+  1145→    );
+  1146→  }
+  1147→}
+  1148→
