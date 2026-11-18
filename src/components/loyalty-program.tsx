@@ -9,7 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Star, Plus, RefreshCw, Search, Gift, Trophy, TrendingUp, Users } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Star, Plus, RefreshCw, Search, Gift, Trophy, TrendingUp, Users, Sparkles, BarChart3 } from 'lucide-react';
+import LoyaltyPanel from '@/components/loyalty/loyalty-panel';
+import LoyaltyPromotionsManagement from '@/components/loyalty/loyalty-promotions-management';
+import LoyaltyReports from '@/components/loyalty/loyalty-reports';
 
 interface Customer {
   id: string;
@@ -47,6 +51,47 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default function LoyaltyProgram() {
+  return (
+    <div className="space-y-6">
+      <Tabs defaultValue="customers" className="w-full">
+        <TabsList>
+          <TabsTrigger value="customers" className="text-xs">
+            <Users className="h-3 w-3 mr-1" />
+            Customers
+          </TabsTrigger>
+          <TabsTrigger value="promotions" className="text-xs">
+            <Sparkles className="h-3 w-3 mr-1" />
+            Promotions
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="text-xs">
+            <BarChart3 className="h-3 w-3 mr-1" />
+            Reports
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="customers" className="space-y-6 mt-4">
+          <CustomerLoyaltyTab />
+        </TabsContent>
+
+        <TabsContent value="promotions" className="mt-4">
+          <LoyaltyPromotionsManagement />
+        </TabsContent>
+
+        <TabsContent value="reports" className="mt-4">
+          <LoyaltyReports />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ============================================================
+// Customer Loyalty Tab — original customer-list UI, extracted
+// into a sub-component so the multi-promotion LoyaltyPanel can
+// be embedded in the customer detail dialog.
+// ============================================================
+
+function CustomerLoyaltyTab() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [loyaltyInfo, setLoyaltyInfo] = useState<any>(null);
@@ -357,6 +402,20 @@ export default function LoyaltyProgram() {
                   <p className="text-center text-slate-500 py-4">No transactions yet</p>
                 )}
               </ScrollArea>
+
+              {/* Multi-promotion view (Phase 4) — shows the same LoyaltyPanel the POS uses,
+                  so an admin can see exactly which promotions this customer is enrolled in,
+                  their stamp progress, and any available rewards. */}
+              <div className="border-t pt-3 mt-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 mb-2">
+                  Multi-Promotion Progress (Phase 2 system)
+                </p>
+                <LoyaltyPanel
+                  customerId={selectedCustomer.id}
+                  branchId={typeof window !== 'undefined' ? (localStorage.getItem('branchId') || '') : ''}
+                  cashierId={typeof window !== 'undefined' ? (localStorage.getItem('userId') || '') : ''}
+                />
+              </div>
             </div>
           )}
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
